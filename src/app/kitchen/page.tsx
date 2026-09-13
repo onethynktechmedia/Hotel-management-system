@@ -305,10 +305,10 @@ function OrderCard({ order, onStatusChange, onItemStatusChange, getStatusColor }
           {order.order_items?.map((item: OrderItem) => (
             <div key={item.id} className="flex justify-between items-start p-3 bg-gradient-to-r from-gray-50 to-orange-50 rounded-xl border border-gray-200">
               <div className="flex items-center space-x-3 flex-1">
-                {item.dish?.image_url && (
+                {(item.dishes?.image_url || item.dish?.image_url) && (
                   <img 
-                    src={item.dish.image_url} 
-                    alt={item.dish.name}
+                    src={item.dishes?.image_url || item.dish?.image_url || ''} 
+                    alt={item.dishes?.name || item.dish?.name || ''}
                     className="w-16 h-16 rounded-xl object-cover shadow-md"
                   />
                 )}
@@ -316,15 +316,15 @@ function OrderCard({ order, onStatusChange, onItemStatusChange, getStatusColor }
                   <div className="flex items-center mb-1">
                     <span className="font-bold text-gray-900 text-lg">{item.quantity}x</span>
                     <span className="ml-2 font-semibold text-gray-800">
-                      {item.dish?.name || `Dish ID: ${item.dish_id}`}
+                      {item.dishes?.name || item.dish?.name || `Dish ID: ${item.dish_id}`}
                     </span>
                   </div>
-                  {item.dish?.description && (
-                    <p className="text-sm text-gray-600 italic">{item.dish.description}</p>
+                  {(item.dishes?.description || item.dish?.description) && (
+                    <p className="text-sm text-gray-600 italic">{item.dishes?.description || item.dish?.description}</p>
                   )}
-                  {item.dish?.category && (
+                  {(item.dishes?.category || item.dish?.category) && (
                     <span className="inline-block mt-1 px-2 py-1 bg-orange-100 text-orange-800 text-xs font-semibold rounded-full">
-                      {item.dish.category}
+                      {item.dishes?.category || item.dish?.category}
                     </span>
                   )}
                   {item.special_instructions && (

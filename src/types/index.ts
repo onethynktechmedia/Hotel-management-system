@@ -49,6 +49,7 @@ export interface OrderItem {
   status: 'pending' | 'preparing' | 'ready' | 'served'
   created_at: string
   dish?: Dish
+  dishes?: Dish
 }
 
 export interface Notification {

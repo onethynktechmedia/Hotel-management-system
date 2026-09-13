@@ -8,7 +8,15 @@ export async function GET(request: NextRequest) {
 
     let query = supabase
       .from('orders')
-      .select('*, tables(*), users(*), order_items(*, dishes(*))')
+      .select(`
+        *,
+        tables(*),
+        users(*),
+        order_items(
+          *,
+          dishes(*)
+        )
+      `)
       .order('created_at', { ascending: true })
 
     if (status) {
@@ -19,11 +27,21 @@ export async function GET(request: NextRequest) {
     const { data, error } = await query
 
     if (error) {
+      console.error('Supabase error:', error)
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
+    console.log('Orders fetched:', data?.length)
+    data?.forEach((order: any) => {
+      console.log(`Order ${order.id} has ${order.order_items?.length || 0} items`)
+      order.order_items?.forEach((item: any) => {
+        console.log(`Item: dish_id=${item.dish_id}, dish_name=${item.dishes?.name || 'MISSING'}`)
+      })
+    })
+
     return NextResponse.json(data)
   } catch (error) {
+    console.error('API error:', error)
     return NextResponse.json({ error: 'Failed to fetch orders' }, { status: 500 })
   }
 }
