@@ -1,0 +1,1645 @@
+'use client'
+
+import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { supabase } from '@/lib/supabase'
+import { User, Order, Dish, Table, CartItem } from '@/types'
+import { LogOut, ShoppingCart, Plus, Minus, ArrowLeft, Users, Clock, CheckCircle, X, Crown, RefreshCw } from 'lucide-react'
+
+type Step = 'tables' | 'dishes' | 'cart' | 'success' | 'master' | 'alter-table' | 'master-station-detail'
+
+export default function WaiterPage() {
+  const router = useRouter()
+  const [user, setUser] = useState<User | null>(null)
+  const [dishes, setDishes] = useState<Dish[]>([])
+  const [tables, setTables] = useState<Table[]>([])
+  const [orders, setOrders] = useState<Order[]>([])
+  const [cart, setCart] = useState<CartItem[]>([])
+  const [selectedTable, setSelectedTable] = useState<Table | null>(null)
+  const [currentStep, setCurrentStep] = useState<Step>('tables')
+  const [loading, setLoading] = useState(true)
+  const [selectedCategory, setSelectedCategory] = useState<string>('all')
+  const [submitting, setSubmitting] = useState(false)
+  const [alteringOrder, setAlteringOrder] = useState<Order | null>(null)
+  const [newTableId, setNewTableId] = useState<string | null>(null)
+  const [selectedMasterTable, setSelectedMasterTable] = useState<Table | null>(null)
+  const [masterTableCart, setMasterTableCart] = useState<CartItem[]>([])
+  const [confirmingOrder, setConfirmingOrder] = useState(false)
+  const [viewingOrderItems, setViewingOrderItems] = useState<Order | null>(null)
+  const [orderItems, setOrderItems] = useState<any[]>([])
+  const [addingItem, setAddingItem] = useState(false)
+  const [selectedDishTypes, setSelectedDishTypes] = useState<{[key: string]: string}>({})
+
+  const dishTypes = ['Normal', 'Medium', 'Spicy', 'Extra Spicy']
+
+  useEffect(() => {
+    const userData = localStorage.getItem('user')
+    if (!userData) {
+      router.push('/login')
+      return
+    }
+    const parsedUser = JSON.parse(userData)
+    if (parsedUser.role !== 'waiter') {
+      router.push('/login')
+      return
+    }
+    setUser(parsedUser)
+    fetchData()
+    
+    const subscription = supabase
+      .channel('tables')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'tables' }, (payload) => {
+        fetchData()
+      })
+      .subscribe()
+
+    return () => {
+      subscription.unsubscribe()
+    }
+  }, [router])
+
+  const fetchData = async () => {
+    try {
+      const [dishesRes, tablesRes, ordersRes] = await Promise.all([
+        fetch('/api/dishes').then(res => res.json()),
+        fetch('/api/tables').then(res => res.json()),
+        fetch('/api/orders').then(res => res.json())
+      ])
+
+      setDishes(dishesRes || [])
+      setTables(tablesRes || [])
+      setOrders(ordersRes || [])
+    } catch (error) {
+      console.error('Error fetching data:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleTableSelect = (table: Table) => {
+    if (table.is_occupied) {
+      alert('This table is already occupied. Please select another table.')
+      return
+    }
+    setSelectedTable(table)
+    setCurrentStep('dishes')
+  }
+
+  const handleBackToTables = () => {
+    setSelectedTable(null)
+    setCart([])
+    setCurrentStep('tables')
+  }
+
+  const addToCart = (dish: Dish, dishType: string = 'Normal') => {
+    const existingItem = cart.find(item => item.dish_id === dish.id && item.dish_type === dishType)
+    if (existingItem) {
+      setCart(cart.map(item => 
+        item.dish_id === dish.id && item.dish_type === dishType
+          ? { ...item, quantity: item.quantity + 1 }
+          : item
+      ))
+    } else {
+      setCart([...cart, {
+        dish_id: dish.id,
+        name: dish.name,
+        price: dish.price,
+        quantity: 1,
+        image_url: dish.image_url,
+        dish_type: dishType
+      }])
+    }
+  }
+
+  const removeFromCart = (dishId: string) => {
+    setCart(cart.filter(item => item.dish_id !== dishId))
+  }
+
+  const updateQuantity = (dishId: string, delta: number) => {
+    setCart(cart.map(item => {
+      if (item.dish_id === dishId) {
+        const newQuantity = Math.max(1, item.quantity + delta)
+        return { ...item, quantity: newQuantity }
+      }
+      return item
+    }))
+  }
+
+  const getCartTotal = () => {
+    return cart.reduce((sum, item) => sum + (item.price * item.quantity), 0)
+  }
+
+  const submitOrder = async () => {
+    if (cart.length === 0) {
+      alert('Please add items to your cart')
+      return
+    }
+
+    setSubmitting(true)
+    try {
+      console.log('Submitting order for table:', selectedTable?.id)
+      console.log('Cart items:', cart)
+
+      // Create order via API to avoid CORS
+      const orderResponse = await fetch('/api/orders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          table_id: selectedTable?.id,
+          waiter_id: user?.id,
+          status: 'pending',
+          total_amount: getCartTotal()
+        })
+      })
+
+      if (!orderResponse.ok) {
+        throw new Error('Failed to create order')
+      }
+
+      const orderData = await orderResponse.json()
+      console.log('Order created:', orderData)
+
+      // Create order items via API
+      const orderItems = cart.map(item => ({
+        order_id: orderData.id,
+        dish_id: item.dish_id,
+        quantity: item.quantity,
+        price: item.price,
+        status: 'pending'
+      }))
+
+      // We'll need to create an order_items API route, for now use Supabase
+      const { error: itemsError } = await supabase
+        .from('order_items')
+        .insert(orderItems)
+
+      if (itemsError) {
+        console.error('Order items error:', itemsError)
+        throw itemsError
+      }
+
+      console.log('Order items created')
+
+      // Update table status to occupied via API to avoid CORS
+      const tableResponse = await fetch('/api/tables', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: selectedTable?.id, is_occupied: true })
+      })
+
+      if (!tableResponse.ok) {
+        console.error('Table update failed')
+        throw new Error('Failed to update table status')
+      }
+
+      console.log('Table updated to occupied')
+
+      // Create notification for kitchen
+      await supabase
+        .from('notifications')
+        .insert({
+          user_id: user?.id,
+          order_id: orderData.id,
+          type: 'new_order',
+          message: `New order for Table ${selectedTable?.table_number}`,
+          is_read: false
+        })
+
+      console.log('Notification created')
+
+      setCurrentStep('success')
+      setCart([])
+      setSelectedTable(null)
+      
+      // Refresh data
+      fetchData()
+    } catch (error) {
+      console.error('Error submitting order:', error)
+      alert('Failed to submit order. Please try again.')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const handleLogout = () => {
+    localStorage.removeItem('user')
+    router.push('/login')
+  }
+
+  const handleCreateMasterTable = async (tableNumber: number, capacity: number) => {
+    try {
+      // Find the table by table_number
+      const table = tables.find(t => t.table_number === tableNumber)
+      if (!table) {
+        alert('Table not found')
+        return
+      }
+
+      const response = await fetch('/api/tables', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: table.id,
+          is_master: true
+        })
+      })
+
+      if (!response.ok) throw new Error('Failed to convert table to master')
+
+      await fetchData()
+      alert(`Table ${tableNumber} converted to master table successfully!`)
+    } catch (error) {
+      console.error('Error converting table to master:', error)
+      alert('Failed to convert table to master')
+    }
+  }
+
+  const handleSelectMasterTableNumber = (number: number) => {
+    handleCreateMasterTable(number, 10)
+  }
+
+  const handleAlterTable = async () => {
+    if (!alteringOrder || !newTableId) {
+      alert('Please select a new table')
+      return
+    }
+
+    try {
+      const response = await fetch('/api/orders/alter-table', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          order_id: alteringOrder.id,
+          new_table_id: newTableId
+        })
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to alter table')
+      }
+
+      await fetchData()
+      setAlteringOrder(null)
+      setNewTableId(null)
+      setCurrentStep('tables')
+      alert('Table changed successfully!')
+    } catch (error) {
+      console.error('Error altering table:', error)
+      alert('Failed to change table. Please try again.')
+    }
+  }
+
+  const handleStartAlterTable = (order: Order) => {
+    setAlteringOrder(order)
+    setNewTableId(null)
+    setCurrentStep('alter-table')
+  }
+
+  const handleViewMasterTableOrders = (table: Table) => {
+    setSelectedMasterTable(table)
+  }
+
+  const handleConfirmOrder = async (orderId: string) => {
+    setConfirmingOrder(true)
+    try {
+      const response = await fetch(`/api/orders/${orderId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'confirmed' })
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to confirm order')
+      }
+
+      await fetchData()
+      alert('Order confirmed and sent to kitchen!')
+    } catch (error) {
+      console.error('Error confirming order:', error)
+      alert('Failed to confirm order. Please try again.')
+    } finally {
+      setConfirmingOrder(false)
+    }
+  }
+
+  const getTableOrders = (tableId: string) => {
+    return orders.filter(o => o.table_id === tableId && !['paid', 'completed'].includes(o.status))
+  }
+
+  const handleViewOrderItems = async (order: Order) => {
+    try {
+      const response = await fetch(`/api/orders/${order.id}/items`)
+      if (!response.ok) throw new Error('Failed to fetch order items')
+      const items = await response.json()
+      setOrderItems(items)
+      
+      // Fetch updated order to get current total
+      const orderResponse = await fetch(`/api/orders`)
+      const allOrders = await orderResponse.json()
+      const updatedOrder = allOrders.find((o: Order) => o.id === order.id)
+      
+      setViewingOrderItems(updatedOrder || order)
+    } catch (error) {
+      console.error('Error fetching order items:', error)
+      alert('Failed to fetch order items')
+    }
+  }
+
+  const handleAddItemToOrder = async (dishId: string, quantity: number = 1) => {
+    if (!viewingOrderItems) return
+
+    setAddingItem(true)
+    try {
+      const dish = dishes.find(d => d.id === dishId)
+      if (!dish) return
+
+      const response = await fetch('/api/order-items', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          order_id: viewingOrderItems.id,
+          dish_id: dishId,
+          quantity: quantity,
+          price: dish.price,
+          status: 'pending'
+        })
+      })
+
+      if (!response.ok) throw new Error('Failed to add item')
+
+      // Recalculate total from all items
+      const itemsResponse = await fetch(`/api/orders/${viewingOrderItems.id}/items`)
+      const allItems = await itemsResponse.json()
+      const newTotal = allItems.reduce((sum: number, item: any) => sum + (item.price * item.quantity), 0)
+
+      // Update order total
+      const updateResponse = await fetch(`/api/orders/${viewingOrderItems.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          total_amount: newTotal
+        })
+      })
+
+      if (updateResponse.ok) {
+        const updatedOrder = await updateResponse.json()
+        setViewingOrderItems(updatedOrder)
+        setOrderItems(allItems)
+      }
+
+      await fetchData()
+      alert('Item added successfully!')
+    } catch (error) {
+      console.error('Error adding item:', error)
+      alert('Failed to add item')
+    } finally {
+      setAddingItem(false)
+    }
+  }
+
+  const handleDeleteOrderItem = async (itemId: string) => {
+    if (!viewingOrderItems) return
+
+    if (!confirm('Are you sure you want to delete this item?')) return
+
+    try {
+      await fetch(`/api/order-items/${itemId}`, {
+        method: 'DELETE'
+      })
+
+      // Recalculate total from remaining items
+      const itemsResponse = await fetch(`/api/orders/${viewingOrderItems.id}/items`)
+      const allItems = await itemsResponse.json()
+      const newTotal = allItems.reduce((sum: number, item: any) => sum + (item.price * item.quantity), 0)
+
+      // Update order total
+      const updateResponse = await fetch(`/api/orders/${viewingOrderItems.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          total_amount: newTotal
+        })
+      })
+
+      if (updateResponse.ok) {
+        const updatedOrder = await updateResponse.json()
+        setViewingOrderItems(updatedOrder)
+        setOrderItems(allItems)
+      }
+
+      await fetchData()
+      alert('Item deleted successfully!')
+    } catch (error) {
+      console.error('Error deleting item:', error)
+      alert('Failed to delete item')
+    }
+  }
+
+  const handleDeleteOrder = async (orderId: string) => {
+    if (!confirm('Are you sure you want to delete this order? This action cannot be undone.')) return
+
+    try {
+      const response = await fetch(`/api/orders?id=${orderId}`, {
+        method: 'DELETE'
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to delete order')
+      }
+
+      await fetchData()
+      alert('Order deleted successfully!')
+    } catch (error: any) {
+      console.error('Error deleting order:', error)
+      alert(`Failed to delete order: ${error.message}`)
+    }
+  }
+
+  const handleDeleteMasterTable = async (tableId: string, tableNumber: number) => {
+    const table = tables.find(t => t.id === tableId)
+    
+    const message = table?.is_occupied 
+      ? `Table ${tableNumber} is currently occupied. This will delete the master table and all associated orders. Are you sure you want to proceed?`
+      : `This will delete Master Table ${tableNumber} and all associated orders. Are you sure you want to proceed?`
+
+    if (!confirm(message)) return
+
+    try {
+      // Get all orders for this table
+      const ordersResponse = await fetch(`/api/orders`)
+      const allOrders = await ordersResponse.json()
+      const tableOrders = allOrders.filter((o: any) => o.table_id === tableId)
+
+      // Delete all orders
+      for (const order of tableOrders) {
+        await fetch(`/api/orders?id=${order.id}`, {
+          method: 'DELETE'
+        })
+      }
+
+      // Delete the table
+      const response = await fetch(`/api/tables?id=${tableId}`, {
+        method: 'DELETE'
+      })
+
+      if (!response.ok) throw new Error('Failed to delete table')
+
+      await fetchData()
+      alert(`Master Table ${tableNumber} deleted successfully!`)
+    } catch (error) {
+      console.error('Error deleting master table:', error)
+      alert('Failed to delete master table')
+    }
+  }
+
+  const handleDeleteTable = async (tableId: string, tableNumber: number) => {
+    const table = tables.find(t => t.id === tableId)
+    
+    const message = table?.is_occupied 
+      ? `Table ${tableNumber} is currently occupied. Deleting it will also delete all associated orders. Are you sure you want to proceed?`
+      : `Are you sure you want to delete Table ${tableNumber}? This action cannot be undone.`
+
+    if (!confirm(message)) return
+
+    try {
+      const response = await fetch(`/api/tables?id=${tableId}`, {
+        method: 'DELETE'
+      })
+
+      if (!response.ok) throw new Error('Failed to delete table')
+
+      await fetchData()
+      alert(`Table ${tableNumber} deleted successfully!`)
+    } catch (error) {
+      console.error('Error deleting table:', error)
+      alert('Failed to delete table')
+    }
+  }
+
+  const handleInitializeTables = async () => {
+    if (!confirm('This will create 8 tables (Table 1-8) with 4 seats each. Continue?')) return
+
+    try {
+      const response = await fetch('/api/tables', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ initialize: true })
+      })
+
+      if (!response.ok) throw new Error('Failed to initialize tables')
+
+      await fetchData()
+      alert('Tables initialized successfully!')
+    } catch (error) {
+      console.error('Error initializing tables:', error)
+      alert('Failed to initialize tables')
+    }
+  }
+
+  const handleSelectMasterTable = (table: Table) => {
+    setSelectedMasterTable(table)
+    setMasterTableCart([])
+    setCurrentStep('master-station-detail')
+  }
+
+  const handleAddToMasterTableCart = (dish: Dish) => {
+    setMasterTableCart(prev => {
+      const existing = prev.find(item => item.dish_id === dish.id)
+      if (existing) {
+        return prev.map(item => 
+          item.dish_id === dish.id 
+            ? { ...item, quantity: item.quantity + 1 }
+            : item
+        )
+      }
+      return [...prev, { 
+        dish_id: dish.id, 
+        name: dish.name, 
+        price: dish.price, 
+        image_url: dish.image_url, 
+        quantity: 1 
+      }]
+    })
+  }
+
+  const handleRemoveFromMasterTableCart = (dishId: string) => {
+    setMasterTableCart(prev => prev.filter(item => item.dish_id !== dishId))
+  }
+
+  const handleUpdateMasterTableCartQuantity = (dishId: string, delta: number) => {
+    setMasterTableCart(prev => prev.map(item => {
+      if (item.dish_id === dishId) {
+        const newQuantity = Math.max(1, item.quantity + delta)
+        return { ...item, quantity: newQuantity }
+      }
+      return item
+    }))
+  }
+
+  const handleSubmitMasterTableOrder = async () => {
+    if (!selectedMasterTable || masterTableCart.length === 0) {
+      alert('Please add items to cart first')
+      return
+    }
+
+    setSubmitting(true)
+    try {
+      const total_amount = masterTableCart.reduce((sum, item) => sum + (item.price * item.quantity), 0)
+
+      // Use the actual master table ID
+      const orderResponse = await fetch('/api/orders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          table_id: selectedMasterTable.id,
+          waiter_id: user?.id,
+          total_amount,
+          status: 'pending'
+        })
+      })
+
+      if (!orderResponse.ok) throw new Error('Failed to create order')
+
+      const order = await orderResponse.json()
+
+      // Add order items
+      for (const item of masterTableCart) {
+        await fetch('/api/order-items', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            order_id: order.id,
+            dish_id: item.dish_id,
+            quantity: item.quantity,
+            price: item.price,
+            status: 'pending'
+          })
+        })
+      }
+
+      // Update table as occupied
+      await fetch('/api/tables', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: selectedMasterTable.id,
+          is_occupied: true
+        })
+      })
+
+      setMasterTableCart([])
+      await fetchData()
+      alert('Order submitted successfully!')
+    } catch (error) {
+      console.error('Error submitting order:', error)
+      alert('Failed to submit order')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const handleRemoveMasterStatus = async (tableId: string, tableNumber: number) => {
+    if (!confirm(`Are you sure you want to remove master status from Table ${tableNumber}?`)) return
+
+    try {
+      const response = await fetch('/api/tables', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: tableId,
+          is_master: false
+        })
+      })
+
+      if (!response.ok) throw new Error('Failed to remove master status')
+
+      await fetchData()
+      alert(`Table ${tableNumber} is now a regular table!`)
+    } catch (error) {
+      console.error('Error removing master status:', error)
+      alert('Failed to remove master status')
+    }
+  }
+
+  const filteredDishes = selectedCategory === 'all' 
+    ? dishes 
+    : dishes.filter(dish => dish.category === selectedCategory)
+
+  const categories = ['all', 'Starters', 'Main Course', 'Bread', 'Sides', 'Desserts', 'Beverages']
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-2xl font-bold text-gray-900">
+          Loading...
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      {/* Header */}
+      <nav className="bg-white shadow-lg sticky top-0 z-40">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex flex-col sm:flex-row justify-between items-center gap-3 sm:gap-0 py-3 sm:h-16">
+            <div className="flex items-center gap-2 sm:gap-4 w-full sm:w-auto">
+              {currentStep !== 'tables' && (
+                <button
+                  onClick={handleBackToTables}
+                  className="flex items-center gap-2 text-gray-600 hover:text-orange-600 transition-colors"
+                >
+                  <ArrowLeft className="w-4 h-4 sm:w-5 sm:h-5" />
+                  <span className="font-semibold text-sm sm:text-base">Back to Tables</span>
+                </button>
+              )}
+            </div>
+            <div className="flex items-center gap-2 sm:gap-3">
+              <button
+                onClick={handleInitializeTables}
+                className="flex items-center gap-2 bg-teal-500 text-white px-3 sm:px-4 py-2 rounded-xl font-semibold hover:bg-teal-600 transition-all duration-300 text-sm sm:text-base"
+              >
+                <Users className="w-4 h-4 sm:w-5 sm:h-5" />
+                Init Tables
+              </button>
+              <button
+                onClick={() => setCurrentStep('master')}
+                className="flex items-center gap-2 bg-purple-500 text-white px-3 sm:px-4 py-2 rounded-xl font-semibold hover:bg-purple-600 transition-all duration-300 text-sm sm:text-base"
+              >
+                <Crown className="w-4 h-4 sm:w-5 sm:h-5" />
+                Master Tables
+              </button>
+              <button
+                onClick={handleLogout}
+                className="flex items-center gap-2 bg-red-500 text-white px-3 sm:px-4 py-2 rounded-xl font-semibold hover:bg-red-600 transition-all duration-300 text-sm sm:text-base"
+              >
+                <LogOut className="w-4 h-4 sm:w-5 sm:h-5" />
+                Logout
+              </button>
+            </div>
+          </div>
+        </div>
+      </nav>
+
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Step 1: Tables Selection */}
+        {currentStep === 'tables' && (
+          <div>
+            <div className="mb-8">
+              <h2 className="text-3xl font-bold text-gray-900 mb-2">Select a Table</h2>
+              <p className="text-gray-600">Choose an available table to start taking orders</p>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
+              {tables.map((table) => (
+                <div
+                  key={table.id}
+                  className={`p-4 sm:p-6 rounded-2xl border-2 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 text-left relative ${
+                    table.is_occupied 
+                      ? 'border-red-500 bg-red-50 cursor-not-allowed opacity-60' 
+                      : 'border-green-500 bg-white hover:border-orange-500 cursor-pointer'
+                  }`}
+                >
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handleDeleteTable(table.id, table.table_number)
+                    }}
+                    className={`absolute top-2 right-2 p-1.5 rounded-lg transition-all duration-300 ${
+                      table.is_occupied 
+                        ? 'bg-red-300 text-red-700 hover:bg-red-400' 
+                        : 'bg-red-500 text-white hover:bg-red-600'
+                    }`}
+                  >
+                    <X className="w-3 h-3 sm:w-4 sm:h-4" />
+                  </button>
+                  <button
+                    onClick={() => handleTableSelect(table)}
+                    disabled={table.is_occupied}
+                    className="w-full text-left"
+                  >
+                    <div className="flex justify-between items-start mb-4 pr-8">
+                      <div className="bg-orange-100 p-2 sm:p-3 rounded-xl">
+                        <Users className="w-5 h-5 sm:w-6 sm:h-6 text-orange-600" />
+                      </div>
+                      <span className={`px-2 sm:px-3 py-1 rounded-full text-xs font-bold ${
+                        table.is_occupied 
+                          ? 'bg-red-100 text-red-800' 
+                          : 'bg-green-100 text-green-800'
+                      }`}>
+                        {table.is_occupied ? '🔴 Occupied' : '🟢 Available'}
+                      </span>
+                    </div>
+                    <h3 className="text-lg sm:text-xl font-bold text-gray-900 mb-2">Table {table.table_number}</h3>
+                    <p className="text-xs sm:text-sm font-semibold text-gray-600 mb-1">Capacity: {table.capacity} seats</p>
+                    {table.is_occupied && (
+                      <p className="text-xs text-red-600 font-semibold mt-2">
+                        This table is currently occupied
+                      </p>
+                    )}
+                  </button>
+                </div>
+              ))}
+            </div>
+
+            {/* My Active Orders */}
+            {orders.length > 0 && (
+              <div className="mt-8 sm:mt-12">
+                <h3 className="text-xl sm:text-2xl font-bold text-gray-900 mb-4">My Active Orders</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {orders.filter(o => o.waiter_id === user?.id && !['paid', 'completed'].includes(o.status)).map((order) => (
+                    <div key={order.id} className="bg-white rounded-2xl shadow-lg p-4 sm:p-6 border-2 border-orange-200">
+                      <div className="flex justify-between items-start mb-4">
+                        <div>
+                          <h4 className="text-base sm:text-lg font-bold text-gray-900">Table {order.tables?.table_number}</h4>
+                          <p className="text-xs sm:text-sm text-gray-600">{new Date(order.created_at).toLocaleString()}</p>
+                        </div>
+                        <span className={`px-2 sm:px-3 py-1 rounded-full text-xs font-bold ${
+                          order.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                          order.status === 'preparing' ? 'bg-blue-100 text-blue-800' :
+                          order.status === 'ready' ? 'bg-green-100 text-green-800' :
+                          'bg-gray-100 text-gray-800'
+                        }`}>
+                          {order.status}
+                        </span>
+                      </div>
+                      <p className="text-base sm:text-lg font-bold text-gray-900 mb-3">
+                        ₹{order.total_amount.toFixed(2)}
+                      </p>
+                      <button
+                        onClick={() => handleStartAlterTable(order)}
+                        className="w-full flex items-center justify-center gap-2 bg-blue-500 text-white px-4 py-2 rounded-xl font-semibold hover:bg-blue-600 transition-all duration-300 text-sm"
+                      >
+                        <RefreshCw className="w-4 h-4" />
+                        Change Table
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Step 2: Dishes Selection */}
+        {currentStep === 'dishes' && selectedTable && (
+          <div>
+            <div className="mb-3 sm:mb-6 bg-orange-100 rounded-2xl p-3 sm:p-4 border-2 border-orange-200">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                <div>
+                  <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-1">
+                    Table {selectedTable.table_number}
+                  </h2>
+                  <p className="text-xs sm:text-sm text-gray-600">{selectedTable.capacity} seats</p>
+                </div>
+                <button
+                  onClick={handleBackToTables}
+                  className="flex items-center gap-1 bg-white text-orange-600 px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg font-semibold hover:bg-orange-50 transition-all duration-300 border-2 border-orange-300 w-full sm:w-auto justify-center text-xs sm:text-sm"
+                >
+                  <ArrowLeft className="w-3 h-3 sm:w-4 sm:h-4" />
+                  Change
+                </button>
+              </div>
+            </div>
+
+            {/* Category Filter */}
+            <div className="flex flex-wrap gap-1 sm:gap-2 mb-3 sm:mb-4">
+              {categories.map((category) => (
+                <button
+                  key={category}
+                  onClick={() => setSelectedCategory(category)}
+                  className={`px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg text-xs font-semibold transition-all duration-300 ${
+                    selectedCategory === category
+                      ? 'bg-orange-500 text-white shadow-lg'
+                      : 'bg-white text-gray-600 hover:bg-orange-50 border-2 border-gray-200'
+                  }`}
+                >
+                  {category === 'all' ? 'All' : category}
+                </button>
+              ))}
+            </div>
+
+            {/* Dishes List */}
+            <div className="bg-white rounded-2xl shadow-xl overflow-hidden mb-20 sm:mb-8">
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-orange-100">
+                    <tr>
+                      <th className="px-2 sm:px-3 py-1.5 text-left text-xs font-bold text-gray-700 uppercase">Dish</th>
+                      <th className="px-2 sm:px-3 py-1.5 text-right text-xs font-bold text-gray-700 uppercase">Price</th>
+                      <th className="px-2 sm:px-3 py-1.5 text-center text-xs font-bold text-gray-700 uppercase">Add</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200">
+                    {filteredDishes.map((dish) => (
+                      <tr key={dish.id} className="hover:bg-orange-50 transition-colors">
+                        <td className="px-2 sm:px-3 py-2">
+                          <div className="flex flex-col">
+                            <h3 className="font-bold text-gray-900 text-sm">{dish.name}</h3>
+                            <span className="text-xs text-gray-500">{dish.category}</span>
+                          </div>
+                        </td>
+                        <td className="px-2 sm:px-3 py-2 text-right">
+                          <p className="font-bold text-gray-900 text-sm">₹{dish.price.toFixed(2)}</p>
+                        </td>
+                        <td className="px-2 sm:px-3 py-2 text-center">
+                          <div className="flex items-center gap-1 justify-center">
+                            <select
+                              value={selectedDishTypes[dish.id] || 'Normal'}
+                              onChange={(e) => setSelectedDishTypes({...selectedDishTypes, [dish.id]: e.target.value})}
+                              className="text-xs border border-gray-300 rounded px-1 py-1 bg-white"
+                            >
+                              {dishTypes.map(type => (
+                                <option key={type} value={type}>{type}</option>
+                              ))}
+                            </select>
+                            <button
+                              onClick={() => addToCart(dish, selectedDishTypes[dish.id] || 'Normal')}
+                              className="flex items-center justify-center gap-1 bg-orange-500 text-white px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg font-semibold hover:bg-orange-600 transition-all duration-300 text-xs"
+                            >
+                              <Plus className="w-3 h-3" />
+                              <span className="hidden sm:inline">Add</span>
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Cart Summary */}
+            {cart.length > 0 && (
+              <div className="fixed bottom-0 left-0 right-0 bg-white shadow-2xl border-t-2 border-orange-200 p-2 sm:p-4 z-50">
+                <div className="max-w-7xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-2 sm:gap-0">
+                  <div className="text-center sm:text-left">
+                    <p className="text-xs text-gray-600">{cart.length} items</p>
+                    <p className="text-base sm:text-xl font-bold text-gray-900">
+                      ₹{getCartTotal().toFixed(2)}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setCurrentStep('cart')}
+                    className="flex items-center gap-1 sm:gap-2 bg-orange-500 text-white px-3 sm:px-6 py-2 sm:py-3 rounded-lg sm:rounded-xl font-semibold hover:bg-orange-600 transition-all duration-300 w-full sm:w-auto justify-center text-xs sm:text-sm"
+                  >
+                    <ShoppingCart className="w-3 h-3 sm:w-5 sm:h-5" />
+                    <span className="hidden sm:inline">View Cart</span>
+                    <span className="sm:hidden">Cart</span>
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Step 3: Cart Review */}
+        {currentStep === 'cart' && selectedTable && (
+          <div className="max-w-3xl mx-auto">
+            <div className="mb-6 sm:mb-8 bg-orange-100 rounded-2xl p-4 sm:p-6 border-2 border-orange-200">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                <div>
+                  <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-1 sm:mb-2">
+                    Review Order - Table {selectedTable.table_number}
+                  </h2>
+                  <p className="text-sm sm:text-base text-gray-600">Confirm your order before sending to kitchen</p>
+                </div>
+                <button
+                  onClick={handleBackToTables}
+                  className="flex items-center gap-2 bg-white text-orange-600 px-3 sm:px-4 py-2 rounded-xl font-semibold hover:bg-orange-50 transition-all duration-300 border-2 border-orange-300 w-full sm:w-auto justify-center"
+                >
+                  <ArrowLeft className="w-4 h-4" />
+                  Change Table
+                </button>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-2xl shadow-xl overflow-hidden mb-6">
+              <div className="p-4 sm:p-6 border-b border-gray-200 bg-orange-50">
+                <h3 className="text-lg sm:text-xl font-bold text-gray-900">Order Items</h3>
+              </div>
+
+              {cart.length === 0 ? (
+                <div className="p-6 sm:p-8 text-center">
+                  <ShoppingCart className="w-12 h-12 sm:w-16 sm:h-16 text-gray-300 mx-auto mb-4" />
+                  <p className="text-sm sm:text-base text-gray-500 font-semibold">Your cart is empty</p>
+                  <button
+                    onClick={() => setCurrentStep('dishes')}
+                    className="mt-4 text-orange-600 font-semibold hover:underline text-sm sm:text-base"
+                  >
+                    Add items to your order
+                  </button>
+                </div>
+              ) : (
+                <div className="divide-y divide-gray-200">
+                  {cart.map((item) => (
+                    <div key={item.dish_id} className="p-3 sm:p-4 flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4">
+                      <div className="flex-1 w-full">
+                        <h4 className="font-bold text-gray-900 text-sm sm:text-base">{item.name}</h4>
+                        <p className="text-xs sm:text-sm text-gray-600">₹{item.price.toFixed(2)} each</p>
+                      </div>
+                      <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-start">
+                        <div className="flex items-center gap-3">
+                          <button
+                            onClick={() => updateQuantity(item.dish_id, -1)}
+                            className="w-8 h-8 rounded-full bg-gray-200 hover:bg-gray-300 flex items-center justify-center transition-colors"
+                          >
+                            <Minus className="w-4 h-4" />
+                          </button>
+                          <span className="w-8 text-center font-bold text-gray-900">{item.quantity}</span>
+                          <button
+                            onClick={() => updateQuantity(item.dish_id, 1)}
+                            className="w-8 h-8 rounded-full bg-orange-100 hover:bg-orange-200 flex items-center justify-center transition-colors"
+                          >
+                            <Plus className="w-4 h-4" />
+                          </button>
+                        </div>
+                        <p className="w-20 sm:w-24 text-right font-bold text-gray-900 text-sm sm:text-base">
+                          ₹{(item.price * item.quantity).toFixed(2)}
+                        </p>
+                        <button
+                          onClick={() => removeFromCart(item.dish_id)}
+                          className="text-red-500 hover:text-red-700 transition-colors"
+                        >
+                          <X className="w-4 h-4 sm:w-5 sm:h-5" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div className="p-4 sm:p-6 bg-orange-50">
+                <div className="flex justify-between items-center">
+                  <span className="text-lg sm:text-xl font-bold text-gray-700">Total Amount</span>
+                  <span className="text-2xl sm:text-3xl font-bold text-gray-900">
+                    ₹{getCartTotal().toFixed(2)}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
+              <button
+                onClick={() => setCurrentStep('dishes')}
+                className="flex-1 px-4 sm:px-6 py-3 border-2 border-gray-300 text-gray-700 rounded-xl font-semibold hover:bg-gray-50 transition-all duration-300 text-sm sm:text-base"
+              >
+                Add More Items
+              </button>
+              <button
+                onClick={submitOrder}
+                disabled={cart.length === 0 || submitting}
+                className="flex-1 px-4 sm:px-6 py-3 bg-green-500 text-white rounded-xl font-semibold hover:bg-green-600 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed text-sm sm:text-base"
+              >
+                {submitting ? 'Submitting...' : 'Submit Order to Kitchen'}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Step 4: Success */}
+        {currentStep === 'success' && (
+          <div className="max-w-md mx-auto text-center">
+            <div className="bg-white rounded-2xl shadow-xl p-8">
+              <div className="bg-green-100 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6">
+                <CheckCircle className="w-10 h-10 text-green-600" />
+              </div>
+              <h2 className="text-3xl font-bold text-gray-900 mb-4">Order Submitted!</h2>
+              <p className="text-gray-600 mb-6">
+                Your order has been sent to the kitchen. The table is now locked until payment is completed.
+              </p>
+              <button
+                onClick={() => setCurrentStep('tables')}
+                className="w-full px-6 py-3 bg-orange-500 text-white rounded-xl font-semibold hover:bg-orange-600 transition-all duration-300"
+              >
+                Take Another Order
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Step 5: Master Tables */}
+        {currentStep === 'master' && (
+          <div>
+            <div className="mb-8">
+              <h2 className="text-3xl font-bold text-gray-900 mb-2">Master Tables</h2>
+              <p className="text-gray-600">Convert regular tables to master tables and take orders</p>
+            </div>
+
+            {/* Available Tables to Convert */}
+            <div className="mb-8">
+              <h3 className="text-xl font-bold text-gray-900 mb-4">Available Tables to Convert</h3>
+              {tables.filter(t => !t.is_master).length === 0 ? (
+                <div className="text-center py-8 bg-gray-50 rounded-xl">
+                  <Users className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                  <p className="text-gray-500 font-semibold">No available tables to convert</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                  {tables.filter(t => !t.is_master).map((table) => (
+                    <button
+                      key={table.id}
+                      onClick={() => handleCreateMasterTable(table.table_number, table.capacity)}
+                      disabled={table.is_occupied}
+                      className={`p-6 rounded-2xl border-2 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 text-center ${
+                        table.is_occupied 
+                          ? 'border-red-300 bg-red-50 cursor-not-allowed opacity-60' 
+                          : 'border-green-500 bg-white hover:border-purple-500 hover:bg-purple-50'
+                      }`}
+                    >
+                      <div className="bg-green-100 p-3 rounded-xl mx-auto mb-3 w-fit">
+                        <Users className="w-6 h-6 text-green-600" />
+                      </div>
+                      <h3 className="text-2xl font-bold mb-1">Table {table.table_number}</h3>
+                      <p className="text-xs text-gray-600 mb-2">Capacity: {table.capacity} seats</p>
+                      <span className={`px-2 py-1 rounded-full text-xs font-bold ${
+                        table.is_occupied 
+                          ? 'bg-red-100 text-red-800' 
+                          : 'bg-green-100 text-green-800'
+                      }`}>
+                        {table.is_occupied ? '🔴 Occupied' : '🟢 Available'}
+                      </span>
+                      {!table.is_occupied && (
+                        <p className="text-xs text-purple-600 font-semibold mt-2">Click to convert to master</p>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Master Tables Grid */}
+            <div className="mb-8">
+              <h3 className="text-xl font-bold text-gray-900 mb-4">Master Tables (Click to take orders)</h3>
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                {tables.filter(t => t.is_master).map((table) => (
+                  <div
+                    key={table.id}
+                    className={`p-6 rounded-2xl border-2 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 text-center relative ${
+                      table.is_occupied 
+                        ? 'border-red-500 bg-red-50' 
+                        : 'border-purple-500 bg-white hover:bg-purple-50'
+                    }`}
+                  >
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleDeleteMasterTable(table.id, table.table_number)
+                      }}
+                      className="absolute top-2 right-2 p-1.5 rounded-lg bg-red-500 text-white hover:bg-red-600 transition-colors"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                    <button
+                      onClick={() => {
+                        setSelectedMasterTable(table)
+                        setMasterTableCart([])
+                        setCurrentStep('master-station-detail')
+                      }}
+                      className="w-full"
+                    >
+                      <div className="bg-purple-100 p-3 rounded-xl mx-auto mb-3 w-fit">
+                        <Crown className="w-6 h-6 text-purple-700" />
+                      </div>
+                      <h3 className="text-2xl font-bold mb-1">Table {table.table_number}</h3>
+                      <p className="text-xs text-gray-600 mb-2">Master Table</p>
+                      <span className={`px-2 py-1 rounded-full text-xs font-bold ${
+                        table.is_occupied 
+                          ? 'bg-red-100 text-red-800' 
+                          : 'bg-green-100 text-green-800'
+                      }`}>
+                        {table.is_occupied ? '🔴 Occupied' : '🟢 Available'}
+                      </span>
+                      <p className="text-xs text-purple-600 font-semibold mt-2">Click to take orders</p>
+                    </button>
+                  </div>
+                ))}
+                {tables.filter(t => t.is_master).length === 0 && (
+                  <div className="col-span-full text-center py-12">
+                    <Crown className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                    <p className="text-gray-500 font-semibold">No master tables yet</p>
+                    <p className="text-sm text-gray-400 mt-2">Convert a regular table above</p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Master Tables Orders Summary */}
+            <div className="bg-white rounded-2xl shadow-xl p-6 border-2 border-purple-200">
+              <h3 className="text-xl font-bold text-gray-900 mb-4">Master Table Orders Summary</h3>
+              {tables.filter(t => t.is_master).length === 0 ? (
+                <div className="text-center py-8">
+                  <ShoppingCart className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                  <p className="text-gray-500 font-semibold">No master tables yet</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {tables.filter(t => t.is_master).map((table) => {
+                    const tableOrders = getTableOrders(table.id)
+                    return (
+                      <div key={table.id} className="bg-gray-50 rounded-xl p-4 border border-gray-200">
+                        <div className="flex justify-between items-center mb-3">
+                          <div className="flex items-center gap-2">
+                            <Crown className="w-5 h-5 text-purple-600" />
+                            <h4 className="font-bold text-gray-900">Table {table.table_number}</h4>
+                          </div>
+                          <span className={`px-2 py-1 rounded-full text-xs font-bold ${
+                            table.is_occupied 
+                              ? 'bg-red-100 text-red-800' 
+                              : 'bg-green-100 text-green-800'
+                          }`}>
+                            {table.is_occupied ? '🔴 Occupied' : '🟢 Available'}
+                          </span>
+                        </div>
+                        {tableOrders.length === 0 ? (
+                          <p className="text-sm text-gray-500">No orders</p>
+                        ) : (
+                          <div className="space-y-2">
+                            {tableOrders.map((order) => (
+                              <div key={order.id} className="flex justify-between items-center bg-white p-2 rounded-lg">
+                                <div>
+                                  <span className="font-semibold text-sm">Order #{order.id.slice(0, 8)}</span>
+                                  <span className="text-xs text-gray-600 ml-2">₹{order.total_amount.toFixed(2)}</span>
+                                </div>
+                                <span className={`px-2 py-1 rounded-full text-xs font-bold ${
+                                  order.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                                  order.status === 'confirmed' ? 'bg-blue-100 text-blue-800' :
+                                  order.status === 'preparing' ? 'bg-purple-100 text-purple-800' :
+                                  order.status === 'ready' ? 'bg-green-100 text-green-800' :
+                                  'bg-gray-100 text-gray-800'
+                                }`}>
+                                  {order.status}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+
+            <div className="mt-8">
+              <button
+                onClick={() => setCurrentStep('tables')}
+                className="flex items-center gap-2 bg-gray-100 text-gray-700 px-6 py-3 rounded-xl font-semibold hover:bg-gray-200 transition-all duration-300"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                Back to Tables
+              </button>
+            </div>
+          </div>
+        )}
+
+
+        {/* Step: Master Station Detail */}
+        {currentStep === 'master-station-detail' && selectedMasterTable && (
+          <div className="max-w-7xl mx-auto">
+            <div className="mb-6 sm:mb-8 bg-purple-100 rounded-2xl p-4 sm:p-6 border-2 border-purple-200">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="bg-purple-200 p-2 sm:p-3 rounded-xl">
+                    <Crown className="w-5 h-5 sm:w-6 sm:h-6 text-purple-700" />
+                  </div>
+                  <div>
+                    <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-1 sm:mb-2">
+                      Master Table {selectedMasterTable.table_number}
+                    </h2>
+                    <p className="text-sm sm:text-base text-gray-600">
+                      Take orders for this master table
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  {!selectedMasterTable.is_occupied && (
+                    <>
+                      <button
+                        onClick={() => handleRemoveMasterStatus(selectedMasterTable.id, selectedMasterTable.table_number)}
+                        className="flex items-center gap-1 bg-orange-500 text-white px-2 py-1 rounded-lg font-semibold hover:bg-orange-600 transition-all duration-300 text-xs"
+                      >
+                        <Crown className="w-3 h-3" />
+                        Remove
+                      </button>
+                      <button
+                        onClick={() => handleDeleteMasterTable(selectedMasterTable.id, selectedMasterTable.table_number)}
+                        className="flex items-center gap-1 bg-red-500 text-white px-2 py-1 rounded-lg font-semibold hover:bg-red-600 transition-all duration-300 text-xs"
+                      >
+                        <X className="w-3 h-3" />
+                        Delete
+                      </button>
+                    </>
+                  )}
+                  <button
+                    onClick={() => setCurrentStep('master')}
+                    className="flex items-center gap-2 bg-white text-purple-600 px-3 sm:px-4 py-2 rounded-xl font-semibold hover:bg-purple-50 transition-all duration-300 border-2 border-purple-300"
+                  >
+                    <ArrowLeft className="w-4 h-4" />
+                    Back
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              {/* Menu Section */}
+              <div className="lg:col-span-2">
+                <div className="mb-6">
+                  <h3 className="text-xl font-bold text-gray-900 mb-4">Menu</h3>
+                  
+                  {/* Category Filter */}
+                  <div className="flex flex-wrap gap-2 mb-4">
+                    {categories.map((category) => (
+                      <button
+                        key={category}
+                        onClick={() => setSelectedCategory(category)}
+                        className={`px-3 py-2 rounded-lg text-xs font-semibold transition-all duration-300 ${
+                          selectedCategory === category
+                            ? 'bg-purple-500 text-white'
+                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                        }`}
+                      >
+                        {category === 'all' ? 'All Dishes' : category}
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {filteredDishes.map((dish) => (
+                      <button
+                        key={dish.id}
+                        onClick={() => handleAddToMasterTableCart(dish)}
+                        className="p-3 sm:p-4 bg-white border-2 border-gray-200 rounded-xl hover:border-purple-500 hover:bg-purple-50 transition-all duration-300 text-left"
+                      >
+                        <div className="flex items-center justify-between mb-1">
+                          <h4 className="font-bold text-gray-900 text-sm">{dish.name}</h4>
+                          <span className="text-sm font-bold text-orange-600">₹{dish.price.toFixed(2)}</span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <p className="text-xs text-gray-600">{dish.category}</p>
+                          <div className="flex items-center gap-1 bg-orange-100 text-orange-700 px-2 py-1 rounded-lg">
+                            <Plus className="w-3 h-3 sm:w-4 sm:h-4" />
+                            <span className="text-xs font-semibold hidden sm:inline">Add</span>
+                          </div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Cart Section */}
+              <div className="lg:col-span-1">
+                <div className="bg-white rounded-2xl shadow-lg p-4 sm:p-6 border-2 border-purple-200 sticky top-24">
+                  <h3 className="text-xl font-bold text-gray-900 mb-4">Order Cart</h3>
+                  
+                  {masterTableCart.length === 0 ? (
+                    <div className="text-center py-8">
+                      <ShoppingCart className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                      <p className="text-gray-500 font-semibold">Cart is empty</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3 max-h-96 overflow-y-auto">
+                      {masterTableCart.map((item) => (
+                        <div key={item.dish_id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200">
+                          <div className="flex-1">
+                            <h4 className="font-bold text-gray-900 text-sm">{item.name}</h4>
+                            <p className="text-xs text-gray-600">₹{item.price.toFixed(2)}</p>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => handleUpdateMasterTableCartQuantity(item.dish_id, -1)}
+                              className="w-6 h-6 bg-purple-100 text-purple-600 rounded-lg hover:bg-purple-200 transition-colors flex items-center justify-center"
+                            >
+                              <Minus className="w-3 h-3" />
+                            </button>
+                            <span className="font-bold text-gray-900 w-6 text-center">{item.quantity}</span>
+                            <button
+                              onClick={() => handleUpdateMasterTableCartQuantity(item.dish_id, 1)}
+                              className="w-6 h-6 bg-purple-100 text-purple-600 rounded-lg hover:bg-purple-200 transition-colors flex items-center justify-center"
+                            >
+                              <Plus className="w-3 h-3" />
+                            </button>
+                            <button
+                              onClick={() => handleRemoveFromMasterTableCart(item.dish_id)}
+                              className="ml-2 text-red-500 hover:text-red-700"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {masterTableCart.length > 0 && (
+                    <div className="mt-4 pt-4 border-t border-gray-200">
+                      <div className="flex justify-between items-center mb-4">
+                        <span className="text-lg font-bold text-gray-700">Total</span>
+                        <span className="text-2xl font-bold text-gray-900">
+                          ₹{masterTableCart.reduce((sum, item) => sum + (item.price * item.quantity), 0).toFixed(2)}
+                        </span>
+                      </div>
+                      <button
+                        onClick={handleSubmitMasterTableOrder}
+                        disabled={submitting}
+                        className="w-full px-6 py-3 bg-purple-500 text-white rounded-xl font-semibold hover:bg-purple-600 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {submitting ? 'Submitting...' : 'Submit Order'}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Active Orders for this Master Table */}
+            <div className="mt-8">
+              <h3 className="text-xl font-bold text-gray-900 mb-4">Active Orders for Table {selectedMasterTable.table_number}</h3>
+              {getTableOrders(selectedMasterTable.id).length === 0 ? (
+                <div className="text-center py-8 bg-gray-50 rounded-xl">
+                  <ShoppingCart className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                  <p className="text-gray-500 font-semibold">No active orders</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {getTableOrders(selectedMasterTable.id).map((order) => (
+                    <div key={order.id} className="bg-white rounded-2xl shadow-lg p-4 sm:p-6 border-2 border-purple-200">
+                      <div className="flex justify-between items-start mb-3">
+                        <div>
+                          <h4 className="font-bold text-gray-900">Order #{order.id.slice(0, 8)}</h4>
+                          <p className="text-xs text-gray-600">
+                            {new Date(order.created_at).toLocaleTimeString()}
+                          </p>
+                        </div>
+                        <span className={`px-2 py-1 rounded-full text-xs font-bold ${
+                          order.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                          order.status === 'confirmed' ? 'bg-blue-100 text-blue-800' :
+                          order.status === 'preparing' ? 'bg-purple-100 text-purple-800' :
+                          order.status === 'ready' ? 'bg-green-100 text-green-800' :
+                          'bg-gray-100 text-gray-800'
+                        }`}>
+                          {order.status}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <p className="text-lg font-bold text-gray-900">
+                          ₹{order.total_amount.toFixed(2)}
+                        </p>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => handleViewOrderItems(order)}
+                            className="flex items-center gap-1 bg-blue-500 text-white px-2 py-1 rounded-lg font-semibold hover:bg-blue-600 transition-all duration-300 text-xs"
+                          >
+                            <ShoppingCart className="w-3 h-3" />
+                            Items
+                          </button>
+                          {order.status === 'pending' && (
+                            <button
+                              onClick={() => handleConfirmOrder(order.id)}
+                              disabled={confirmingOrder}
+                              className="flex items-center gap-1 bg-green-500 text-white px-2 py-1 rounded-lg font-semibold hover:bg-green-600 transition-all duration-300 text-xs disabled:opacity-50"
+                            >
+                              <CheckCircle className="w-3 h-3" />
+                              {confirmingOrder ? '...' : 'Confirm'}
+                            </button>
+                          )}
+                          <button
+                            onClick={() => handleDeleteOrder(order.id)}
+                            className="flex items-center gap-1 bg-red-500 text-white px-2 py-1 rounded-lg font-semibold hover:bg-red-600 transition-all duration-300 text-xs"
+                          >
+                            <X className="w-3 h-3" />
+                            Delete
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Step 6: Alter Table */}
+        {currentStep === 'alter-table' && alteringOrder && (
+          <div className="max-w-3xl mx-auto">
+            <div className="mb-6 sm:mb-8 bg-blue-100 rounded-2xl p-4 sm:p-6 border-2 border-blue-200">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                <div>
+                  <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-1 sm:mb-2">
+                    Change Table for Order
+                  </h2>
+                  <p className="text-sm sm:text-base text-gray-600">
+                    Current: Table {alteringOrder.tables?.table_number} → Select new table
+                  </p>
+                </div>
+                <button
+                  onClick={() => setCurrentStep('tables')}
+                  className="flex items-center gap-2 bg-white text-blue-600 px-3 sm:px-4 py-2 rounded-xl font-semibold hover:bg-blue-50 transition-all duration-300 border-2 border-blue-300 w-full sm:w-auto justify-center"
+                >
+                  <ArrowLeft className="w-4 h-4" />
+                  Cancel
+                </button>
+              </div>
+            </div>
+
+            <div className="mb-6">
+              <h3 className="text-xl font-bold text-gray-900 mb-4">Select Available Table</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                {tables.filter(t => !t.is_occupied && t.id !== alteringOrder.table_id).map((table) => (
+                  <button
+                    key={table.id}
+                    onClick={() => setNewTableId(table.id)}
+                    className={`p-4 sm:p-6 rounded-2xl border-2 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 text-left ${
+                      newTableId === table.id
+                        ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-500'
+                        : 'border-green-500 bg-white hover:border-blue-500'
+                    }`}
+                  >
+                    <div className="flex justify-between items-start mb-4">
+                      <div className="bg-green-100 p-2 sm:p-3 rounded-xl">
+                        <Users className="w-5 h-5 sm:w-6 sm:h-6 text-green-600" />
+                      </div>
+                      <span className="px-2 sm:px-3 py-1 rounded-full text-xs font-bold bg-green-100 text-green-800">
+                        🟢 Available
+                      </span>
+                    </div>
+                    <h3 className="text-lg sm:text-xl font-bold text-gray-900 mb-2">Table {table.table_number}</h3>
+                    <p className="text-xs sm:text-sm font-semibold text-gray-600">Capacity: {table.capacity} seats</p>
+                  </button>
+                ))}
+                {tables.filter(t => !t.is_occupied && t.id !== alteringOrder.table_id).length === 0 && (
+                  <div className="col-span-full text-center py-12">
+                    <Users className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                    <p className="text-gray-500 font-semibold">No available tables to change to</p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <button
+              onClick={handleAlterTable}
+              disabled={!newTableId}
+              className="w-full px-6 py-3 bg-blue-500 text-white rounded-xl font-semibold hover:bg-blue-600 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Confirm Table Change
+            </button>
+          </div>
+        )}
+
+        {/* Order Items Modal */}
+        {viewingOrderItems && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden">
+              <div className="bg-blue-500 p-4 sm:p-6">
+                <div className="flex justify-between items-center">
+                  <div>
+                    <h2 className="text-xl sm:text-2xl font-bold text-white">Order Items</h2>
+                    <p className="text-blue-100 text-sm">Order #{viewingOrderItems.id.slice(0, 8)}</p>
+                  </div>
+                  <button
+                    onClick={() => setViewingOrderItems(null)}
+                    className="text-white hover:bg-white/20 p-2 rounded-lg transition-colors"
+                  >
+                    <X className="w-6 h-6" />
+                  </button>
+                </div>
+              </div>
+
+              <div className="p-4 sm:p-6 overflow-y-auto max-h-[calc(90vh-200px)]">
+                {/* Current Items */}
+                <div className="mb-6">
+                  <h3 className="text-lg font-bold text-gray-900 mb-4">Current Items</h3>
+                  {orderItems.length === 0 ? (
+                    <div className="text-center py-8 bg-gray-50 rounded-xl">
+                      <ShoppingCart className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                      <p className="text-gray-500">No items in this order</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {orderItems.map((item) => (
+                        <div key={item.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-xl border border-gray-200">
+                          <div className="flex-1">
+                            <h4 className="font-bold text-gray-900">{item.dishes?.name}</h4>
+                            <p className="text-sm text-gray-600">Qty: {item.quantity} × ₹{item.price.toFixed(2)}</p>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <p className="font-bold text-gray-900">₹{(item.price * item.quantity).toFixed(2)}</p>
+                            <button
+                              onClick={() => handleDeleteOrderItem(item.id)}
+                              className="text-red-500 hover:text-red-700 hover:bg-red-50 p-2 rounded-lg transition-colors"
+                            >
+                              <X className="w-5 h-5" />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Add New Items */}
+                <div>
+                  <h3 className="text-lg font-bold text-gray-900 mb-4">Add Items</h3>
+                  
+                  {/* Category Filter */}
+                  <div className="flex flex-wrap gap-2 mb-4">
+                    {categories.map((category) => (
+                      <button
+                        key={category}
+                        onClick={() => setSelectedCategory(category)}
+                        className={`px-3 py-2 rounded-lg text-xs font-semibold transition-all duration-300 ${
+                          selectedCategory === category
+                            ? 'bg-blue-500 text-white'
+                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                        }`}
+                      >
+                        {category === 'all' ? 'All Dishes' : category}
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-64 overflow-y-auto">
+                    {filteredDishes.map((dish) => (
+                      <button
+                        key={dish.id}
+                        onClick={() => handleAddItemToOrder(dish.id)}
+                        disabled={addingItem}
+                        className="p-3 bg-white border-2 border-gray-200 rounded-xl hover:border-blue-500 hover:bg-blue-50 transition-all duration-300 text-left disabled:opacity-50"
+                      >
+                        <div className="flex justify-between items-start mb-1">
+                          <h4 className="font-bold text-gray-900 text-sm">{dish.name}</h4>
+                          <span className="text-sm font-bold text-orange-600">₹{dish.price.toFixed(2)}</span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <p className="text-xs text-gray-600">{dish.category}</p>
+                          <div className="flex items-center gap-1 bg-blue-100 text-blue-700 px-2 py-1 rounded-lg">
+                            <Plus className="w-3 h-3" />
+                            <span className="text-xs font-semibold hidden sm:inline">Add</span>
+                          </div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Order Total */}
+                <div className="mt-6 p-4 bg-gradient-to-r from-orange-50 to-amber-50 rounded-xl border-2 border-orange-200">
+                  <div className="flex justify-between items-center">
+                    <span className="text-lg font-bold text-gray-700">Order Total</span>
+                    <span className="text-2xl font-bold bg-gradient-to-r from-orange-600 to-amber-600 bg-clip-text text-transparent">
+                      ₹{viewingOrderItems.total_amount.toFixed(2)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}

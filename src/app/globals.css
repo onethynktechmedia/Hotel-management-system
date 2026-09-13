@@ -24,3 +24,188 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* Print-only elements - hidden in normal view */
+.print-only {
+  display: none;
+}
+
+/* Print styles for thermal printer */
+@media print {
+  @page {
+    size: 80mm auto;
+    margin: 0;
+  }
+  
+  body {
+    background: white;
+    color: black;
+    font-family: 'Courier New', monospace;
+    font-size: 12px;
+    margin: 0;
+    padding: 0;
+    width: 80mm;
+  }
+  
+  .no-print {
+    display: none !important;
+  }
+  
+  .print-only {
+    display: block !important;
+  }
+  
+  #bill-modal {
+    position: static !important;
+    width: 80mm !important;
+    max-width: 80mm !important;
+    margin: 0 auto !important;
+    padding: 5mm !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    background: white !important;
+  }
+  
+  /* Hotel name styling */
+  .print-only h1 {
+    font-size: 16px;
+    font-weight: bold;
+    text-align: center;
+    margin: 0 0 5px 0;
+    text-transform: uppercase;
+  }
+  
+  .print-only p {
+    font-size: 10px;
+    text-align: center;
+    margin: 2px 0;
+  }
+  
+  /* Table styling for thermal printer */
+  table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+    margin: 5px 0;
+    font-size: 11px;
+  }
+  
+  th {
+    border-bottom: 1px dashed #000 !important;
+    border-top: none !important;
+    border-left: none !important;
+    border-right: none !important;
+    padding: 3px 2px !important;
+    font-size: 10px;
+    font-weight: bold;
+    text-align: left;
+  }
+  
+  td {
+    border: none !important;
+    padding: 2px !important;
+    font-size: 11px;
+  }
+  
+  /* Amount summary styling */
+  .bg-gradient-to-r {
+    background: none !important;
+    padding: 5px 0 !important;
+    border-top: 1px dashed #000 !important;
+    border-bottom: 1px dashed #000 !important;
+    margin: 5px 0 !important;
+  }
+  
+  .flex {
+    display: flex !important;
+    justify-content: space-between !important;
+    margin: 2px 0 !important;
+  }
+  
+  /* Ensure final amount is visible */
+  .border-t-2 {
+    border-top: 2px dashed #000 !important;
+  }
+  
+  .pt-3 {
+    padding-top: 8px !important;
+  }
+  
+  /* Text visibility in print */
+  .text-xl, .text-3xl, .text-lg {
+    color: #000 !important;
+    font-size: 12px !important;
+  }
+  
+  .text-3xl {
+    font-size: 14px !important;
+    font-weight: bold !important;
+  }
+  
+  .bg-gradient-to-r, .bg-clip-text {
+    background: none !important;
+    -webkit-background-clip: unset !important;
+    background-clip: unset !important;
+    color: #000 !important;
+  }
+  
+  /* Hide description column in print */
+  .no-print {
+    display: none !important;
+  }
+  
+  /* Compact spacing */
+  * {
+    margin: 0;
+    padding: 0;
+  }
+  
+  .space-y-4 > * + * {
+    margin-top: 5px !important;
+  }
+  
+  .space-y-3 > * + * {
+    margin-top: 3px !important;
+  }
+  
+  .p-6 {
+    padding: 5px !important;
+  }
+  
+  .rounded-xl {
+    border-radius: 0 !important;
+  }
+  
+  .shadow-xl {
+    box-shadow: none !important;
+  }
+  
+  /* Thank you message styling */
+  .print-only .mt-4 {
+    margin-top: 15px !important;
+  }
+  
+  .print-only .border-t {
+    border-top: 1px dashed #000 !important;
+    margin-top: 10px !important;
+    padding-top: 8px !important;
+  }
+  
+  .print-only p {
+    font-size: 10px !important;
+    margin: 3px 0 !important;
+  }
+  
+  .print-only .text-sm {
+    font-size: 12px !important;
+    font-weight: bold !important;
+  }
+  
+  .print-only .text-xs {
+    font-size: 9px !important;
+  }
+  
+  /* Ensure all text is visible */
+  * {
+    color: #000 !important;
+  }
+}
