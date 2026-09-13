@@ -57,6 +57,15 @@ export default function KitchenPage() {
       const data = await response.json()
       console.log('Fetched orders:', data)
       console.log('Number of orders:', data?.length || 0)
+      
+      // Log order items to check if dish data is present
+      data?.forEach((order: Order) => {
+        console.log(`Order ${order.id} items:`, order.order_items)
+        order.order_items?.forEach((item: OrderItem) => {
+          console.log(`Item ${item.id}: dish_id=${item.dish_id}, dish=`, item.dish)
+        })
+      })
+      
       setOrders(data || [])
     } catch (error) {
       console.error('Error fetching orders:', error)
@@ -306,7 +315,9 @@ function OrderCard({ order, onStatusChange, onItemStatusChange, getStatusColor }
                 <div className="flex-1">
                   <div className="flex items-center mb-1">
                     <span className="font-bold text-gray-900 text-lg">{item.quantity}x</span>
-                    <span className="ml-2 font-semibold text-gray-800">{item.dish?.name}</span>
+                    <span className="ml-2 font-semibold text-gray-800">
+                      {item.dish?.name || `Dish ID: ${item.dish_id}`}
+                    </span>
                   </div>
                   {item.dish?.description && (
                     <p className="text-sm text-gray-600 italic">{item.dish.description}</p>
