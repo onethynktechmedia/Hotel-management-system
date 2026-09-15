@@ -410,8 +410,48 @@ export default function AdminDashboard() {
       
       if (response.ok) {
         const data = await response.json()
-        console.log('Print successful:', data)
-        alert('Bill sent to EC58B printer successfully!')
+        console.log('Print response:', data)
+        
+        if (data.success) {
+          alert('Bill sent to printer successfully!')
+        } else if (data.fallback) {
+          // Fallback to browser print if server-side printing is not available
+          console.log('Using browser print fallback')
+          alert('Direct printing not available. Opening browser print dialog...')
+          // Create a printable version of the bill
+          const printWindow = window.open('', '_blank')
+          if (printWindow) {
+            const printableContent = billContent
+              .replace(/\x1B\x40/g, '') // Remove initialize
+              .replace(/\x1B\x61\x01/g, '<div style="text-align: center;">') // Center align
+              .replace(/\x1B\x61\x00/g, '</div><div style="text-align: left;">') // Left align
+              .replace(/\x1B\x45\x01/g, '<b>') // Bold on
+              .replace(/\x1B\x45\x00/g, '</b>') // Bold off
+              .replace(/\x1D\x21\x11/g, '<span style="font-size: 24px;">') // Double height/width
+              .replace(/\x1D\x21\x00/g, '</span>') // Normal size
+              .replace(/\x1B\x4D\x00/g, '<span style="font-size: 12px;">') // Font A
+              .replace(/\x1B\x4D\x01/g, '<span style="font-size: 16px;">') // Font B
+              .replace(/\x1D\x56\x00/g, '') // Remove cut command
+              .replace(/\n/g, '<br>')
+            
+            printWindow.document.write(`
+              <html>
+                <head>
+                  <title>Print Bill</title>
+                  <style>
+                    body { font-family: monospace; padding: 20px; }
+                    @media print { body { padding: 0; } }
+                  </style>
+                </head>
+                <body>${printableContent}</body>
+              </html>
+            `)
+            printWindow.document.close()
+            printWindow.print()
+          }
+        } else {
+          throw new Error(data.error || 'Print failed')
+        }
       } else {
         const errorData = await response.json()
         console.error('Print API error:', errorData)
