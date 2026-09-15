@@ -9,6 +9,16 @@ import Sidebar from '@/components/Sidebar'
 import WaiterStatus from '@/components/WaiterStatus'
 import Reports from '@/components/Reports'
 
+// Utility function to format order ID as GGR-XXX
+const formatOrderId = (orderId: string) => {
+  // Extract a number from the UUID and format it
+  const hash = orderId.split('').reduce((acc, char) => {
+    return acc + char.charCodeAt(0)
+  }, 0)
+  const orderNumber = (hash % 999) + 1 // Ensure it's between 1-999
+  return `GGR-${String(orderNumber).padStart(3, '0')}`
+}
+
 export default function AdminDashboard() {
   const router = useRouter()
   const [user, setUser] = useState<User | null>(null)
@@ -1010,7 +1020,7 @@ For technical support, contact: support@everycom.com
                           <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">
                             Table {order.tables?.table_number || '-'}
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">{order.id.slice(0, 8)}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">{formatOrderId(order.id)}</td>
                           <td className="hidden md:table-cell px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                             {new Date(order.created_at).toLocaleDateString()}
                           </td>
@@ -1136,7 +1146,7 @@ For technical support, contact: support@everycom.com
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">
                           Table {order.tables?.table_number || '-'}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">{order.id.slice(0, 8)}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">{formatOrderId(order.id)}</td>
                         <td className="hidden md:table-cell px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                           {new Date(order.created_at).toLocaleDateString()}
                         </td>
@@ -1642,7 +1652,7 @@ For technical support, contact: support@everycom.com
                   <div key={order.id} className="border-2 border-gray-200 rounded-xl overflow-hidden">
                     <div className="p-4 bg-gradient-to-r from-green-50 to-emerald-50 flex justify-between items-center">
                       <div>
-                        <p className="font-bold text-gray-900">Order #{order.id.slice(0, 8)}</p>
+                        <p className="font-bold text-gray-900">Order #{formatOrderId(order.id)}</p>
                         <p className="text-sm text-gray-600">Waiter: {order.users?.name}</p>
                       </div>
                       <span className={`px-3 py-1 rounded-full text-xs font-bold ${

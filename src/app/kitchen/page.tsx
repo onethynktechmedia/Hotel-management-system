@@ -8,6 +8,16 @@ import { User, Order, OrderItem } from '@/types'
 import { Bell, LogOut, CheckCircle, Clock, ChefHat, AlertCircle } from 'lucide-react'
 import NotificationSystem from '@/components/NotificationSystem'
 
+// Utility function to format order ID as GGR-XXX
+const formatOrderId = (orderId: string) => {
+  // Extract a number from the UUID and format it
+  const hash = orderId.split('').reduce((acc, char) => {
+    return acc + char.charCodeAt(0)
+  }, 0)
+  const orderNumber = (hash % 999) + 1 // Ensure it's between 1-999
+  return `GGR-${String(orderNumber).padStart(3, '0')}`
+}
+
 export default function KitchenPage() {
   const router = useRouter()
   const [user, setUser] = useState<User | null>(null)
@@ -323,7 +333,7 @@ function OrderCard({ order, onStatusChange, onItemStatusChange, getStatusColor }
           <div>
             <h3 className="font-bold text-xl text-gray-900 mb-1">Table {order.tables?.table_number}</h3>
             <p className="text-sm opacity-75 mb-1">{new Date(order.created_at).toLocaleTimeString()}</p>
-            <p className="text-xs opacity-60">Order #{order.id.slice(0, 8)}</p>
+            <p className="text-xs opacity-60">Order #{formatOrderId(order.id)}</p>
           </div>
           <span className={`px-4 py-2 rounded-full text-sm font-bold ${getStatusColor(order.status)}`}>
             {order.status}

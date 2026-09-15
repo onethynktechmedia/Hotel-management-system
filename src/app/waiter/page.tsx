@@ -8,6 +8,16 @@ import { LogOut, ShoppingCart, Plus, Minus, ArrowLeft, Users, Clock, CheckCircle
 
 type Step = 'tables' | 'dishes' | 'cart' | 'success' | 'master' | 'alter-table' | 'master-station-detail'
 
+// Utility function to format order ID as GGR-XXX
+const formatOrderId = (orderId: string) => {
+  // Extract a number from the UUID and format it
+  const hash = orderId.split('').reduce((acc, char) => {
+    return acc + char.charCodeAt(0)
+  }, 0)
+  const orderNumber = (hash % 999) + 1 // Ensure it's between 1-999
+  return `GGR-${String(orderNumber).padStart(3, '0')}`
+}
+
 export default function WaiterPage() {
   const router = useRouter()
   const [user, setUser] = useState<User | null>(null)
@@ -1211,7 +1221,7 @@ export default function WaiterPage() {
                             {tableOrders.map((order) => (
                               <div key={order.id} className="flex justify-between items-center bg-white p-2 rounded-lg">
                                 <div>
-                                  <span className="font-semibold text-sm">Order #{order.id.slice(0, 8)}</span>
+                                  <span className="font-semibold text-sm">Order #{formatOrderId(order.id)}</span>
                                   <span className="text-xs text-gray-600 ml-2">₹{order.total_amount.toFixed(2)}</span>
                                 </div>
                                 <span className={`px-2 py-1 rounded-full text-xs font-bold ${
@@ -1421,7 +1431,7 @@ export default function WaiterPage() {
                     <div key={order.id} className="bg-white rounded-2xl shadow-lg p-4 sm:p-6 border-2 border-purple-200">
                       <div className="flex justify-between items-start mb-3">
                         <div>
-                          <h4 className="font-bold text-gray-900">Order #{order.id.slice(0, 8)}</h4>
+                          <h4 className="font-bold text-gray-900">Order #{formatOrderId(order.id)}</h4>
                           <p className="text-xs text-gray-600">
                             {new Date(order.created_at).toLocaleTimeString()}
                           </p>

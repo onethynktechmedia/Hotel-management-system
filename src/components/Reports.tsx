@@ -30,6 +30,16 @@ import {
   CheckCircle
 } from 'lucide-react'
 
+// Utility function to format order ID as GGR-XXX
+const formatOrderId = (orderId: string) => {
+  // Extract a number from the UUID and format it
+  const hash = orderId.split('').reduce((acc, char) => {
+    return acc + char.charCodeAt(0)
+  }, 0)
+  const orderNumber = (hash % 999) + 1 // Ensure it's between 1-999
+  return `GGR-${String(orderNumber).padStart(3, '0')}`
+}
+
 interface ReportsProps {
   orders: any[]
   payments: any[]
@@ -438,7 +448,7 @@ export default function Reports({ orders, payments, dishes }: ReportsProps) {
               {reportData.filteredOrders.map((order: any) => (
                 <tr key={order.id} className="hover:bg-green-50 transition-colors">
                   <td className="px-6 py-4 text-sm font-semibold text-gray-900 truncate" title={order.id}>
-                    {order.id.slice(0, 8)}
+                    {formatOrderId(order.id)}
                   </td>
                   <td className="px-6 py-4 text-sm text-gray-900">Table {order.tables?.table_number}</td>
                   <td className="px-6 py-4 text-sm text-gray-900 truncate" title={order.users?.name}>
