@@ -33,60 +33,87 @@ body {
 /* Print styles for thermal printer */
 @media print {
   @page {
-    size: 80mm auto;
+    size: 58mm auto;
     margin: 0;
   }
   
-  body {
+  html, body {
     background: white;
     color: black;
-    font-family: 'Courier New', monospace;
-    font-size: 12px;
+    font-family: 'Arial', 'Helvetica', sans-serif;
+    font-size: 10px;
     margin: 0;
     padding: 0;
-    width: 80mm;
+    width: 58mm;
+    min-width: 58mm;
   }
   
-  .no-print {
+  body > * {
     display: none !important;
   }
   
-  .print-only {
-    display: block !important;
-  }
-  
   #bill-modal {
-    position: static !important;
-    width: 80mm !important;
-    max-width: 80mm !important;
-    margin: 0 auto !important;
-    padding: 5mm !important;
+    display: block !important;
+    position: relative;
+    left: 0;
+    top: 0;
+    transform: none;
+    width: 58mm !important;
+    max-width: 58mm !important;
+    min-width: 58mm !important;
+    padding: 2mm !important;
     box-shadow: none !important;
     border-radius: 0 !important;
     background: white !important;
+    margin: 0 !important;
   }
   
-  /* Hotel name styling */
+  #bill-modal > * {
+    display: block !important;
+  }
+  
+  #bill-modal .no-print {
+    display: none !important;
+  }
+  
+  #bill-modal .print-only {
+    display: block !important;
+  }
+  
+  /* Hotel name styling - professional look */
   .print-only h1 {
-    font-size: 16px;
+    font-size: 14px;
     font-weight: bold;
     text-align: center;
-    margin: 0 0 5px 0;
+    margin: 0 0 2px 0;
     text-transform: uppercase;
+    letter-spacing: 0.5px;
+    font-family: 'Arial', 'Helvetica', sans-serif;
+  }
+  
+  .print-only h2 {
+    font-size: 10px;
+    font-weight: normal;
+    text-align: center;
+    margin: 0 0 4px 0;
+    font-family: 'Arial', 'Helvetica', sans-serif;
   }
   
   .print-only p {
-    font-size: 10px;
+    font-size: 8px;
     text-align: center;
-    margin: 2px 0;
+    margin: 1px 0;
+    line-height: 1.1;
+    font-family: 'Arial', 'Helvetica', sans-serif;
   }
   
   /* Table styling for thermal printer */
   table {
     width: 100% !important;
     border-collapse: collapse !important;
-    margin: 5px 0;
-    font-size: 11px;
+    margin: 2px 0;
+    font-size: 8px;
+    font-family: 'Arial', 'Helvetica', sans-serif;
   }
   
   th {
@@ -94,31 +121,33 @@ body {
     border-top: none !important;
     border-left: none !important;
     border-right: none !important;
-    padding: 3px 2px !important;
-    font-size: 10px;
+    padding: 2px 1px !important;
+    font-size: 8px;
     font-weight: bold;
     text-align: left;
+    text-transform: uppercase;
   }
   
   td {
     border: none !important;
-    padding: 2px !important;
-    font-size: 11px;
+    padding: 1px !important;
+    font-size: 10px;
+    font-family: 'Arial', 'Helvetica', sans-serif;
   }
   
   /* Amount summary styling */
   .bg-gradient-to-r {
     background: none !important;
-    padding: 5px 0 !important;
+    padding: 3px 0 !important;
     border-top: 1px dashed #000 !important;
     border-bottom: 1px dashed #000 !important;
-    margin: 5px 0 !important;
+    margin: 3px 0 !important;
   }
   
   .flex {
     display: flex !important;
     justify-content: space-between !important;
-    margin: 2px 0 !important;
+    margin: 1px 0 !important;
   }
   
   /* Ensure final amount is visible */
@@ -127,17 +156,18 @@ body {
   }
   
   .pt-3 {
-    padding-top: 8px !important;
+    padding-top: 5px !important;
   }
   
   /* Text visibility in print */
   .text-xl, .text-3xl, .text-lg {
     color: #000 !important;
-    font-size: 12px !important;
+    font-size: 11px !important;
+    font-family: 'Arial', 'Helvetica', sans-serif;
   }
   
   .text-3xl {
-    font-size: 14px !important;
+    font-size: 13px !important;
     font-weight: bold !important;
   }
   
@@ -160,15 +190,15 @@ body {
   }
   
   .space-y-4 > * + * {
-    margin-top: 5px !important;
-  }
-  
-  .space-y-3 > * + * {
     margin-top: 3px !important;
   }
   
+  .space-y-3 > * + * {
+    margin-top: 2px !important;
+  }
+  
   .p-6 {
-    padding: 5px !important;
+    padding: 3px !important;
   }
   
   .rounded-xl {
@@ -181,31 +211,168 @@ body {
   
   /* Thank you message styling */
   .print-only .mt-4 {
-    margin-top: 15px !important;
+    margin-top: 10px !important;
   }
   
   .print-only .border-t {
     border-top: 1px dashed #000 !important;
-    margin-top: 10px !important;
-    padding-top: 8px !important;
+    margin-top: 8px !important;
+    padding-top: 5px !important;
+  }
+  
+  .print-only .border-t-2 {
+    border-top: 2px dashed #000 !important;
   }
   
   .print-only p {
-    font-size: 10px !important;
-    margin: 3px 0 !important;
+    font-size: 9px !important;
+    margin: 2px 0 !important;
+    font-family: 'Arial', 'Helvetica', sans-serif;
   }
   
   .print-only .text-sm {
-    font-size: 12px !important;
+    font-size: 11px !important;
     font-weight: bold !important;
   }
   
   .print-only .text-xs {
-    font-size: 9px !important;
+    font-size: 8px !important;
   }
   
   /* Ensure all text is visible */
   * {
     color: #000 !important;
+    font-family: 'Arial', 'Helvetica', sans-serif;
   }
+  
+  /* Center alignment for print-only sections */
+  .print-only {
+    text-align: center;
+  }
+  
+  .print-only .text-center {
+    text-align: center;
+  }
+  
+  /* Professional divider lines */
+  .border-dashed {
+    border-style: dashed !important;
+  }
+  
+  .border-b-2 {
+    border-bottom: 2px dashed #000 !important;
+  }
+}
+
+/* Modern animations */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+
+@keyframes glow {
+  0%, 100% {
+    box-shadow: 0 0 5px rgba(34, 197, 94, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 15px rgba(34, 197, 94, 0.6);
+  }
+}
+
+@keyframes shake {
+  0%, 100% {
+    transform: translateX(0);
+  }
+  25% {
+    transform: translateX(-5px);
+  }
+  75% {
+    transform: translateX(5px);
+  }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.3s ease-out;
+}
+
+.animate-slide-in {
+  animation: slideIn 0.3s ease-out;
+}
+
+.animate-pulse-slow {
+  animation: pulse 2s ease-in-out infinite;
+}
+
+.animate-glow {
+  animation: glow 1.5s ease-in-out infinite;
+}
+
+.animate-shake {
+  animation: shake 0.5s ease-in-out;
+}
+
+/* Smooth transitions for all interactive elements */
+button {
+  transition: all 0.2s ease-in-out;
+}
+
+/* Table row hover effect */
+tr {
+  transition: background-color 0.2s ease-in-out;
+}
+
+/* Modal backdrop animation */
+.fixed.inset-0 {
+  animation: fadeIn 0.2s ease-out;
+}
+
+/* Card hover effects */
+.hover\:shadow-2xl:hover {
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+}
+
+/* Smooth scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #888;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #555;
 }

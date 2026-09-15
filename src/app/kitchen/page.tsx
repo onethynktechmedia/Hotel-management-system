@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { User, Order, OrderItem } from '@/types'
-import { Bell, LogOut, Check, Clock, ChefHat, AlertCircle } from 'lucide-react'
+import { Bell, LogOut, CheckCircle, Clock, ChefHat, AlertCircle } from 'lucide-react'
 import NotificationSystem from '@/components/NotificationSystem'
 
 export default function KitchenPage() {
@@ -48,7 +48,7 @@ export default function KitchenPage() {
   const fetchOrders = async () => {
     try {
       console.log('Fetching orders via API...')
-      const response = await fetch('/api/orders?status=pending,confirmed,preparing,ready')
+      const response = await fetch('/api/orders?status=pending,confirmed,preparing,ready,served')
       
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`)
@@ -122,18 +122,21 @@ export default function KitchenPage() {
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'pending':
-        return 'bg-yellow-100 text-yellow-800 border-yellow-300'
-      case 'confirmed':
-        return 'bg-blue-100 text-blue-800 border-blue-300'
-      case 'preparing':
-        return 'bg-orange-100 text-orange-800 border-orange-300'
-      case 'ready':
         return 'bg-green-100 text-green-800 border-green-300'
+      case 'confirmed':
+        return 'bg-emerald-100 text-emerald-800 border-emerald-300'
+      case 'preparing':
+        return 'bg-teal-100 text-teal-800 border-teal-300'
+      case 'ready':
+        return 'bg-lime-100 text-lime-800 border-lime-300'
+      case 'served':
+        return 'bg-green-200 text-green-900 border-green-400'
       default:
         return 'bg-gray-100 text-gray-800 border-gray-300'
     }
   }
 
+  const completedOrders = orders.filter(o => o.status === 'served')
   const pendingOrders = orders.filter(o => o.status === 'pending' || o.status === 'confirmed')
   const preparingOrders = orders.filter(o => o.status === 'preparing')
   const readyOrders = orders.filter(o => o.status === 'ready')
@@ -143,12 +146,12 @@ export default function KitchenPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-orange-50">
+    <div className="min-h-screen bg-gradient-to-br from-green-50 to-emerald-50">
       <nav className="bg-white/95 backdrop-blur-sm shadow-lg sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-16">
             <div className="flex items-center">
-              <h1 className="text-xl font-bold bg-gradient-to-r from-orange-600 to-amber-600 bg-clip-text text-transparent">
+              <h1 className="text-xl font-bold bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">
                 🍽️ Kitchen Display
               </h1>
             </div>
@@ -166,52 +169,80 @@ export default function KitchenPage() {
         </div>
       </nav>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Stats Bar */}
-        <div className="grid grid-cols-3 gap-4 mb-6">
-          <div className="bg-yellow-50 border-2 border-yellow-300 rounded-2xl p-4 text-center shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
-            <div className="flex items-center justify-center mb-2">
-              <Clock className="w-6 h-6 text-yellow-600 mr-2" />
-              <span className="text-2xl font-bold text-yellow-800">{pendingOrders.length}</span>
+        <div className="grid grid-cols-4 gap-6 mb-8">
+          <div className="bg-white border border-gray-200 rounded-2xl p-6 text-center shadow-md hover:shadow-lg transition-all duration-300">
+            <div className="flex items-center justify-center mb-3">
+              <CheckCircle className="w-7 h-7 text-green-600 mr-2" />
+              <span className="text-3xl font-bold text-gray-800">{completedOrders.length}</span>
             </div>
-            <p className="text-sm font-bold text-yellow-700">Pending</p>
+            <p className="text-sm font-bold text-gray-600">Completed</p>
           </div>
-          <div className="bg-orange-50 border-2 border-orange-300 rounded-2xl p-4 text-center shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
-            <div className="flex items-center justify-center mb-2">
-              <ChefHat className="w-6 h-6 text-orange-600 mr-2" />
-              <span className="text-2xl font-bold text-orange-800">{preparingOrders.length}</span>
+          <div className="bg-white border border-gray-200 rounded-2xl p-6 text-center shadow-md hover:shadow-lg transition-all duration-300">
+            <div className="flex items-center justify-center mb-3">
+              <Clock className="w-7 h-7 text-orange-500 mr-2" />
+              <span className="text-3xl font-bold text-gray-800">{pendingOrders.length}</span>
             </div>
-            <p className="text-sm font-bold text-orange-700">Preparing</p>
+            <p className="text-sm font-bold text-gray-600">Pending</p>
           </div>
-          <div className="bg-green-50 border-2 border-green-300 rounded-2xl p-4 text-center shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
-            <div className="flex items-center justify-center mb-2">
-              <Check className="w-6 h-6 text-green-600 mr-2" />
-              <span className="text-2xl font-bold text-green-800">{readyOrders.length}</span>
+          <div className="bg-white border border-gray-200 rounded-2xl p-6 text-center shadow-md hover:shadow-lg transition-all duration-300">
+            <div className="flex items-center justify-center mb-3">
+              <ChefHat className="w-7 h-7 text-blue-500 mr-2" />
+              <span className="text-3xl font-bold text-gray-800">{preparingOrders.length}</span>
             </div>
-            <p className="text-sm font-bold text-green-700">Ready</p>
+            <p className="text-sm font-bold text-gray-600">Preparing</p>
+          </div>
+          <div className="bg-white border border-gray-200 rounded-2xl p-6 text-center shadow-md hover:shadow-lg transition-all duration-300">
+            <div className="flex items-center justify-center mb-3">
+              <CheckCircle className="w-7 h-7 text-purple-500 mr-2" />
+              <span className="text-3xl font-bold text-gray-800">{readyOrders.length}</span>
+            </div>
+            <p className="text-sm font-bold text-gray-600">Ready</p>
           </div>
         </div>
 
         {/* Refresh Button */}
-        <div className="mb-6">
+        <div className="mb-8">
           <button
             onClick={fetchOrders}
-            className="bg-gradient-to-r from-orange-600 to-amber-600 text-white px-4 py-2 rounded-xl font-semibold hover:shadow-lg transition-all duration-300 transform hover:scale-105"
+            className="bg-gradient-to-r from-green-600 to-emerald-600 text-white px-6 py-3 rounded-xl font-semibold hover:shadow-lg transition-all duration-300 transform hover:scale-105"
           >
-            🔄 Refresh Orders
+            Refresh Orders
           </button>
         </div>
 
         {/* Orders Grid */}
-        <div className="space-y-6">
+        <div className="space-y-8">
+          {/* Completed Orders */}
+          {completedOrders.length > 0 && (
+            <div>
+              <h2 className="text-2xl font-bold mb-6 flex items-center text-gray-900">
+                <CheckCircle className="w-6 h-6 text-green-600 mr-3" />
+                Completed Orders ({completedOrders.length})
+              </h2>
+              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {completedOrders.map(order => (
+                  <OrderCard
+                    key={order.id}
+                    order={order}
+                    onStatusChange={(status) => updateOrderStatus(order.id, status)}
+                    onItemStatusChange={updateItemStatus}
+                    getStatusColor={getStatusColor}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Pending Orders */}
           {pendingOrders.length > 0 && (
             <div>
-              <h2 className="text-xl font-semibold mb-4 flex items-center">
-                <AlertCircle className="w-5 h-5 text-yellow-600 mr-2" />
+              <h2 className="text-2xl font-bold mb-6 flex items-center text-gray-900">
+                <AlertCircle className="w-6 h-6 text-emerald-600 mr-3" />
                 Pending Orders ({pendingOrders.length})
               </h2>
-              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {pendingOrders.map(order => (
                   <OrderCard
                     key={order.id}
@@ -228,11 +259,11 @@ export default function KitchenPage() {
           {/* Preparing Orders */}
           {preparingOrders.length > 0 && (
             <div>
-              <h2 className="text-xl font-semibold mb-4 flex items-center">
-                <ChefHat className="w-5 h-5 text-orange-600 mr-2" />
+              <h2 className="text-2xl font-bold mb-6 flex items-center text-gray-900">
+                <ChefHat className="w-6 h-6 text-teal-600 mr-3" />
                 Preparing Orders ({preparingOrders.length})
               </h2>
-              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {preparingOrders.map(order => (
                   <OrderCard
                     key={order.id}
@@ -249,11 +280,11 @@ export default function KitchenPage() {
           {/* Ready Orders */}
           {readyOrders.length > 0 && (
             <div>
-              <h2 className="text-xl font-semibold mb-4 flex items-center">
-                <Check className="w-5 h-5 text-green-600 mr-2" />
+              <h2 className="text-2xl font-bold mb-6 flex items-center text-gray-900">
+                <CheckCircle className="w-6 h-6 text-lime-600 mr-3" />
                 Ready to Serve ({readyOrders.length})
               </h2>
-              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {readyOrders.map(order => (
                   <OrderCard
                     key={order.id}
@@ -268,9 +299,9 @@ export default function KitchenPage() {
           )}
 
           {orders.length === 0 && (
-            <div className="text-center py-12">
-              <ChefHat className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-              <p className="text-gray-500 text-lg">No orders to display</p>
+            <div className="text-center py-16">
+              <ChefHat className="w-20 h-20 text-green-300 mx-auto mb-6" />
+              <p className="text-gray-500 text-xl font-semibold">No orders to display</p>
             </div>
           )}
         </div>
@@ -286,63 +317,45 @@ function OrderCard({ order, onStatusChange, onItemStatusChange, getStatusColor }
   getStatusColor: (status: string) => string
 }) {
   return (
-    <div className="bg-white/95 backdrop-blur-sm rounded-2xl shadow-xl overflow-hidden border-2 border-gray-200 hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-1">
-      <div className={`p-4 border-b ${getStatusColor(order.status)}`}>
+    <div className="bg-white rounded-2xl shadow-lg overflow-hidden border border-gray-200 hover:shadow-xl transition-all duration-300">
+      <div className={`p-5 border-b-2 ${getStatusColor(order.status)}`}>
         <div className="flex justify-between items-start">
           <div>
-            <h3 className="font-bold text-lg text-gray-900">Table {order.tables?.table_number}</h3>
-            <p className="text-sm opacity-75">{new Date(order.created_at).toLocaleTimeString()}</p>
-            <p className="text-xs opacity-60 mt-1">Order #{order.id.slice(0, 8)}</p>
+            <h3 className="font-bold text-xl text-gray-900 mb-1">Table {order.tables?.table_number}</h3>
+            <p className="text-sm opacity-75 mb-1">{new Date(order.created_at).toLocaleTimeString()}</p>
+            <p className="text-xs opacity-60">Order #{order.id.slice(0, 8)}</p>
           </div>
-          <span className={`px-3 py-1 rounded-full text-xs font-bold ${getStatusColor(order.status)}`}>
+          <span className={`px-4 py-2 rounded-full text-sm font-bold ${getStatusColor(order.status)}`}>
             {order.status}
           </span>
         </div>
       </div>
       
-      <div className="p-4">
+      <div className="p-5">
         <div className="space-y-3">
           {order.order_items?.map((item: OrderItem) => (
-            <div key={item.id} className="flex justify-between items-start p-3 bg-gradient-to-r from-gray-50 to-orange-50 rounded-xl border border-gray-200">
-              <div className="flex items-center space-x-3 flex-1">
-                {(item.dishes?.image_url || item.dish?.image_url) && (
-                  <img 
-                    src={item.dishes?.image_url || item.dish?.image_url || ''} 
-                    alt={item.dishes?.name || item.dish?.name || ''}
-                    className="w-16 h-16 rounded-xl object-cover shadow-md"
-                  />
-                )}
+            <div key={item.id} className="flex justify-between items-center p-4 bg-gray-50 rounded-xl border border-gray-200 hover:border-green-300 transition-colors">
+              <div className="flex items-center gap-4 flex-1">
+                <span className="font-bold text-gray-900 text-xl">{item.quantity}x</span>
                 <div className="flex-1">
-                  <div className="flex items-center mb-1">
-                    <span className="font-bold text-gray-900 text-lg">{item.quantity}x</span>
-                    <span className="ml-2 font-semibold text-gray-800">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="font-semibold text-gray-800">
                       {item.dishes?.name || item.dish?.name || `Dish ID: ${item.dish_id}`}
                     </span>
+                    {item.dish_type && (
+                      <span className="px-2 py-0.5 bg-green-100 text-green-700 text-xs font-semibold rounded-full">
+                        {item.dish_type}
+                      </span>
+                    )}
                   </div>
-                  {(item.dishes?.description || item.dish?.description) && (
-                    <p className="text-sm text-gray-600 italic">{item.dishes?.description || item.dish?.description}</p>
-                  )}
-                  {(item.dishes?.category || item.dish?.category) && (
-                    <span className="inline-block mt-1 px-2 py-1 bg-orange-100 text-orange-800 text-xs font-semibold rounded-full">
-                      {item.dishes?.category || item.dish?.category}
-                    </span>
-                  )}
-                  {item.special_instructions && (
-                    <div className="mt-2 p-2 bg-yellow-50 border border-yellow-200 rounded-lg">
-                      <p className="text-sm font-bold text-orange-700">📝 Special: {item.special_instructions}</p>
-                    </div>
-                  )}
-                  <div className="mt-2 flex items-center gap-2">
-                    <span className="text-sm font-semibold text-gray-700">Price: ₹{item.price.toFixed(2)}</span>
-                    <span className="text-sm font-bold text-gray-900">Total: ₹{(item.price * item.quantity).toFixed(2)}</span>
-                  </div>
+                  <span className="text-sm font-bold text-gray-900">₹{(item.price * item.quantity).toFixed(2)}</span>
                 </div>
               </div>
               <div className="flex flex-col items-end gap-2">
-                <span className={`px-2 py-1 rounded-full text-xs font-bold ${
-                  item.status === 'ready' ? 'bg-green-100 text-green-800' :
-                  item.status === 'preparing' ? 'bg-orange-100 text-orange-800' :
-                  'bg-yellow-100 text-yellow-800'
+                <span className={`px-3 py-1 rounded-full text-xs font-bold ${
+                  item.status === 'ready' ? 'bg-lime-100 text-lime-800' :
+                  item.status === 'preparing' ? 'bg-teal-100 text-teal-800' :
+                  'bg-green-100 text-green-800'
                 }`}>
                   {item.status}
                 </span>
@@ -352,7 +365,7 @@ function OrderCard({ order, onStatusChange, onItemStatusChange, getStatusColor }
                                      item.status === 'preparing' ? 'ready' : 'ready'
                     onItemStatusChange(item.id, nextStatus)
                   }}
-                  className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-lg font-semibold hover:bg-blue-200 transition-colors"
+                  className="text-xs bg-green-600 text-white px-3 py-1.5 rounded-lg font-semibold hover:bg-green-700 transition-colors"
                 >
                   {item.status === 'pending' ? 'Start' : item.status === 'preparing' ? 'Complete' : 'Done'}
                 </button>
@@ -361,10 +374,10 @@ function OrderCard({ order, onStatusChange, onItemStatusChange, getStatusColor }
           ))}
         </div>
 
-        <div className="mt-4 pt-4 border-t-2 border-gray-200">
-          <div className="flex justify-between items-center mb-3">
+        <div className="mt-5 pt-5 border-t border-gray-200">
+          <div className="flex justify-between items-center mb-4">
             <div>
-              <span className="font-bold text-gray-900 text-lg">Total: ₹{order.total_amount.toFixed(2)}</span>
+              <span className="font-bold text-gray-900 text-xl">Total: ₹{order.total_amount.toFixed(2)}</span>
               <p className="text-sm text-gray-500">{order.order_items?.length} items</p>
             </div>
             <div className="text-right">
@@ -372,25 +385,25 @@ function OrderCard({ order, onStatusChange, onItemStatusChange, getStatusColor }
             </div>
           </div>
 
-          <div className="flex gap-2">
+          <div className="flex gap-3">
             {order.status === 'pending' || order.status === 'confirmed' ? (
               <button
                 onClick={() => onStatusChange('preparing')}
-                className="flex-1 bg-gradient-to-r from-orange-600 to-amber-600 text-white py-3 rounded-xl font-bold hover:shadow-lg transition-all duration-300 transform hover:scale-105"
+                className="flex-1 bg-green-600 text-white py-3 rounded-xl font-bold hover:bg-green-700 transition-colors"
               >
                 Start Preparing
               </button>
             ) : order.status === 'preparing' ? (
               <button
                 onClick={() => onStatusChange('ready')}
-                className="flex-1 bg-gradient-to-r from-green-600 to-emerald-600 text-white py-3 rounded-xl font-bold hover:shadow-lg transition-all duration-300 transform hover:scale-105"
+                className="flex-1 bg-teal-600 text-white py-3 rounded-xl font-bold hover:bg-teal-700 transition-colors"
               >
                 Mark Ready
               </button>
             ) : (
               <button
                 onClick={() => onStatusChange('served')}
-                className="flex-1 bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-3 rounded-xl font-bold hover:shadow-lg transition-all duration-300 transform hover:scale-105"
+                className="flex-1 bg-lime-600 text-white py-3 rounded-xl font-bold hover:bg-lime-700 transition-colors"
               >
                 Mark Served
               </button>

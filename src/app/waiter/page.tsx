@@ -111,13 +111,13 @@ export default function WaiterPage() {
     }
   }
 
-  const removeFromCart = (dishId: string) => {
-    setCart(cart.filter(item => item.dish_id !== dishId))
+  const removeFromCart = (dishId: string, dishType: string = 'Normal') => {
+    setCart(cart.filter(item => !(item.dish_id === dishId && item.dish_type === dishType)))
   }
 
-  const updateQuantity = (dishId: string, delta: number) => {
+  const updateQuantity = (dishId: string, delta: number, dishType: string = 'Normal') => {
     setCart(cart.map(item => {
-      if (item.dish_id === dishId) {
+      if (item.dish_id === dishId && item.dish_type === dishType) {
         const newQuantity = Math.max(1, item.quantity + delta)
         return { ...item, quantity: newQuantity }
       }
@@ -165,7 +165,8 @@ export default function WaiterPage() {
         dish_id: item.dish_id,
         quantity: item.quantity,
         price: item.price,
-        status: 'pending'
+        status: 'pending',
+        dish_type: item.dish_type || 'Normal'
       }))
 
       // We'll need to create an order_items API route, for now use Supabase
@@ -361,7 +362,8 @@ export default function WaiterPage() {
           dish_id: dishId,
           quantity: quantity,
           price: dish.price,
-          status: 'pending'
+          status: 'pending',
+          dish_type: selectedDishTypes[dishId] || 'Normal'
         })
       })
 
@@ -613,7 +615,8 @@ export default function WaiterPage() {
             dish_id: item.dish_id,
             quantity: item.quantity,
             price: item.price,
-            status: 'pending'
+            status: 'pending',
+            dish_type: item.dish_type || 'Normal'
           })
         })
       }
@@ -688,7 +691,7 @@ export default function WaiterPage() {
               {currentStep !== 'tables' && (
                 <button
                   onClick={handleBackToTables}
-                  className="flex items-center gap-2 text-gray-600 hover:text-orange-600 transition-colors"
+                  className="flex items-center gap-2 text-gray-600 hover:text-green-600 transition-colors"
                 >
                   <ArrowLeft className="w-4 h-4 sm:w-5 sm:h-5" />
                   <span className="font-semibold text-sm sm:text-base">Back to Tables</span>
@@ -698,21 +701,21 @@ export default function WaiterPage() {
             <div className="flex items-center gap-2 sm:gap-3">
               <button
                 onClick={handleInitializeTables}
-                className="flex items-center gap-2 bg-teal-500 text-white px-3 sm:px-4 py-2 rounded-xl font-semibold hover:bg-teal-600 transition-all duration-300 text-sm sm:text-base"
+                className="flex items-center gap-2 bg-green-800 text-white px-3 sm:px-4 py-2 rounded-xl font-semibold hover:bg-green-900 transition-all duration-300 text-sm sm:text-base"
               >
                 <Users className="w-4 h-4 sm:w-5 sm:h-5" />
                 Init Tables
               </button>
               <button
                 onClick={() => setCurrentStep('master')}
-                className="flex items-center gap-2 bg-purple-500 text-white px-3 sm:px-4 py-2 rounded-xl font-semibold hover:bg-purple-600 transition-all duration-300 text-sm sm:text-base"
+                className="flex items-center gap-2 bg-green-800 text-white px-3 sm:px-4 py-2 rounded-xl font-semibold hover:bg-green-900 transition-all duration-300 text-sm sm:text-base"
               >
                 <Crown className="w-4 h-4 sm:w-5 sm:h-5" />
                 Master Tables
               </button>
               <button
                 onClick={handleLogout}
-                className="flex items-center gap-2 bg-red-500 text-white px-3 sm:px-4 py-2 rounded-xl font-semibold hover:bg-red-600 transition-all duration-300 text-sm sm:text-base"
+                className="flex items-center gap-2 bg-green-800 text-white px-3 sm:px-4 py-2 rounded-xl font-semibold hover:bg-green-900 transition-all duration-300 text-sm sm:text-base"
               >
                 <LogOut className="w-4 h-4 sm:w-5 sm:h-5" />
                 Logout
@@ -738,7 +741,7 @@ export default function WaiterPage() {
                   className={`p-4 sm:p-6 rounded-2xl border-2 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 text-left relative ${
                     table.is_occupied 
                       ? 'border-red-500 bg-red-50 cursor-not-allowed opacity-60' 
-                      : 'border-green-500 bg-white hover:border-orange-500 cursor-pointer'
+                      : 'border-green-500 bg-white hover:border-green-500 cursor-pointer'
                   }`}
                 >
                   <button
@@ -760,8 +763,8 @@ export default function WaiterPage() {
                     className="w-full text-left"
                   >
                     <div className="flex justify-between items-start mb-4 pr-8">
-                      <div className="bg-orange-100 p-2 sm:p-3 rounded-xl">
-                        <Users className="w-5 h-5 sm:w-6 sm:h-6 text-orange-600" />
+                      <div className="bg-green-100 p-2 sm:p-3 rounded-xl">
+                        <Users className="w-5 h-5 sm:w-6 sm:h-6 text-green-600" />
                       </div>
                       <span className={`px-2 sm:px-3 py-1 rounded-full text-xs font-bold ${
                         table.is_occupied 
@@ -789,7 +792,7 @@ export default function WaiterPage() {
                 <h3 className="text-xl sm:text-2xl font-bold text-gray-900 mb-4">My Active Orders</h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                   {orders.filter(o => o.waiter_id === user?.id && !['paid', 'completed'].includes(o.status)).map((order) => (
-                    <div key={order.id} className="bg-white rounded-2xl shadow-lg p-4 sm:p-6 border-2 border-orange-200">
+                    <div key={order.id} className="bg-white rounded-2xl shadow-lg p-4 sm:p-6 border-2 border-green-200">
                       <div className="flex justify-between items-start mb-4">
                         <div>
                           <h4 className="text-base sm:text-lg font-bold text-gray-900">Table {order.tables?.table_number}</h4>
@@ -825,7 +828,7 @@ export default function WaiterPage() {
         {/* Step 2: Dishes Selection */}
         {currentStep === 'dishes' && selectedTable && (
           <div>
-            <div className="mb-3 sm:mb-6 bg-orange-100 rounded-2xl p-3 sm:p-4 border-2 border-orange-200">
+            <div className="mb-3 sm:mb-6 bg-green-100 rounded-2xl p-3 sm:p-4 border-2 border-green-200">
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
                 <div>
                   <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-1">
@@ -835,7 +838,7 @@ export default function WaiterPage() {
                 </div>
                 <button
                   onClick={handleBackToTables}
-                  className="flex items-center gap-1 bg-white text-orange-600 px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg font-semibold hover:bg-orange-50 transition-all duration-300 border-2 border-orange-300 w-full sm:w-auto justify-center text-xs sm:text-sm"
+                  className="flex items-center gap-1 bg-white text-green-600 px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg font-semibold hover:bg-green-50 transition-all duration-300 border-2 border-green-300 w-full sm:w-auto justify-center text-xs sm:text-sm"
                 >
                   <ArrowLeft className="w-3 h-3 sm:w-4 sm:h-4" />
                   Change
@@ -851,8 +854,8 @@ export default function WaiterPage() {
                   onClick={() => setSelectedCategory(category)}
                   className={`px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg text-xs font-semibold transition-all duration-300 ${
                     selectedCategory === category
-                      ? 'bg-orange-500 text-white shadow-lg'
-                      : 'bg-white text-gray-600 hover:bg-orange-50 border-2 border-gray-200'
+                      ? 'bg-green-500 text-white shadow-lg'
+                      : 'bg-white text-gray-600 hover:bg-green-50 border-2 border-gray-200'
                   }`}
                 >
                   {category === 'all' ? 'All' : category}
@@ -864,7 +867,7 @@ export default function WaiterPage() {
             <div className="bg-white rounded-2xl shadow-xl overflow-hidden mb-20 sm:mb-8">
               <div className="overflow-x-auto">
                 <table className="w-full">
-                  <thead className="bg-orange-100">
+                  <thead className="bg-green-100">
                     <tr>
                       <th className="px-2 sm:px-3 py-1.5 text-left text-xs font-bold text-gray-700 uppercase">Dish</th>
                       <th className="px-2 sm:px-3 py-1.5 text-right text-xs font-bold text-gray-700 uppercase">Price</th>
@@ -873,7 +876,7 @@ export default function WaiterPage() {
                   </thead>
                   <tbody className="divide-y divide-gray-200">
                     {filteredDishes.map((dish) => (
-                      <tr key={dish.id} className="hover:bg-orange-50 transition-colors">
+                      <tr key={dish.id} className="hover:bg-green-50 transition-colors">
                         <td className="px-2 sm:px-3 py-2">
                           <div className="flex flex-col">
                             <h3 className="font-bold text-gray-900 text-sm">{dish.name}</h3>
@@ -896,7 +899,11 @@ export default function WaiterPage() {
                             </select>
                             <button
                               onClick={() => addToCart(dish, selectedDishTypes[dish.id] || 'Normal')}
-                              className="flex items-center justify-center gap-1 bg-orange-500 text-white px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg font-semibold hover:bg-orange-600 transition-all duration-300 text-xs"
+                              className={`flex items-center justify-center gap-1 px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg font-semibold transition-all duration-300 text-xs border-2 ${
+                                cart.some(item => item.dish_id === dish.id && item.dish_type === (selectedDishTypes[dish.id] || 'Normal'))
+                                  ? 'bg-white text-black border-black hover:bg-gray-100'
+                                  : 'bg-green-500 text-white border-green-500 hover:bg-green-600'
+                              }`}
                             >
                               <Plus className="w-3 h-3" />
                               <span className="hidden sm:inline">Add</span>
@@ -912,7 +919,7 @@ export default function WaiterPage() {
 
             {/* Cart Summary */}
             {cart.length > 0 && (
-              <div className="fixed bottom-0 left-0 right-0 bg-white shadow-2xl border-t-2 border-orange-200 p-2 sm:p-4 z-50">
+              <div className="fixed bottom-0 left-0 right-0 bg-white shadow-2xl border-t-2 border-green-200 p-2 sm:p-4 z-50">
                 <div className="max-w-7xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-2 sm:gap-0">
                   <div className="text-center sm:text-left">
                     <p className="text-xs text-gray-600">{cart.length} items</p>
@@ -922,7 +929,7 @@ export default function WaiterPage() {
                   </div>
                   <button
                     onClick={() => setCurrentStep('cart')}
-                    className="flex items-center gap-1 sm:gap-2 bg-orange-500 text-white px-3 sm:px-6 py-2 sm:py-3 rounded-lg sm:rounded-xl font-semibold hover:bg-orange-600 transition-all duration-300 w-full sm:w-auto justify-center text-xs sm:text-sm"
+                    className="flex items-center gap-1 sm:gap-2 bg-green-500 text-white px-3 sm:px-6 py-2 sm:py-3 rounded-lg sm:rounded-xl font-semibold hover:bg-green-600 transition-all duration-300 w-full sm:w-auto justify-center text-xs sm:text-sm"
                   >
                     <ShoppingCart className="w-3 h-3 sm:w-5 sm:h-5" />
                     <span className="hidden sm:inline">View Cart</span>
@@ -937,7 +944,7 @@ export default function WaiterPage() {
         {/* Step 3: Cart Review */}
         {currentStep === 'cart' && selectedTable && (
           <div className="max-w-3xl mx-auto">
-            <div className="mb-6 sm:mb-8 bg-orange-100 rounded-2xl p-4 sm:p-6 border-2 border-orange-200">
+            <div className="mb-6 sm:mb-8 bg-green-100 rounded-2xl p-4 sm:p-6 border-2 border-green-200">
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                 <div>
                   <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-1 sm:mb-2">
@@ -947,7 +954,7 @@ export default function WaiterPage() {
                 </div>
                 <button
                   onClick={handleBackToTables}
-                  className="flex items-center gap-2 bg-white text-orange-600 px-3 sm:px-4 py-2 rounded-xl font-semibold hover:bg-orange-50 transition-all duration-300 border-2 border-orange-300 w-full sm:w-auto justify-center"
+                  className="flex items-center gap-2 bg-white text-green-600 px-3 sm:px-4 py-2 rounded-xl font-semibold hover:bg-green-50 transition-all duration-300 border-2 border-green-300 w-full sm:w-auto justify-center"
                 >
                   <ArrowLeft className="w-4 h-4" />
                   Change Table
@@ -956,7 +963,7 @@ export default function WaiterPage() {
             </div>
 
             <div className="bg-white rounded-2xl shadow-xl overflow-hidden mb-6">
-              <div className="p-4 sm:p-6 border-b border-gray-200 bg-orange-50">
+              <div className="p-4 sm:p-6 border-b border-gray-200 bg-green-50">
                 <h3 className="text-lg sm:text-xl font-bold text-gray-900">Order Items</h3>
               </div>
 
@@ -966,7 +973,7 @@ export default function WaiterPage() {
                   <p className="text-sm sm:text-base text-gray-500 font-semibold">Your cart is empty</p>
                   <button
                     onClick={() => setCurrentStep('dishes')}
-                    className="mt-4 text-orange-600 font-semibold hover:underline text-sm sm:text-base"
+                    className="mt-4 text-green-600 font-semibold hover:underline text-sm sm:text-base"
                   >
                     Add items to your order
                   </button>
@@ -974,23 +981,28 @@ export default function WaiterPage() {
               ) : (
                 <div className="divide-y divide-gray-200">
                   {cart.map((item) => (
-                    <div key={item.dish_id} className="p-3 sm:p-4 flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4">
+                    <div key={`${item.dish_id}-${item.dish_type}`} className="p-3 sm:p-4 flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4">
                       <div className="flex-1 w-full">
                         <h4 className="font-bold text-gray-900 text-sm sm:text-base">{item.name}</h4>
-                        <p className="text-xs sm:text-sm text-gray-600">₹{item.price.toFixed(2)} each</p>
+                        <div className="flex items-center gap-2">
+                          <p className="text-xs sm:text-sm text-gray-600">₹{item.price.toFixed(2)} each</p>
+                          <span className="px-2 py-0.5 bg-green-100 text-green-700 text-xs font-semibold rounded-full">
+                            {item.dish_type}
+                          </span>
+                        </div>
                       </div>
                       <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-start">
                         <div className="flex items-center gap-3">
                           <button
-                            onClick={() => updateQuantity(item.dish_id, -1)}
+                            onClick={() => updateQuantity(item.dish_id, -1, item.dish_type || 'Normal')}
                             className="w-8 h-8 rounded-full bg-gray-200 hover:bg-gray-300 flex items-center justify-center transition-colors"
                           >
                             <Minus className="w-4 h-4" />
                           </button>
                           <span className="w-8 text-center font-bold text-gray-900">{item.quantity}</span>
                           <button
-                            onClick={() => updateQuantity(item.dish_id, 1)}
-                            className="w-8 h-8 rounded-full bg-orange-100 hover:bg-orange-200 flex items-center justify-center transition-colors"
+                            onClick={() => updateQuantity(item.dish_id, 1, item.dish_type || 'Normal')}
+                            className="w-8 h-8 rounded-full bg-green-100 hover:bg-green-200 flex items-center justify-center transition-colors"
                           >
                             <Plus className="w-4 h-4" />
                           </button>
@@ -999,7 +1011,7 @@ export default function WaiterPage() {
                           ₹{(item.price * item.quantity).toFixed(2)}
                         </p>
                         <button
-                          onClick={() => removeFromCart(item.dish_id)}
+                          onClick={() => removeFromCart(item.dish_id, item.dish_type || 'Normal')}
                           className="text-red-500 hover:text-red-700 transition-colors"
                         >
                           <X className="w-4 h-4 sm:w-5 sm:h-5" />
@@ -1010,7 +1022,7 @@ export default function WaiterPage() {
                 </div>
               )}
 
-              <div className="p-4 sm:p-6 bg-orange-50">
+              <div className="p-4 sm:p-6 bg-green-50">
                 <div className="flex justify-between items-center">
                   <span className="text-lg sm:text-xl font-bold text-gray-700">Total Amount</span>
                   <span className="text-2xl sm:text-3xl font-bold text-gray-900">
@@ -1051,7 +1063,7 @@ export default function WaiterPage() {
               </p>
               <button
                 onClick={() => setCurrentStep('tables')}
-                className="w-full px-6 py-3 bg-orange-500 text-white rounded-xl font-semibold hover:bg-orange-600 transition-all duration-300"
+                className="w-full px-6 py-3 bg-green-500 text-white rounded-xl font-semibold hover:bg-green-600 transition-all duration-300"
               >
                 Take Another Order
               </button>
@@ -1258,7 +1270,7 @@ export default function WaiterPage() {
                     <>
                       <button
                         onClick={() => handleRemoveMasterStatus(selectedMasterTable.id, selectedMasterTable.table_number)}
-                        className="flex items-center gap-1 bg-orange-500 text-white px-2 py-1 rounded-lg font-semibold hover:bg-orange-600 transition-all duration-300 text-xs"
+                        className="flex items-center gap-1 bg-green-500 text-white px-2 py-1 rounded-lg font-semibold hover:bg-green-600 transition-all duration-300 text-xs"
                       >
                         <Crown className="w-3 h-3" />
                         Remove
@@ -1315,11 +1327,11 @@ export default function WaiterPage() {
                       >
                         <div className="flex items-center justify-between mb-1">
                           <h4 className="font-bold text-gray-900 text-sm">{dish.name}</h4>
-                          <span className="text-sm font-bold text-orange-600">₹{dish.price.toFixed(2)}</span>
+                          <span className="text-sm font-bold text-green-600">₹{dish.price.toFixed(2)}</span>
                         </div>
                         <div className="flex items-center justify-between">
                           <p className="text-xs text-gray-600">{dish.category}</p>
-                          <div className="flex items-center gap-1 bg-orange-100 text-orange-700 px-2 py-1 rounded-lg">
+                          <div className="flex items-center gap-1 bg-green-100 text-green-700 px-2 py-1 rounded-lg">
                             <Plus className="w-3 h-3 sm:w-4 sm:h-4" />
                             <span className="text-xs font-semibold hidden sm:inline">Add</span>
                           </div>
@@ -1612,7 +1624,7 @@ export default function WaiterPage() {
                       >
                         <div className="flex justify-between items-start mb-1">
                           <h4 className="font-bold text-gray-900 text-sm">{dish.name}</h4>
-                          <span className="text-sm font-bold text-orange-600">₹{dish.price.toFixed(2)}</span>
+                          <span className="text-sm font-bold text-green-600">₹{dish.price.toFixed(2)}</span>
                         </div>
                         <div className="flex items-center justify-between">
                           <p className="text-xs text-gray-600">{dish.category}</p>
@@ -1627,10 +1639,10 @@ export default function WaiterPage() {
                 </div>
 
                 {/* Order Total */}
-                <div className="mt-6 p-4 bg-gradient-to-r from-orange-50 to-amber-50 rounded-xl border-2 border-orange-200">
+                <div className="mt-6 p-4 bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl border-2 border-green-200">
                   <div className="flex justify-between items-center">
                     <span className="text-lg font-bold text-gray-700">Order Total</span>
-                    <span className="text-2xl font-bold bg-gradient-to-r from-orange-600 to-amber-600 bg-clip-text text-transparent">
+                    <span className="text-2xl font-bold bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">
                       ₹{viewingOrderItems.total_amount.toFixed(2)}
                     </span>
                   </div>

@@ -32,6 +32,8 @@ export interface Order {
   waiter_id: string
   status: 'pending' | 'confirmed' | 'preparing' | 'ready' | 'served' | 'completed' | 'paid'
   total_amount: number
+  customer_name?: string
+  customer_mobile?: string
   created_at: string
   updated_at: string
   tables?: Table
@@ -48,6 +50,7 @@ export interface OrderItem {
   special_instructions: string | null
   status: 'pending' | 'preparing' | 'ready' | 'served'
   created_at: string
+  dish_type?: string
   dish?: Dish
   dishes?: Dish
 }

@@ -261,12 +261,12 @@ export default function WaiterStatus() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-gray-600 text-sm font-semibold">Active Orders</p>
-              <p className="text-2xl font-bold bg-gradient-to-r from-orange-600 to-amber-600 bg-clip-text text-transparent">
+              <p className="text-2xl font-bold bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">
                 {waiters.reduce((sum, w) => sum + w.active_orders, 0)}
               </p>
             </div>
-            <div className="bg-orange-100 p-3 rounded-xl">
-              <Clock className="w-6 h-6 text-orange-600" />
+            <div className="bg-green-100 p-3 rounded-xl">
+              <Clock className="w-6 h-6 text-green-600" />
             </div>
           </div>
         </div>
@@ -289,14 +289,14 @@ export default function WaiterStatus() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Waiter List */}
         <div className="bg-white rounded-xl shadow-lg overflow-hidden">
-          <div className="p-6 border-b border-gray-200 bg-gradient-to-r from-orange-50 to-amber-50 flex justify-between items-center">
+          <div className="p-6 border-b border-gray-200 bg-gradient-to-r from-green-50 to-emerald-50 flex justify-between items-center">
             <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
               <Users className="w-5 h-5" />
               Waiter Management
             </h3>
             <button
               onClick={handleAddWaiter}
-              className="flex items-center bg-gradient-to-r from-orange-600 to-amber-600 text-white px-4 py-2 rounded-xl font-semibold hover:shadow-lg transition-all duration-300 transform hover:scale-105"
+              className="flex items-center bg-gradient-to-r from-green-600 to-emerald-600 text-white px-4 py-2 rounded-xl font-semibold hover:shadow-lg transition-all duration-300 transform hover:scale-105"
             >
               <Plus className="w-4 h-4 mr-2" />
               Add Waiter
@@ -304,7 +304,7 @@ export default function WaiterStatus() {
           </div>
           <div className="divide-y divide-gray-200">
             {waiters.map((waiter) => (
-              <div key={waiter.id} className="p-4 hover:bg-orange-50 transition-colors">
+              <div key={waiter.id} className="p-4 hover:bg-green-50 transition-colors">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-bold ${
@@ -333,7 +333,7 @@ export default function WaiterStatus() {
                       </button>
                       <button
                         onClick={() => handleEditWaiter(waiter)}
-                        className="p-2 rounded-full bg-orange-100 text-orange-600 hover:bg-orange-200 transition-all duration-300"
+                        className="p-2 rounded-full bg-green-100 text-green-600 hover:bg-green-200 transition-all duration-300"
                         title="Edit"
                       >
                         <Edit className="w-4 h-4" />
@@ -371,7 +371,7 @@ export default function WaiterStatus() {
 
         {/* Notifications */}
         <div className="bg-white rounded-xl shadow-lg overflow-hidden">
-          <div className="p-6 border-b border-gray-200 bg-gradient-to-r from-orange-50 to-amber-50">
+          <div className="p-6 border-b border-gray-200 bg-gradient-to-r from-green-50 to-emerald-50">
             <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
               <Bell className="w-5 h-5" />
               Recent Notifications
@@ -379,7 +379,7 @@ export default function WaiterStatus() {
           </div>
           <div className="divide-y divide-gray-200 max-h-96 overflow-y-auto">
             {notifications.map((notification) => (
-              <div key={notification.id} className="p-4 hover:bg-orange-50 transition-colors">
+              <div key={notification.id} className="p-4 hover:bg-green-50 transition-colors">
                 <div className="flex items-start gap-3">
                   <div className={`p-2 rounded-full ${
                     notification.type === 'alert' ? 'bg-red-100' :
@@ -417,7 +417,7 @@ export default function WaiterStatus() {
       {showWaiterModal && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
           <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md mx-4">
-            <h2 className="text-2xl font-bold mb-6 bg-gradient-to-r from-orange-600 to-amber-600 bg-clip-text text-transparent">
+            <h2 className="text-2xl font-bold mb-6 bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">
               {editingWaiter ? 'Edit Waiter' : 'Add New Waiter'}
             </h2>
             <div className="space-y-4">
@@ -427,7 +427,7 @@ export default function WaiterStatus() {
                   type="text"
                   value={waiterForm.name}
                   onChange={(e) => setWaiterForm({ ...waiterForm, name: e.target.value })}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:outline-none transition-colors placeholder-gray-400"
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-green-500 focus:outline-none transition-colors placeholder-gray-400"
                   placeholder="Enter waiter name"
                 />
               </div>
@@ -437,7 +437,7 @@ export default function WaiterStatus() {
                   type="email"
                   value={waiterForm.email}
                   onChange={(e) => setWaiterForm({ ...waiterForm, email: e.target.value })}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:outline-none transition-colors placeholder-gray-400"
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-green-500 focus:outline-none transition-colors placeholder-gray-400"
                   placeholder="Enter email address"
                 />
               </div>
@@ -449,7 +449,7 @@ export default function WaiterStatus() {
                   type="password"
                   value={waiterForm.password}
                   onChange={(e) => setWaiterForm({ ...waiterForm, password: e.target.value })}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:outline-none transition-colors placeholder-gray-400"
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-green-500 focus:outline-none transition-colors placeholder-gray-400"
                   placeholder={editingWaiter ? 'Enter new password' : 'Enter password'}
                 />
               </div>
@@ -459,7 +459,7 @@ export default function WaiterStatus() {
                   type="tel"
                   value={waiterForm.phone}
                   onChange={(e) => setWaiterForm({ ...waiterForm, phone: e.target.value })}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:outline-none transition-colors placeholder-gray-400"
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-green-500 focus:outline-none transition-colors placeholder-gray-400"
                   placeholder="Enter phone number (optional)"
                 />
               </div>
@@ -469,7 +469,7 @@ export default function WaiterStatus() {
                   id="is_available"
                   checked={waiterForm.is_available}
                   onChange={(e) => setWaiterForm({ ...waiterForm, is_available: e.target.checked })}
-                  className="w-5 h-5 text-orange-600 rounded focus:ring-orange-500"
+                  className="w-5 h-5 text-green-600 rounded focus:ring-green-500"
                 />
                 <label htmlFor="is_available" className="text-sm font-semibold text-gray-700">Available for duty</label>
               </div>
@@ -483,7 +483,7 @@ export default function WaiterStatus() {
               </button>
               <button
                 onClick={handleSaveWaiter}
-                className="flex-1 px-6 py-3 bg-gradient-to-r from-orange-600 to-amber-600 text-white rounded-xl font-semibold hover:shadow-lg transition-all duration-300 transform hover:scale-105"
+                className="flex-1 px-6 py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-xl font-semibold hover:shadow-lg transition-all duration-300 transform hover:scale-105"
               >
                 {editingWaiter ? 'Update' : 'Add Waiter'}
               </button>

@@ -123,11 +123,11 @@ export default function SalesAnalytics({ payments, orders }: SalesAnalyticsProps
 
     // Process category data (mock data for now - would need order items joined with dishes)
     setCategoryData([
-      { name: 'Starters', value: 25, color: '#f97316' },
-      { name: 'Main Course', value: 40, color: '#ea580c' },
-      { name: 'Beverages', value: 15, color: '#c2410c' },
-      { name: 'Desserts', value: 12, color: '#9a3412' },
-      { name: 'Others', value: 8, color: '#7c2d12' },
+      { name: 'Starters', value: 25, color: '#16a34a' },
+      { name: 'Main Course', value: 40, color: '#15803d' },
+      { name: 'Beverages', value: 15, color: '#22c55e' },
+      { name: 'Desserts', value: 12, color: '#4ade80' },
+      { name: 'Others', value: 8, color: '#86efac' },
     ])
   }
 
@@ -148,8 +148,8 @@ export default function SalesAnalytics({ payments, orders }: SalesAnalyticsProps
             onClick={() => setTimeRange(range)}
             className={`flex-1 min-w-[80px] py-2 px-4 rounded-lg text-sm font-semibold transition-all duration-300
               ${timeRange === range
-                ? 'bg-gradient-to-r from-orange-600 to-amber-600 text-white shadow-md'
-                : 'text-gray-600 hover:bg-orange-50'
+                ? 'bg-gradient-to-r from-green-600 to-emerald-600 text-white shadow-md'
+                : 'text-gray-600 hover:bg-green-50'
               }`}
           >
             {range.charAt(0).toUpperCase() + range.slice(1)}
@@ -163,12 +163,12 @@ export default function SalesAnalytics({ payments, orders }: SalesAnalyticsProps
           <div className="flex items-center justify-between">
             <div>
               <p className="text-gray-600 text-sm font-semibold">Total Sales</p>
-              <p className="text-2xl font-bold bg-gradient-to-r from-orange-600 to-amber-600 bg-clip-text text-transparent">
+              <p className="text-2xl font-bold bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">
                 ₹{totalSales.toFixed(2)}
               </p>
             </div>
-            <div className="bg-orange-100 p-3 rounded-xl">
-              <DollarSign className="w-6 h-6 text-orange-600" />
+            <div className="bg-green-100 p-3 rounded-xl">
+              <DollarSign className="w-6 h-6 text-green-600" />
             </div>
           </div>
           <div className="mt-4 flex items-center gap-2">
@@ -187,12 +187,12 @@ export default function SalesAnalytics({ payments, orders }: SalesAnalyticsProps
           <div className="flex items-center justify-between">
             <div>
               <p className="text-gray-600 text-sm font-semibold">Total Orders</p>
-              <p className="text-2xl font-bold bg-gradient-to-r from-orange-600 to-amber-600 bg-clip-text text-transparent">
+              <p className="text-2xl font-bold bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">
                 {totalOrders}
               </p>
             </div>
-            <div className="bg-orange-100 p-3 rounded-xl">
-              <Calendar className="w-6 h-6 text-orange-600" />
+            <div className="bg-green-100 p-3 rounded-xl">
+              <Calendar className="w-6 h-6 text-green-600" />
             </div>
           </div>
           <p className="mt-4 text-sm text-gray-600">
@@ -204,12 +204,12 @@ export default function SalesAnalytics({ payments, orders }: SalesAnalyticsProps
           <div className="flex items-center justify-between">
             <div>
               <p className="text-gray-600 text-sm font-semibold">Growth Rate</p>
-              <p className="text-2xl font-bold bg-gradient-to-r from-orange-600 to-amber-600 bg-clip-text text-transparent">
+              <p className="text-2xl font-bold bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">
                 {growth >= 0 ? '+' : ''}{growth.toFixed(1)}%
               </p>
             </div>
-            <div className="bg-orange-100 p-3 rounded-xl">
-              <TrendingUp className="w-6 h-6 text-orange-600" />
+            <div className="bg-green-100 p-3 rounded-xl">
+              <TrendingUp className="w-6 h-6 text-green-600" />
             </div>
           </div>
           <p className="mt-4 text-sm text-gray-600">
@@ -235,11 +235,11 @@ export default function SalesAnalytics({ payments, orders }: SalesAnalyticsProps
                 contentStyle={{ 
                   backgroundColor: '#fff', 
                   borderRadius: '8px', 
-                  border: '2px solid #f97316' 
+                  border: '2px solid #16a34a' 
                 }}
               />
               <Legend />
-              <Bar dataKey="sales" fill="#f97316" name="Sales (₹)" radius={[8, 8, 0, 0]} />
+              <Bar dataKey="sales" fill="#16a34a" name="Sales (₹)" radius={[8, 8, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </div>
@@ -249,7 +249,7 @@ export default function SalesAnalytics({ payments, orders }: SalesAnalyticsProps
           <h3 className="text-lg font-bold text-gray-900 mb-4">Orders Trend</h3>
           <ResponsiveContainer width="100%" height={300}>
             <LineChart data={chartData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f97316" strokeOpacity={0.2} />
+              <CartesianGrid strokeDasharray="3 3" stroke="#16a34a" strokeOpacity={0.2} />
               <XAxis 
                 dataKey={timeRange === 'daily' ? 'hour' : timeRange === 'weekly' ? 'day' : timeRange === 'monthly' ? 'week' : 'month'}
                 stroke="#6b7280"
@@ -259,17 +259,17 @@ export default function SalesAnalytics({ payments, orders }: SalesAnalyticsProps
                 contentStyle={{ 
                   backgroundColor: '#fff', 
                   borderRadius: '8px', 
-                  border: '2px solid #f97316' 
+                  border: '2px solid #16a34a' 
                 }}
               />
               <Legend />
               <Line 
                 type="monotone" 
                 dataKey="orders" 
-                stroke="#ea580c" 
+                stroke="#16a34a" 
                 strokeWidth={3}
                 name="Orders"
-                dot={{ fill: '#ea580c', r: 4 }}
+                dot={{ fill: '#16a34a', r: 4 }}
               />
             </LineChart>
           </ResponsiveContainer>
@@ -304,21 +304,21 @@ export default function SalesAnalytics({ payments, orders }: SalesAnalyticsProps
         <div className="bg-white rounded-xl shadow-lg p-6">
           <h3 className="text-lg font-bold text-gray-900 mb-4">Key Metrics</h3>
           <div className="space-y-4">
-            <div className="flex justify-between items-center p-3 bg-orange-50 rounded-lg">
+            <div className="flex justify-between items-center p-3 bg-green-50 rounded-lg">
               <span className="text-gray-700 font-medium">Peak Hour</span>
-              <span className="font-bold text-orange-600">7:00 PM - 9:00 PM</span>
+              <span className="font-bold text-green-600">7:00 PM - 9:00 PM</span>
             </div>
-            <div className="flex justify-between items-center p-3 bg-orange-50 rounded-lg">
+            <div className="flex justify-between items-center p-3 bg-green-50 rounded-lg">
               <span className="text-gray-700 font-medium">Avg. Order Value</span>
-              <span className="font-bold text-orange-600">₹{avgOrderValue.toFixed(2)}</span>
+              <span className="font-bold text-green-600">₹{avgOrderValue.toFixed(2)}</span>
             </div>
-            <div className="flex justify-between items-center p-3 bg-orange-50 rounded-lg">
+            <div className="flex justify-between items-center p-3 bg-green-50 rounded-lg">
               <span className="text-gray-700 font-medium">Conversion Rate</span>
-              <span className="font-bold text-orange-600">78.5%</span>
+              <span className="font-bold text-green-600">78.5%</span>
             </div>
-            <div className="flex justify-between items-center p-3 bg-orange-50 rounded-lg">
+            <div className="flex justify-between items-center p-3 bg-green-50 rounded-lg">
               <span className="text-gray-700 font-medium">Customer Satisfaction</span>
-              <span className="font-bold text-orange-600">4.8/5.0</span>
+              <span className="font-bold text-green-600">4.8/5.0</span>
             </div>
           </div>
         </div>
