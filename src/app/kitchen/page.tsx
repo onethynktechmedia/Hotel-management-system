@@ -24,6 +24,8 @@ export default function KitchenPage() {
   const [orders, setOrders] = useState<Order[]>([])
   const [loading, setLoading] = useState(true)
   const [notifications, setNotifications] = useState<any[]>([])
+  const [selectedFilter, setSelectedFilter] = useState<string>('all')
+  const [selectedOrderForBill, setSelectedOrderForBill] = useState<Order | null>(null)
 
   useEffect(() => {
     const userData = localStorage.getItem('user')
@@ -76,7 +78,11 @@ export default function KitchenPage() {
         })
       })
       
-      setOrders(data || [])
+      // Sort orders by created_at (newest first)
+      const sortedOrders = (data || []).sort((a: Order, b: Order) => 
+        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      )
+      setOrders(sortedOrders)
     } catch (error) {
       console.error('Error fetching orders:', error)
       console.error('Error string:', String(error))
@@ -88,6 +94,127 @@ export default function KitchenPage() {
   const handleLogout = () => {
     localStorage.removeItem('user')
     router.push('/login')
+  }
+
+  // Thermal Print Function for Kitchen Bill
+  const handleThermalPrint = async () => {
+    if (!selectedOrderForBill) return
+    
+    try {
+      console.log('Starting thermal print for kitchen order...')
+      
+      let billContent = ''
+      
+      // Initialize ESC/POS commands
+      billContent += '\x1B\x40' // Initialize printer
+      
+      // Center alignment for everything
+      billContent += '\x1B\x61\x01'
+      
+      // Table Number - Main Header - Large and Bold
+      billContent += '\x1B\x21\x30' // Double width and height
+      billContent += `TABLE ${selectedOrderForBill.tables?.table_number}\n`
+      billContent += '\x1B\x21\x00' // Normal
+      
+      billContent += '================================\n\n'
+      
+      // Kitchen Order - Small and Centered
+      billContent += '\x1B\x21\x01' // Small font
+      billContent += 'KITCHEN ORDER\n'
+      billContent += '\x1B\x21\x00' // Normal
+      billContent += '--------------------------------\n\n'
+      
+      // Order Info - Small size and centered
+      billContent += '\x1B\x21\x01' // Small font
+      billContent += `Order: ${formatOrderId(selectedOrderForBill.id)}\n`
+      billContent += `Date: ${new Date(selectedOrderForBill.created_at).toLocaleDateString()}\n`
+      billContent += `Time: ${new Date(selectedOrderForBill.created_at).toLocaleTimeString()}\n`
+      billContent += `Waiter: ${selectedOrderForBill.users?.name}\n`
+      billContent += '\x1B\x21\x00' // Normal
+      billContent += '--------------------------------\n\n'
+      
+      // Items Header - Adjusted for thermal printer width with proper alignment
+      billContent += '\x1B\x21\x09' // Bold
+      billContent += '  ITEM                  QTY  TYPE\n'
+      billContent += '-----------------------------------\n'
+      billContent += '\x1B\x21\x00' // Normal font for items (not bold)
+      
+      // Items - Normal font with proper alignment matching header
+      selectedOrderForBill.order_items?.forEach((item: any) => {
+        const name = item.dishes?.name || 'Unknown'
+        const qty = item.quantity
+        const dishType = item.dish_type || '-'
+        
+        // Format: Item name (14 chars), Qty (3), Type (4) - aligned with header
+        const itemName = name.length > 14 ? name.substring(0, 13) + '.' : name
+        billContent += `${itemName.padEnd(14)} ${qty.toString().padStart(2)} ${dishType.padEnd(4)}\n`
+      })
+      billContent += '\x1B\x21\x00' // Ensure normal text
+      
+      billContent += '--------------------------------\n'
+      
+      // Status - Small and centered
+      billContent += '\x1B\x21\x01' // Small font
+      billContent += `Status: ${selectedOrderForBill.status.toUpperCase()}\n`
+      billContent += '\x1B\x21\x00' // Normal
+      
+      billContent += '\n\n\n'
+      
+      // Cut paper
+      billContent += '\x1D\x56\x00' // Partial cut
+      
+      // Send to CUPS API
+      const response = await fetch('/api/print', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ billContent }),
+      })
+      
+      const result = await response.json()
+      
+      if (!result.success || result.fallback) {
+        // Fallback to browser print if thermal printer not available
+        console.log('Using browser print fallback')
+        
+        // Create a printable window with the bill content
+        const printWindow = window.open('', '_blank')
+        if (printWindow) {
+          printWindow.document.write(`
+            <html>
+              <head>
+                <title>Kitchen Order - ${formatOrderId(selectedOrderForBill.id)}</title>
+                <style>
+                  body { 
+                    font-family: 'Courier New', monospace; 
+                    white-space: pre; 
+                    padding: 20px; 
+                    text-align: center;
+                    font-size: 12px;
+                    line-height: 1.4;
+                  }
+                  @media print { 
+                    body { font-size: 10px; }
+                    @page { margin: 5mm; }
+                  }
+                </style>
+              </head>
+              <body>${billContent.replace(/\x1B[\x40-\x5F]/g, '')}</body>
+            </html>
+          `)
+          printWindow.document.close()
+          printWindow.print()
+          printWindow.close()
+        }
+      } else {
+        console.log('Kitchen order printed successfully')
+        alert('Kitchen order printed successfully!')
+      }
+    } catch (error) {
+      console.error('Error printing kitchen order:', error)
+      alert('Failed to print kitchen order. Check console for details.')
+    }
   }
 
   const updateOrderStatus = async (orderId: string, newStatus: string) => {
@@ -151,6 +278,17 @@ export default function KitchenPage() {
   const preparingOrders = orders.filter(o => o.status === 'preparing')
   const readyOrders = orders.filter(o => o.status === 'ready')
 
+  // Filter orders based on selected filter
+  const filteredOrders = selectedFilter === 'all' 
+    ? orders 
+    : selectedFilter === 'completed' 
+      ? completedOrders
+      : selectedFilter === 'pending'
+        ? pendingOrders
+        : selectedFilter === 'preparing'
+          ? preparingOrders
+          : readyOrders
+
   if (loading) {
     return <div className="min-h-screen flex items-center justify-center">Loading...</div>
   }
@@ -181,131 +319,192 @@ export default function KitchenPage() {
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Stats Bar */}
-        <div className="grid grid-cols-4 gap-6 mb-8">
-          <div className="bg-white border border-gray-200 rounded-2xl p-6 text-center shadow-md hover:shadow-lg transition-all duration-300">
-            <div className="flex items-center justify-center mb-3">
-              <CheckCircle className="w-7 h-7 text-green-600 mr-2" />
-              <span className="text-3xl font-bold text-gray-800">{completedOrders.length}</span>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+          <div 
+            onClick={() => setSelectedFilter(selectedFilter === 'pending' ? 'all' : 'pending')}
+            className={`bg-white border-2 rounded-2xl p-4 text-center shadow-md hover:shadow-lg transition-all duration-300 cursor-pointer ${selectedFilter === 'pending' ? 'border-green-500 ring-2 ring-green-200' : 'border-gray-200'}`}
+          >
+            <div className="flex items-center justify-center mb-2">
+              <Clock className="w-6 h-6 text-orange-500 mr-2 shrink-0" />
+              <span className="text-2xl font-bold text-gray-800">{pendingOrders.length}</span>
             </div>
-            <p className="text-sm font-bold text-gray-600">Completed</p>
+            <p className="text-xs font-bold text-gray-600">Pending</p>
           </div>
-          <div className="bg-white border border-gray-200 rounded-2xl p-6 text-center shadow-md hover:shadow-lg transition-all duration-300">
-            <div className="flex items-center justify-center mb-3">
-              <Clock className="w-7 h-7 text-orange-500 mr-2" />
-              <span className="text-3xl font-bold text-gray-800">{pendingOrders.length}</span>
+          <div 
+            onClick={() => setSelectedFilter(selectedFilter === 'preparing' ? 'all' : 'preparing')}
+            className={`bg-white border-2 rounded-2xl p-4 text-center shadow-md hover:shadow-lg transition-all duration-300 cursor-pointer ${selectedFilter === 'preparing' ? 'border-green-500 ring-2 ring-green-200' : 'border-gray-200'}`}
+          >
+            <div className="flex items-center justify-center mb-2">
+              <ChefHat className="w-6 h-6 text-blue-500 mr-2 shrink-0" />
+              <span className="text-2xl font-bold text-gray-800">{preparingOrders.length}</span>
             </div>
-            <p className="text-sm font-bold text-gray-600">Pending</p>
+            <p className="text-xs font-bold text-gray-600">Preparing</p>
           </div>
-          <div className="bg-white border border-gray-200 rounded-2xl p-6 text-center shadow-md hover:shadow-lg transition-all duration-300">
-            <div className="flex items-center justify-center mb-3">
-              <ChefHat className="w-7 h-7 text-blue-500 mr-2" />
-              <span className="text-3xl font-bold text-gray-800">{preparingOrders.length}</span>
+          <div 
+            onClick={() => setSelectedFilter(selectedFilter === 'ready' ? 'all' : 'ready')}
+            className={`bg-white border-2 rounded-2xl p-4 text-center shadow-md hover:shadow-lg transition-all duration-300 cursor-pointer ${selectedFilter === 'ready' ? 'border-green-500 ring-2 ring-green-200' : 'border-gray-200'}`}
+          >
+            <div className="flex items-center justify-center mb-2">
+              <CheckCircle className="w-6 h-6 text-purple-500 mr-2 shrink-0" />
+              <span className="text-2xl font-bold text-gray-800">{readyOrders.length}</span>
             </div>
-            <p className="text-sm font-bold text-gray-600">Preparing</p>
+            <p className="text-xs font-bold text-gray-600">Ready</p>
           </div>
-          <div className="bg-white border border-gray-200 rounded-2xl p-6 text-center shadow-md hover:shadow-lg transition-all duration-300">
-            <div className="flex items-center justify-center mb-3">
-              <CheckCircle className="w-7 h-7 text-purple-500 mr-2" />
-              <span className="text-3xl font-bold text-gray-800">{readyOrders.length}</span>
+          <div 
+            onClick={() => setSelectedFilter(selectedFilter === 'completed' ? 'all' : 'completed')}
+            className={`bg-white border-2 rounded-2xl p-4 text-center shadow-md hover:shadow-lg transition-all duration-300 cursor-pointer ${selectedFilter === 'completed' ? 'border-green-500 ring-2 ring-green-200' : 'border-gray-200'}`}
+          >
+            <div className="flex items-center justify-center mb-2">
+              <CheckCircle className="w-6 h-6 text-green-600 mr-2 shrink-0" />
+              <span className="text-2xl font-bold text-gray-800">{completedOrders.length}</span>
             </div>
-            <p className="text-sm font-bold text-gray-600">Ready</p>
+            <p className="text-xs font-bold text-gray-600">Completed</p>
           </div>
         </div>
 
         {/* Refresh Button */}
-        <div className="mb-8">
+        <div className="mb-8 flex gap-3">
           <button
             onClick={fetchOrders}
             className="bg-gradient-to-r from-green-600 to-emerald-600 text-white px-6 py-3 rounded-xl font-semibold hover:shadow-lg transition-all duration-300 transform hover:scale-105"
           >
             Refresh Orders
           </button>
+          {selectedFilter !== 'all' && (
+            <button
+              onClick={() => setSelectedFilter('all')}
+              className="bg-white border-2 border-green-500 text-green-700 px-6 py-3 rounded-xl font-semibold hover:bg-green-50 transition-all duration-300"
+            >
+              Show All Orders
+            </button>
+          )}
         </div>
 
         {/* Orders Grid */}
         <div className="space-y-8">
-          {/* Completed Orders */}
-          {completedOrders.length > 0 && (
+          {/* Show filtered orders or all orders */}
+          {selectedFilter !== 'all' && (
             <div>
               <h2 className="text-2xl font-bold mb-6 flex items-center text-gray-900">
-                <CheckCircle className="w-6 h-6 text-green-600 mr-3" />
-                Completed Orders ({completedOrders.length})
+                {selectedFilter === 'completed' && <CheckCircle className="w-6 h-6 text-green-600 mr-3" />}
+                {selectedFilter === 'pending' && <AlertCircle className="w-6 h-6 text-emerald-600 mr-3" />}
+                {selectedFilter === 'preparing' && <ChefHat className="w-6 h-6 text-teal-600 mr-3" />}
+                {selectedFilter === 'ready' && <CheckCircle className="w-6 h-6 text-lime-600 mr-3" />}
+                {selectedFilter.charAt(0).toUpperCase() + selectedFilter.slice(1)} Orders ({filteredOrders.length})
               </h2>
-              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {completedOrders.map(order => (
-                  <OrderCard
-                    key={order.id}
-                    order={order}
-                    onStatusChange={(status) => updateOrderStatus(order.id, status)}
-                    onItemStatusChange={updateItemStatus}
-                    getStatusColor={getStatusColor}
-                  />
-                ))}
-              </div>
+              {filteredOrders.length > 0 ? (
+                <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {filteredOrders.map(order => (
+                    <OrderCard
+                      key={order.id}
+                      order={order}
+                      onStatusChange={(status) => updateOrderStatus(order.id, status)}
+                      onItemStatusChange={updateItemStatus}
+                      getStatusColor={getStatusColor}
+                      onViewBill={setSelectedOrderForBill}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-16">
+                  <ChefHat className="w-20 h-20 text-green-300 mx-auto mb-6" />
+                  <p className="text-gray-500 text-xl font-semibold">No {selectedFilter} orders to display</p>
+                </div>
+              )}
             </div>
           )}
 
-          {/* Pending Orders */}
-          {pendingOrders.length > 0 && (
-            <div>
-              <h2 className="text-2xl font-bold mb-6 flex items-center text-gray-900">
-                <AlertCircle className="w-6 h-6 text-emerald-600 mr-3" />
-                Pending Orders ({pendingOrders.length})
-              </h2>
-              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {pendingOrders.map(order => (
-                  <OrderCard
-                    key={order.id}
-                    order={order}
-                    onStatusChange={(status) => updateOrderStatus(order.id, status)}
-                    onItemStatusChange={updateItemStatus}
-                    getStatusColor={getStatusColor}
-                  />
-                ))}
-              </div>
-            </div>
-          )}
+          {/* Show all orders when no filter is selected */}
+          {selectedFilter === 'all' && (
+            <>
+              {/* Pending Orders */}
+              {pendingOrders.length > 0 && (
+                <div>
+                  <h2 className="text-2xl font-bold mb-6 flex items-center text-gray-900">
+                    <AlertCircle className="w-6 h-6 text-emerald-600 mr-3" />
+                    Pending Orders ({pendingOrders.length})
+                  </h2>
+                  <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {pendingOrders.map(order => (
+                      <OrderCard
+                        key={order.id}
+                        order={order}
+                        onStatusChange={(status) => updateOrderStatus(order.id, status)}
+                        onItemStatusChange={updateItemStatus}
+                        getStatusColor={getStatusColor}
+                        onViewBill={setSelectedOrderForBill}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
 
-          {/* Preparing Orders */}
-          {preparingOrders.length > 0 && (
-            <div>
-              <h2 className="text-2xl font-bold mb-6 flex items-center text-gray-900">
-                <ChefHat className="w-6 h-6 text-teal-600 mr-3" />
-                Preparing Orders ({preparingOrders.length})
-              </h2>
-              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {preparingOrders.map(order => (
-                  <OrderCard
-                    key={order.id}
-                    order={order}
-                    onStatusChange={(status) => updateOrderStatus(order.id, status)}
-                    onItemStatusChange={updateItemStatus}
-                    getStatusColor={getStatusColor}
-                  />
-                ))}
-              </div>
-            </div>
-          )}
+              {/* Preparing Orders */}
+              {preparingOrders.length > 0 && (
+                <div>
+                  <h2 className="text-2xl font-bold mb-6 flex items-center text-gray-900">
+                    <ChefHat className="w-6 h-6 text-teal-600 mr-3" />
+                    Preparing Orders ({preparingOrders.length})
+                  </h2>
+                  <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {preparingOrders.map(order => (
+                      <OrderCard
+                        key={order.id}
+                        order={order}
+                        onStatusChange={(status) => updateOrderStatus(order.id, status)}
+                        onItemStatusChange={updateItemStatus}
+                        getStatusColor={getStatusColor}
+                        onViewBill={setSelectedOrderForBill}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
 
-          {/* Ready Orders */}
-          {readyOrders.length > 0 && (
-            <div>
-              <h2 className="text-2xl font-bold mb-6 flex items-center text-gray-900">
-                <CheckCircle className="w-6 h-6 text-lime-600 mr-3" />
-                Ready to Serve ({readyOrders.length})
-              </h2>
-              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {readyOrders.map(order => (
-                  <OrderCard
-                    key={order.id}
-                    order={order}
-                    onStatusChange={(status) => updateOrderStatus(order.id, status)}
-                    onItemStatusChange={updateItemStatus}
-                    getStatusColor={getStatusColor}
-                  />
-                ))}
-              </div>
-            </div>
+              {/* Ready Orders */}
+              {readyOrders.length > 0 && (
+                <div>
+                  <h2 className="text-2xl font-bold mb-6 flex items-center text-gray-900">
+                    <CheckCircle className="w-6 h-6 text-lime-600 mr-3" />
+                    Ready to Serve ({readyOrders.length})
+                  </h2>
+                  <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {readyOrders.map(order => (
+                      <OrderCard
+                        key={order.id}
+                        order={order}
+                        onStatusChange={(status) => updateOrderStatus(order.id, status)}
+                        onItemStatusChange={updateItemStatus}
+                        getStatusColor={getStatusColor}
+                        onViewBill={setSelectedOrderForBill}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Completed Orders */}
+              {completedOrders.length > 0 && (
+                <div>
+                  <h2 className="text-2xl font-bold mb-6 flex items-center text-gray-900">
+                    <CheckCircle className="w-6 h-6 text-green-600 mr-3" />
+                    Completed Orders ({completedOrders.length})
+                  </h2>
+                  <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {completedOrders.map(order => (
+                      <OrderCard
+                        key={order.id}
+                        order={order}
+                        onStatusChange={(status) => updateOrderStatus(order.id, status)}
+                        onItemStatusChange={updateItemStatus}
+                        getStatusColor={getStatusColor}
+                        onViewBill={setSelectedOrderForBill}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
           )}
 
           {orders.length === 0 && (
@@ -316,28 +515,140 @@ export default function KitchenPage() {
           )}
         </div>
       </div>
+
+      {/* Kitchen Bill Modal */}
+      {selectedOrderForBill && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 animate-slide-in">
+          <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-2xl font-bold text-green-700">
+                Kitchen Order Bill
+              </h2>
+              <button
+                onClick={() => setSelectedOrderForBill(null)}
+                className="text-gray-500 hover:text-gray-700 transition-colors"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="border-2 border-green-300 rounded-xl p-6 bg-white shadow-lg">
+              {/* Header */}
+              <div className="text-center mb-6 pb-4 border-b-2 border-dashed border-green-300">
+                <h1 className="text-3xl font-bold text-green-700 mb-1">
+                  Galaxy Garden
+                </h1>
+                <p className="text-sm font-semibold text-gray-700 mb-1">Restaurant & Bar</p>
+                <div className="text-xs text-gray-600 space-y-1">
+                  <p>123, Main Street, City, State - 123456</p>
+                  <p>Phone: +91 98765 43210</p>
+                </div>
+                <p className="text-sm font-bold text-green-700 mt-3 border-t border-dashed border-green-300 pt-2">KITCHEN ORDER</p>
+              </div>
+
+              {/* Order Info */}
+              <div className="grid grid-cols-2 gap-4 mb-6 p-4 bg-gradient-to-r from-green-100 to-emerald-100 rounded-xl border border-green-200">
+                <div>
+                  <p className="text-sm font-semibold text-green-800">Order No</p>
+                  <p className="text-lg font-bold text-green-900">{formatOrderId(selectedOrderForBill.id)}</p>
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-green-800">Date</p>
+                  <p className="text-lg font-bold text-green-900">{new Date(selectedOrderForBill.created_at).toLocaleDateString()}</p>
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-green-800">Table</p>
+                  <p className="text-lg font-bold text-green-900">Table {selectedOrderForBill.tables?.table_number}</p>
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-green-800">Waiter</p>
+                  <p className="text-lg font-bold text-green-900">{selectedOrderForBill.users?.name}</p>
+                </div>
+              </div>
+
+              {/* Items */}
+              <div className="mb-6">
+                <table className="w-full">
+                  <thead className="bg-gradient-to-r from-green-500 to-emerald-500">
+                    <tr>
+                      <th className="px-3 py-2 text-left text-xs font-bold text-white uppercase w-1/2">Item</th>
+                      <th className="px-3 py-2 text-center text-xs font-bold text-white uppercase w-16">Qty</th>
+                      <th className="px-3 py-2 text-center text-xs font-bold text-white uppercase w-24">Type</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-green-100">
+                    {selectedOrderForBill.order_items?.map((item: any) => (
+                      <tr key={item.id}>
+                        <td className="px-3 py-2 text-sm font-semibold text-gray-900 truncate">{item.dishes?.name}</td>
+                        <td className="px-3 py-2 text-sm text-center text-gray-600">{item.quantity}</td>
+                        <td className="px-3 py-2 text-sm text-center text-gray-600">{item.dish_type || '-'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Order Details */}
+              <div className="grid grid-cols-2 gap-4 p-4 bg-gradient-to-r from-green-100 to-emerald-100 rounded-xl border border-green-200">
+                <div>
+                  <p className="text-sm font-semibold text-green-800">Customer</p>
+                  <p className="text-lg font-bold text-green-900">{selectedOrderForBill.customer_name || 'Guest'}</p>
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-green-800">Status</p>
+                  <p className="text-lg font-bold text-green-900 capitalize">{selectedOrderForBill.status}</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-6 flex gap-3">
+              <button
+                onClick={() => setSelectedOrderForBill(null)}
+                className="flex-1 px-6 py-3 border-2 border-green-300 text-green-700 rounded-xl font-semibold hover:bg-green-50 transition-all duration-300"
+              >
+                Close
+              </button>
+              <button
+                onClick={handleThermalPrint}
+                className="flex-1 px-6 py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-xl font-semibold hover:shadow-lg transition-all duration-300"
+              >
+                Print Order
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
 
-function OrderCard({ order, onStatusChange, onItemStatusChange, getStatusColor }: {
+function OrderCard({ order, onStatusChange, onItemStatusChange, getStatusColor, onViewBill }: {
   order: Order
   onStatusChange: (status: string) => void
   onItemStatusChange: (itemId: string, status: string) => void
   getStatusColor: (status: string) => string
+  onViewBill: (order: Order) => void
 }) {
   return (
     <div className="bg-white rounded-2xl shadow-lg overflow-hidden border border-gray-200 hover:shadow-xl transition-all duration-300">
       <div className={`p-5 border-b-2 ${getStatusColor(order.status)}`}>
         <div className="flex justify-between items-start">
-          <div>
-            <h3 className="font-bold text-xl text-gray-900 mb-1">Table {order.tables?.table_number}</h3>
-            <p className="text-sm opacity-75 mb-1">{new Date(order.created_at).toLocaleTimeString()}</p>
-            <p className="text-xs opacity-60">Order #{formatOrderId(order.id)}</p>
+          <div className="flex-1 min-w-0">
+            <h3 className="font-bold text-xl text-gray-900 mb-1 truncate">Table {order.tables?.table_number}</h3>
+            <p className="text-sm opacity-75 mb-1 truncate">{new Date(order.created_at).toLocaleTimeString()}</p>
+            <p className="text-xs opacity-60 truncate">Order #{formatOrderId(order.id)}</p>
           </div>
-          <span className={`px-4 py-2 rounded-full text-sm font-bold ${getStatusColor(order.status)}`}>
-            {order.status}
-          </span>
+          <div className="flex flex-col items-end gap-2 shrink-0">
+            <span className={`px-3 py-1 rounded-full text-xs font-bold whitespace-nowrap ${getStatusColor(order.status)}`}>
+              {order.status}
+            </span>
+            <button
+              onClick={() => onViewBill(order)}
+              className="text-xs bg-gray-600 text-white px-3 py-1.5 rounded-lg font-semibold hover:bg-gray-700 transition-colors whitespace-nowrap"
+            >
+              View Bill
+            </button>
+          </div>
         </div>
       </div>
       
@@ -345,24 +656,23 @@ function OrderCard({ order, onStatusChange, onItemStatusChange, getStatusColor }
         <div className="space-y-3">
           {order.order_items?.map((item: OrderItem) => (
             <div key={item.id} className="flex justify-between items-center p-4 bg-gray-50 rounded-xl border border-gray-200 hover:border-green-300 transition-colors">
-              <div className="flex items-center gap-4 flex-1">
-                <span className="font-bold text-gray-900 text-xl">{item.quantity}x</span>
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="font-semibold text-gray-800">
+              <div className="flex items-center gap-4 flex-1 min-w-0">
+                <span className="font-bold text-gray-900 text-xl shrink-0">{item.quantity}x</span>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1 flex-wrap">
+                    <span className="font-semibold text-gray-800 truncate">
                       {item.dishes?.name || item.dish?.name || `Dish ID: ${item.dish_id}`}
                     </span>
                     {item.dish_type && (
-                      <span className="px-2 py-0.5 bg-green-100 text-green-700 text-xs font-semibold rounded-full">
+                      <span className="px-2 py-0.5 bg-green-100 text-green-700 text-xs font-semibold rounded-full shrink-0">
                         {item.dish_type}
                       </span>
                     )}
                   </div>
-                  <span className="text-sm font-bold text-gray-900">₹{(item.price * item.quantity).toFixed(2)}</span>
                 </div>
               </div>
-              <div className="flex flex-col items-end gap-2">
-                <span className={`px-3 py-1 rounded-full text-xs font-bold ${
+              <div className="flex flex-col items-end gap-2 shrink-0">
+                <span className={`px-2 py-0.5 rounded-full text-xs font-bold whitespace-nowrap ${
                   item.status === 'ready' ? 'bg-lime-100 text-lime-800' :
                   item.status === 'preparing' ? 'bg-teal-100 text-teal-800' :
                   'bg-green-100 text-green-800'
@@ -375,7 +685,7 @@ function OrderCard({ order, onStatusChange, onItemStatusChange, getStatusColor }
                                      item.status === 'preparing' ? 'ready' : 'ready'
                     onItemStatusChange(item.id, nextStatus)
                   }}
-                  className="text-xs bg-green-600 text-white px-3 py-1.5 rounded-lg font-semibold hover:bg-green-700 transition-colors"
+                  className="text-xs bg-green-600 text-white px-3 py-1.5 rounded-lg font-semibold hover:bg-green-700 transition-colors whitespace-nowrap"
                 >
                   {item.status === 'pending' ? 'Start' : item.status === 'preparing' ? 'Complete' : 'Done'}
                 </button>
@@ -386,12 +696,11 @@ function OrderCard({ order, onStatusChange, onItemStatusChange, getStatusColor }
 
         <div className="mt-5 pt-5 border-t border-gray-200">
           <div className="flex justify-between items-center mb-4">
-            <div>
-              <span className="font-bold text-gray-900 text-xl">Total: ₹{order.total_amount.toFixed(2)}</span>
+            <div className="min-w-0">
               <p className="text-sm text-gray-500">{order.order_items?.length} items</p>
             </div>
-            <div className="text-right">
-              <span className="text-sm font-semibold text-gray-500">Waiter: {order.users?.name}</span>
+            <div className="text-right shrink-0">
+              <span className="text-sm font-semibold text-gray-500 truncate">Waiter: {order.users?.name}</span>
             </div>
           </div>
 

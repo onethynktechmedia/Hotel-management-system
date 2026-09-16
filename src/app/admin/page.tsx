@@ -102,7 +102,16 @@ export default function AdminDashboard() {
         supabase.from('notifications').select('*').order('created_at', { ascending: false })
       ])
 
-      setOrders(ordersRes || [])
+      // Fetch order items for each order
+      const ordersWithItems = await Promise.all(
+        (ordersRes || []).map(async (order: any) => {
+          const itemsRes = await fetch(`/api/orders/${order.id}/items`)
+          const items = await itemsRes.json()
+          return { ...order, order_items: items }
+        })
+      )
+
+      setOrders(ordersWithItems || [])
       setDishes(dishesRes || [])
       setTables(tablesRes.data || [])
       setPayments(paymentsRes.data || [])
@@ -249,7 +258,7 @@ export default function AdminDashboard() {
     
     // Order Info
     escpos += '\x1B\x61\x00' // Left align
-    escpos += `Bill No: ${selectedOrderForBilling.id.slice(0, 8)}\n`
+    escpos += `Bill No: ${formatOrderId(selectedOrderForBilling.id)}\n`
     escpos += `Date: ${new Date(selectedOrderForBilling.created_at).toLocaleDateString()}\n`
     escpos += `Time: ${new Date(selectedOrderForBilling.created_at).toLocaleTimeString()}\n`
     escpos += `Table: ${selectedOrderForBilling.tables?.table_number}\n`
@@ -258,21 +267,20 @@ export default function AdminDashboard() {
     escpos += '--------------------\n\n'
     
     // Items Header
-    escpos += '\x1B\x21\x08' // Bold
-    escpos += 'ITEM           QTY  PRICE   TOTAL\n'
-    escpos += '--------------------\n'
+    escpos += '\x1B\x21\x20' // Double height
+    escpos += 'Item        Qty   Total\n'
     escpos += '\x1B\x21\x00' // Normal
     
     // Items
     selectedOrderForBilling.order_items?.forEach((item: any) => {
       const name = item.dishes?.name || 'Unknown'
       const qty = item.quantity
-      const price = (item.dishes?.price || item.price || 0).toFixed(2)
-      const total = ((item.dishes?.price || item.price || 0) * item.quantity).toFixed(2)
+      const price = (item.dishes?.price || item.price || 0)
+      const total = (price * qty).toFixed(2)
       
-      // Format: Item name (12 chars), Qty (2), Price (7), Total (7)
-      const itemName = name.length > 12 ? name.substring(0, 11) + '.' : name
-      escpos += `${itemName.padEnd(12)} ${qty.toString().padStart(2)}  Rs.${price.padStart(5)}  Rs.${total.padStart(5)}\n`
+      // Format: Item name (truncated) | Qty | Total
+      const truncatedName = name.length > 12 ? name.substring(0, 12) : name
+      escpos += `${truncatedName.padEnd(16)}${qty.toString().padEnd(6)}${total}\n`
     })
     
     escpos += '----------------------------\n\n'
@@ -283,14 +291,14 @@ export default function AdminDashboard() {
     const finalAmount = calculateFinalAmount(subtotal)
     
     escpos += '\x1B\x61\x00' // Left align
-    escpos += `Subtotal:         Rs.${subtotal.toFixed(2)}\n`
-    
+    escpos += `Subtotal:         ₹${subtotal.toFixed(2)}\n`
+
     if (discount > 0) {
-      escpos += `Discount:        -Rs.${discount.toFixed(2)}\n`
+      escpos += `Discount:        -₹${discount.toFixed(2)}\n`
     }
-    
+
     escpos += '\x1B\x21\x30' // Double height, double width
-    escpos += `GRAND TOTAL:      Rs.${finalAmount.toFixed(2)}\n`
+    escpos += `GRAND TOTAL:      ₹${finalAmount.toFixed(2)}\n`
     escpos += '\x1B\x21\x00' // Normal text
     
     // Footer
@@ -339,7 +347,7 @@ export default function AdminDashboard() {
       
       // Order Info - Normal size, left aligned
       billContent += '\x1B\x61\x00' // Left align
-      billContent += `Bill No: ${selectedOrderForBilling.id.slice(0, 8)}\n`
+      billContent += `Bill No: ${formatOrderId(selectedOrderForBilling.id)}\n`
       billContent += `Date: ${new Date(selectedOrderForBilling.created_at).toLocaleDateString()}\n`
       billContent += `Time: ${new Date(selectedOrderForBilling.created_at).toLocaleTimeString()}\n`
       billContent += `Table: ${selectedOrderForBilling.tables?.table_number}\n`
@@ -350,8 +358,8 @@ export default function AdminDashboard() {
       // Items Header - Very small font, bold
       billContent += '\x1B\x21\x01' // Small font
       billContent += '\x1B\x21\x09' // Bold
-      billContent += 'ITEM           TYPE    QTY    PRICE    TOTAL\n'
-      billContent += '----------------------------------------\n'
+      billContent += 'ITEM           QTY    TOTAL\n'
+      billContent += '------------------------\n'
       billContent += '\x1B\x21\x00' // Normal
       
       // Items - Very small font, proper one line format for table orders
@@ -359,33 +367,31 @@ export default function AdminDashboard() {
       selectedOrderForBilling.order_items?.forEach((item: any) => {
         const name = item.dishes?.name || 'Unknown'
         const qty = item.quantity
-        const price = (item.dishes?.price || item.price || 0).toFixed(2)
-        const total = ((item.dishes?.price || item.price || 0) * item.quantity).toFixed(2)
-        const dishType = item.dish_type || ''
+        const price = (item.dishes?.price || item.price || 0)
+        const total = (price * qty).toFixed(2)
         
-        // Format: Item name (12 chars), Type (6), Qty (2), Price (7), Total (7) - ensure one line
-        const itemName = name.length > 12 ? name.substring(0, 11) + '.' : name
-        const typeStr = dishType.length > 6 ? dishType.substring(0, 5) + '.' : dishType
-        billContent += `${itemName.padEnd(12)} ${typeStr.padEnd(6)} ${qty.toString().padStart(2)}  Rs.${price.padStart(5)}  Rs.${total.padStart(5)}\n`
+        // Format: Item name (15 chars), Qty (4), Total (8) - ensure one line
+        const itemName = name.length > 15 ? name.substring(0, 14) + '.' : name
+        billContent += `${itemName.padEnd(15)} ${qty.toString().padStart(2)}  ₹${total.padStart(7)}\n`
       })
       billContent += '\x1B\x21\x00' // Normal text
       
-      billContent += '--------------------------------\n'
+      billContent += '------------------------\n'
       
       // Totals - Proper format matching invoice
       const subtotal = selectedOrderForBilling.total_amount
       const discount = calculateDiscountValue(subtotal)
       const finalAmount = calculateFinalAmount(subtotal)
       
-      billContent += `Subtotal:       Rs.${subtotal.toFixed(2)}\n`
-      
+      billContent += `Subtotal:       ₹${subtotal.toFixed(2)}\n`
+
       if (discount > 0) {
-        billContent += `Discount:        -Rs.${discount.toFixed(2)}\n`
+        billContent += `Discount:        -₹${discount.toFixed(2)}\n`
       }
-      
+
       // Grand Total - Bold but normal size (professional but not too large)
       billContent += '\x1B\x21\x08' // Bold
-      billContent += `GRAND TOTAL:    Rs.${finalAmount.toFixed(2)}\n`
+      billContent += `GRAND TOTAL:    ₹${finalAmount.toFixed(2)}\n`
       billContent += '\x1B\x21\x00' // Normal text
       
       // Footer - Centered, smaller size for developer credit
@@ -427,37 +433,39 @@ export default function AdminDashboard() {
         } else if (data.fallback) {
           // Fallback to browser print if server-side printing is not available
           console.log('Using browser print fallback')
-          alert('Direct printing not available. Opening browser print dialog...')
+          
           // Create a printable version of the bill
           const printWindow = window.open('', '_blank')
           if (printWindow) {
-            const printableContent = billContent
-              .replace(/\x1B\x40/g, '') // Remove initialize
-              .replace(/\x1B\x61\x01/g, '<div style="text-align: center;">') // Center align
-              .replace(/\x1B\x61\x00/g, '</div><div style="text-align: left;">') // Left align
-              .replace(/\x1B\x45\x01/g, '<b>') // Bold on
-              .replace(/\x1B\x45\x00/g, '</b>') // Bold off
-              .replace(/\x1D\x21\x11/g, '<span style="font-size: 24px;">') // Double height/width
-              .replace(/\x1D\x21\x00/g, '</span>') // Normal size
-              .replace(/\x1B\x4D\x00/g, '<span style="font-size: 12px;">') // Font A
-              .replace(/\x1B\x4D\x01/g, '<span style="font-size: 16px;">') // Font B
-              .replace(/\x1D\x56\x00/g, '') // Remove cut command
-              .replace(/\n/g, '<br>')
+            const plainText = billContent
+              .replace(/\x1B[\x40-\x5F]/g, '') // Remove all ESC/POS commands
+              .replace(/\x1D[\x40-\x5F]/g, '') // Remove all ESC/POS commands
             
             printWindow.document.write(`
               <html>
                 <head>
-                  <title>Print Bill</title>
+                  <title>Bill - ${formatOrderId(selectedOrderForBilling.id)}</title>
                   <style>
-                    body { font-family: monospace; padding: 20px; }
-                    @media print { body { padding: 0; } }
+                    body { 
+                      font-family: 'Courier New', monospace; 
+                      white-space: pre; 
+                      padding: 20px; 
+                      text-align: center;
+                      font-size: 12px;
+                      line-height: 1.4;
+                    }
+                    @media print { 
+                      body { font-size: 10px; }
+                      @page { margin: 5mm; }
+                    }
                   </style>
                 </head>
-                <body>${printableContent}</body>
+                <body>${plainText}</body>
               </html>
             `)
             printWindow.document.close()
             printWindow.print()
+            printWindow.close()
           }
         } else {
           throw new Error(data.error || 'Print failed')
@@ -732,7 +740,7 @@ For technical support, contact: support@everycom.com
   const stats = {
     totalOrders: orders.length,
     activeOrders: orders.filter(o => !['completed', 'paid'].includes(o.status)).length,
-    totalRevenue: payments.filter(p => p.status === 'completed').reduce((sum, p) => sum + p.amount, 0),
+    totalRevenue: orders.filter(o => ['paid', 'completed'].includes(o.status)).reduce((sum, o) => sum + (o.total_amount || 0), 0),
     totalCustomers: new Set(orders.map(o => o.waiter_id)).size
   }
 
@@ -759,7 +767,7 @@ For technical support, contact: support@everycom.com
         {/* Top Header Bar */}
         <header className="fixed top-0 right-0 left-0 lg:left-72 bg-white/95 backdrop-blur-sm shadow-md z-30 px-4 lg:px-8 py-4">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-4">
               <div className="w-10 h-10 bg-gradient-to-r from-green-600 to-emerald-600 rounded-xl flex items-center justify-center">
                 <span className="text-white font-bold text-lg">H</span>
               </div>
@@ -890,50 +898,34 @@ For technical support, contact: support@everycom.com
               </p>
             </div>
             <h2 className="text-2xl font-bold text-gray-900 mb-6">Dashboard Overview</h2>
-            <div className="grid md:grid-cols-4 gap-6 mb-8">
-              <div className="bg-white/95 backdrop-blur-sm p-6 rounded-2xl shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-2 animate-fade-in">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-gray-600 text-sm font-semibold">Total Orders</p>
-                    <p className="text-3xl font-bold bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">{stats.totalOrders}</p>
-                  </div>
-                  <div className="bg-green-100 p-3 rounded-xl">
-                    <Users className="w-8 h-8 text-green-600" />
-                  </div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+              <div className="bg-white border border-gray-200 rounded-2xl p-4 sm:p-6 text-center shadow-md hover:shadow-lg transition-all duration-300">
+                <div className="flex items-center justify-center mb-3">
+                  <Users className="w-6 h-6 sm:w-7 sm:h-7 text-green-600 mr-2" />
+                  <span className="text-2xl sm:text-3xl font-bold text-gray-800">{stats.totalOrders}</span>
                 </div>
+                <p className="text-xs sm:text-sm font-bold text-gray-600">Total Orders</p>
               </div>
-              <div className="bg-white/95 backdrop-blur-sm p-6 rounded-2xl shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-2 animate-fade-in">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-gray-600 text-sm font-semibold">Active Orders</p>
-                    <p className="text-3xl font-bold bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">{stats.activeOrders}</p>
-                  </div>
-                  <div className="bg-green-100 p-3 rounded-xl">
-                    <Utensils className="w-8 h-8 text-green-600" />
-                  </div>
+              <div className="bg-white border border-gray-200 rounded-2xl p-4 sm:p-6 text-center shadow-md hover:shadow-lg transition-all duration-300">
+                <div className="flex items-center justify-center mb-3">
+                  <Utensils className="w-6 h-6 sm:w-7 sm:h-7 text-orange-500 mr-2" />
+                  <span className="text-2xl sm:text-3xl font-bold text-gray-800">{stats.activeOrders}</span>
                 </div>
+                <p className="text-xs sm:text-sm font-bold text-gray-600">Active Orders</p>
               </div>
-              <div className="bg-white/95 backdrop-blur-sm p-6 rounded-2xl shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-2 animate-fade-in">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-gray-600 text-sm font-semibold">Total Revenue</p>
-                    <p className="text-3xl font-bold bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">₹{stats.totalRevenue.toFixed(2)}</p>
-                  </div>
-                  <div className="bg-green-100 p-3 rounded-xl">
-                    <DollarSign className="w-8 h-8 text-green-600" />
-                  </div>
+              <div className="bg-white border border-gray-200 rounded-2xl p-4 sm:p-6 text-center shadow-md hover:shadow-lg transition-all duration-300">
+                <div className="flex items-center justify-center mb-3">
+                  <span className="text-green-600 font-bold text-xl sm:text-2xl mr-2">₹</span>
+                  <span className="text-2xl sm:text-3xl font-bold text-gray-800">{stats.totalRevenue.toFixed(0)}</span>
                 </div>
+                <p className="text-xs sm:text-sm font-bold text-gray-600">Total Revenue</p>
               </div>
-              <div className="bg-white/95 backdrop-blur-sm p-6 rounded-2xl shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-2 animate-fade-in">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-gray-600 text-sm font-semibold">Total Customers</p>
-                    <p className="text-3xl font-bold bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">{stats.totalCustomers}</p>
-                  </div>
-                  <div className="bg-green-100 p-3 rounded-xl">
-                    <UserIcon className="w-8 h-8 text-green-600" />
-                  </div>
+              <div className="bg-white border border-gray-200 rounded-2xl p-4 sm:p-6 text-center shadow-md hover:shadow-lg transition-all duration-300">
+                <div className="flex items-center justify-center mb-3">
+                  <UserIcon className="w-6 h-6 sm:w-7 sm:h-7 text-blue-500 mr-2" />
+                  <span className="text-2xl sm:text-3xl font-bold text-gray-800">{stats.totalCustomers}</span>
                 </div>
+                <p className="text-xs sm:text-sm font-bold text-gray-600">Total Customers</p>
               </div>
             </div>
 
@@ -1481,12 +1473,10 @@ For technical support, contact: support@everycom.com
         )}
 
         {activeTab === 'reports' && (
-          <>
-            <h2 className="text-2xl font-bold text-gray-900 mb-6">Reports & Analytics</h2>
-            <Reports orders={orders} payments={payments} dishes={dishes} />
-          </>
+          <Reports orders={orders} payments={payments} dishes={dishes} />
         )}
       </main>
+      </div>
 
       {/* Dish Modal */}
       {showDishModal && (
@@ -1686,8 +1676,8 @@ For technical support, contact: support@everycom.com
                                   </span>
                                 )}
                               </td>
-                              <td className="px-4 py-2 text-sm text-right text-gray-600">Rs.{item.price.toFixed(2)}</td>
-                              <td className="px-4 py-2 text-sm text-right font-bold text-gray-900">Rs.{(item.price * item.quantity).toFixed(2)}</td>
+                              <td className="px-4 py-2 text-sm text-right text-gray-600">₹{item.price.toFixed(2)}</td>
+                              <td className="px-4 py-2 text-sm text-right font-bold text-gray-900">₹{(item.price * item.quantity).toFixed(2)}</td>
                             </tr>
                           ))}
                         </tbody>
@@ -1695,7 +1685,7 @@ For technical support, contact: support@everycom.com
                       <div className="mt-4 pt-4 border-t border-gray-200 flex justify-between items-center">
                         <span className="font-bold text-gray-700">Total Amount:</span>
                         <span className="text-2xl font-bold bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">
-                          Rs.{order.total_amount.toFixed(2)}
+                          ₹{order.total_amount.toFixed(2)}
                         </span>
                       </div>
                     </div>
@@ -1710,9 +1700,9 @@ For technical support, contact: support@everycom.com
       {/* Billing Modal */}
       {selectedOrderForBilling && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 animate-slide-in">
-          <div id="bill-modal" className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto text-center">
+          <div id="bill-modal" className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-2xl shadow-2xl p-8 w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto text-center">
             <div className="flex justify-between items-center mb-6 no-print">
-              <h2 className="text-2xl font-bold bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">
+              <h2 className="text-2xl font-bold text-green-700">
                 Print Bill
               </h2>
               <button
@@ -1723,10 +1713,10 @@ For technical support, contact: support@everycom.com
               </button>
             </div>
 
-            <div className="border-2 border-green-200 rounded-xl p-6 bg-white">
+            <div className="border-2 border-green-300 rounded-xl p-6 bg-white shadow-lg">
               {/* Header */}
               <div className="text-center mb-6 pb-4 border-b-2 border-dashed border-green-300">
-                <h1 className="text-3xl font-bold bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent mb-1">
+                <h1 className="text-3xl font-bold text-green-700 mb-1">
                   Galaxy Garden
                 </h1>
                 <p className="text-sm font-semibold text-gray-700 mb-1">Restaurant & Bar</p>
@@ -1735,7 +1725,7 @@ For technical support, contact: support@everycom.com
                   <p>Phone: +91 98765 43210</p>
                   <p>GSTIN: 29ABCDE1234F1Z5</p>
                 </div>
-                <p className="text-sm font-bold text-gray-800 mt-3 border-t border-dashed border-gray-300 pt-2">BILL / INVOICE</p>
+                <p className="text-sm font-bold text-green-700 mt-3 border-t border-dashed border-green-300 pt-2">BILL / INVOICE</p>
               </div>
 
               {/* Print-only header with hotel details */}
@@ -1751,7 +1741,7 @@ For technical support, contact: support@everycom.com
               {/* Print-only order details */}
               <div className="print-only mb-2 pb-2 border-b border-dashed border-black">
                 <div className="flex justify-between text-xs text-black">
-                  <span>Bill No: {selectedOrderForBilling.id.slice(0, 8)}</span>
+                  <span>Bill No: {formatOrderId(selectedOrderForBilling.id)}</span>
                   <span>Date: {new Date(selectedOrderForBilling.created_at).toLocaleDateString()}</span>
                 </div>
                 <div className="flex justify-between text-xs text-black mt-1">
@@ -1765,53 +1755,46 @@ For technical support, contact: support@everycom.com
               </div>
 
               {/* Order Info */}
-              <div className="grid grid-cols-2 gap-4 mb-6 p-4 bg-gray-50 rounded-xl no-print">
+              <div className="grid grid-cols-2 gap-4 mb-6 p-4 bg-gradient-to-r from-green-100 to-emerald-100 rounded-xl no-print border border-green-200">
                 <div>
-                  <p className="text-sm font-semibold text-gray-600">Bill No</p>
-                  <p className="text-lg font-bold text-gray-900">{selectedOrderForBilling.id.slice(0, 8)}</p>
+                  <p className="text-sm font-semibold text-green-800">Bill No</p>
+                  <p className="text-lg font-bold text-green-900">{formatOrderId(selectedOrderForBilling.id)}</p>
                 </div>
                 <div>
-                  <p className="text-sm font-semibold text-gray-600">Date</p>
-                  <p className="text-lg font-bold text-gray-900">{new Date(selectedOrderForBilling.created_at).toLocaleDateString()}</p>
+                  <p className="text-sm font-semibold text-green-800">Date</p>
+                  <p className="text-lg font-bold text-green-900">{new Date(selectedOrderForBilling.created_at).toLocaleDateString()}</p>
                 </div>
                 <div>
-                  <p className="text-sm font-semibold text-gray-600">Table</p>
-                  <p className="text-lg font-bold text-gray-900">Table {selectedOrderForBilling.tables?.table_number}</p>
+                  <p className="text-sm font-semibold text-green-800">Table</p>
+                  <p className="text-lg font-bold text-green-900">Table {selectedOrderForBilling.tables?.table_number}</p>
                 </div>
                 <div>
-                  <p className="text-sm font-semibold text-gray-600">Waiter</p>
-                  <p className="text-lg font-bold text-gray-900">{selectedOrderForBilling.users?.name}</p>
+                  <p className="text-sm font-semibold text-green-800">Waiter</p>
+                  <p className="text-lg font-bold text-green-900">{selectedOrderForBilling.users?.name}</p>
                 </div>
               </div>
 
               {/* Items */}
-              <table className="w-full mb-6">
-                <thead className="bg-green-50">
-                  <tr>
-                    <th className="px-4 py-2 text-left text-xs font-bold text-gray-700 uppercase">Item</th>
-                    <th className="px-4 py-2 text-center text-xs font-bold text-gray-700 uppercase">Qty</th>
-                    <th className="px-4 py-2 text-right text-xs font-bold text-gray-700 uppercase">Price</th>
-                    <th className="px-4 py-2 text-right text-xs font-bold text-gray-700 uppercase">Total</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200">
-                  {selectedOrderForBilling.order_items?.map((item: any) => (
-                    <tr key={item.id}>
-                      <td className="px-4 py-2 text-sm font-semibold text-gray-900">{item.dishes?.name}</td>
-                      <td className="px-4 py-2 text-sm text-center text-gray-600">
-                        {item.quantity}
-                        {item.dish_type && (
-                          <span className="ml-2 px-2 py-0.5 bg-orange-100 text-orange-700 text-xs font-semibold rounded-full">
-                            {item.dish_type}
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-4 py-2 text-sm text-right text-gray-600">Rs.{item.price.toFixed(2)}</td>
-                      <td className="px-4 py-2 text-sm text-right font-bold text-gray-900">Rs.{(item.price * item.quantity).toFixed(2)}</td>
+              <div className="mb-6">
+                <table className="w-full">
+                  <thead className="bg-gradient-to-r from-green-500 to-emerald-500">
+                    <tr>
+                      <th className="px-3 py-2 text-left text-xs font-bold text-white uppercase w-1/2">Item</th>
+                      <th className="px-3 py-2 text-center text-xs font-bold text-white uppercase w-16">Qty</th>
+                      <th className="px-3 py-2 text-right text-xs font-bold text-white uppercase w-24">Total</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody className="divide-y divide-green-100">
+                    {selectedOrderForBilling.order_items?.map((item: any) => (
+                      <tr key={item.id}>
+                        <td className="px-3 py-2 text-sm font-semibold text-gray-900 truncate">{item.dishes?.name}</td>
+                        <td className="px-3 py-2 text-sm text-center text-gray-600">{item.quantity}</td>
+                        <td className="px-3 py-2 text-sm text-right font-bold text-green-700">₹{(item.price * item.quantity).toFixed(2)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
 
               {/* Print-only items table */}
               <div className="print-only mb-2">
@@ -1820,7 +1803,6 @@ For technical support, contact: support@everycom.com
                     <tr>
                       <th className="text-left text-xs font-bold text-black uppercase">Item</th>
                       <th className="text-center text-xs font-bold text-black uppercase">Qty</th>
-                      <th className="text-right text-xs font-bold text-black uppercase">Price</th>
                       <th className="text-right text-xs font-bold text-black uppercase">Total</th>
                     </tr>
                   </thead>
@@ -1828,11 +1810,7 @@ For technical support, contact: support@everycom.com
                     {selectedOrderForBilling.order_items?.map((item: any) => (
                       <tr key={item.id}>
                         <td className="text-xs text-black">{item.dishes?.name}</td>
-                        <td className="text-xs text-center text-black">
-                          {item.quantity}
-                          {item.dish_type && ` (${item.dish_type})`}
-                        </td>
-                        <td className="text-xs text-right text-black">{item.price.toFixed(2)}</td>
+                        <td className="text-xs text-center text-black">{item.quantity}</td>
                         <td className="text-xs text-right text-black">{(item.price * item.quantity).toFixed(2)}</td>
                       </tr>
                     ))}
@@ -1841,26 +1819,26 @@ For technical support, contact: support@everycom.com
               </div>
 
               {/* Discount Section (no-print) */}
-              <div className="mb-6 p-4 bg-green-50 rounded-xl no-print">
-                <div className="flex items-center gap-4 mb-3">
-                  <label className="text-sm font-semibold text-gray-700">Discount Type:</label>
-                  <div className="flex gap-2">
+              <div className="mb-6 p-4 bg-gradient-to-r from-green-100 to-emerald-100 rounded-xl no-print border border-green-200">
+                <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-3">
+                  <label className="text-sm font-semibold text-green-800">Discount Type:</label>
+                  <div className="flex gap-2 flex-wrap">
                     <button
                       onClick={() => setDiscountType('amount')}
-                      className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
-                        discountType === 'amount' 
-                          ? 'bg-gradient-to-r from-green-600 to-emerald-600 text-white' 
-                          : 'bg-white text-gray-700 border-2 border-gray-200'
+                      className={`px-3 py-1.5 rounded-lg text-xs sm:text-sm font-semibold transition-all ${
+                        discountType === 'amount'
+                          ? 'bg-gradient-to-r from-green-600 to-emerald-600 text-white shadow-md'
+                          : 'bg-white text-green-700 border-2 border-green-300 hover:border-green-500'
                       }`}
                     >
-                      Amount (Rs.)
+                      Amount (₹)
                     </button>
                     <button
                       onClick={() => setDiscountType('percentage')}
-                      className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
-                        discountType === 'percentage' 
-                          ? 'bg-gradient-to-r from-green-600 to-emerald-600 text-white' 
-                          : 'bg-white text-gray-700 border-2 border-gray-200'
+                      className={`px-3 py-1.5 rounded-lg text-xs sm:text-sm font-semibold transition-all ${
+                        discountType === 'percentage'
+                          ? 'bg-gradient-to-r from-green-600 to-emerald-600 text-white shadow-md'
+                          : 'bg-white text-green-700 border-2 border-green-300 hover:border-green-500'
                       }`}
                     >
                       Percentage (%)
@@ -1876,8 +1854,8 @@ For technical support, contact: support@everycom.com
                         setDiscountAmount(e.target.value)
                         setDiscountPercentage('')
                       }}
-                      className="flex-1 px-4 py-2 border-2 border-gray-200 rounded-xl focus:border-green-500 focus:outline-none transition-colors placeholder-gray-400"
-                      placeholder="Enter discount amount in Rs."
+                      className="flex-1 px-3 py-2 border-2 border-green-300 rounded-xl focus:border-green-500 focus:outline-none transition-colors placeholder-green-400 text-sm"
+                      placeholder="Enter discount amount in ₹"
                     />
                   ) : (
                     <input
@@ -1887,55 +1865,53 @@ For technical support, contact: support@everycom.com
                         setDiscountPercentage(e.target.value)
                         setDiscountAmount('')
                       }}
-                      className="flex-1 px-4 py-2 border-2 border-gray-200 rounded-xl focus:border-green-500 focus:outline-none transition-colors placeholder-gray-400"
+                      className="flex-1 px-3 py-2 border-2 border-green-300 rounded-xl focus:border-green-500 focus:outline-none transition-colors placeholder-green-400 text-sm"
                       placeholder="Enter discount percentage"
-                      max="100"
-                      min="0"
                     />
                   )}
                 </div>
               </div>
 
               {/* Order Details (for screen view) */}
-              <div className="grid grid-cols-2 gap-4 p-4 bg-gray-50 rounded-xl no-print">
+              <div className="grid grid-cols-2 gap-4 p-4 bg-gradient-to-r from-green-100 to-emerald-100 rounded-xl no-print border border-green-200">
                 <div>
-                  <p className="text-sm font-semibold text-gray-600">Table</p>
-                  <p className="text-lg font-bold text-gray-900">Table {selectedOrderForBilling.tables?.table_number}</p>
+                  <p className="text-sm font-semibold text-green-800">Table</p>
+                  <p className="text-lg font-bold text-green-900">Table {selectedOrderForBilling.tables?.table_number}</p>
                 </div>
                 <div>
-                  <p className="text-sm font-semibold text-gray-600">Waiter</p>
-                  <p className="text-lg font-bold text-gray-900">{selectedOrderForBilling.users?.name}</p>
+                  <p className="text-sm font-semibold text-green-800">Waiter</p>
+                  <p className="text-lg font-bold text-green-900">{selectedOrderForBilling.users?.name}</p>
                 </div>
                 <div>
-                  <p className="text-sm font-semibold text-gray-600">Customer</p>
-                  <p className="text-lg font-bold text-gray-900">{selectedOrderForBilling.customer_name || 'Guest'}</p>
+                  <p className="text-sm font-semibold text-green-800">Customer</p>
+                  <p className="text-lg font-bold text-green-900">{selectedOrderForBilling.customer_name || 'Guest'}</p>
                 </div>
                 <div>
-                  <p className="text-sm font-semibold text-gray-600">Date</p>
-                  <p className="text-lg font-bold text-gray-900">{new Date(selectedOrderForBilling.created_at).toLocaleDateString()}</p>
+                  <p className="text-sm font-semibold text-green-800">Date</p>
+                  <p className="text-lg font-bold text-green-900">{new Date(selectedOrderForBilling.created_at).toLocaleDateString()}</p>
                 </div>
               </div>
 
               {/* Totals */}
               <div className="mt-6 pt-4 border-t-2 border-green-300 space-y-3">
                 <div className="flex justify-between items-center">
-                  <span className="text-lg font-bold text-gray-700">Subtotal</span>
-                  <span className="text-xl font-bold text-gray-900">Rs.{selectedOrderForBilling.total_amount.toFixed(2)}</span>
+                  <span className="text-lg font-bold text-green-700">Subtotal</span>
+                  <span className="text-xl font-bold text-green-900">₹{selectedOrderForBilling.total_amount.toFixed(2)}</span>
                 </div>
                 {calculateDiscountValue(selectedOrderForBilling.total_amount) > 0 && (
                   <div className="flex justify-between items-center">
-                    <span className="text-lg font-bold text-gray-700">
-                      Discount ({discountType === 'amount' ? 'Rs.' : '%'}{discountType === 'amount' ? discountAmount : discountPercentage})
+                    <span className="text-lg font-bold text-green-700">
+                      Discount ({discountType === 'amount' ? '₹' : '%'}{discountType === 'amount' ? discountAmount : discountPercentage})
                     </span>
                     <span className="text-xl font-bold text-red-600">
-                      -Rs.{calculateDiscountValue(selectedOrderForBilling.total_amount).toFixed(2)}
+                      -₹{calculateDiscountValue(selectedOrderForBilling.total_amount).toFixed(2)}
                     </span>
                   </div>
                 )}
                 <div className="flex justify-between items-center border-t-2 border-green-300 pt-3">
-                  <span className="text-xl font-bold text-gray-900">GRAND TOTAL</span>
-                  <span className="text-3xl font-bold bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">
-                    Rs.{calculateFinalAmount(selectedOrderForBilling.total_amount).toFixed(2)}
+                  <span className="text-xl font-bold text-green-900">GRAND TOTAL</span>
+                  <span className="text-3xl font-bold text-green-700">
+                    ₹{calculateFinalAmount(selectedOrderForBilling.total_amount).toFixed(2)}
                   </span>
                 </div>
               </div>
@@ -1944,17 +1920,17 @@ For technical support, contact: support@everycom.com
               <div className="print-only mb-2 pb-2 border-t border-dashed border-black">
                 <div className="flex justify-between text-xs text-black mt-2">
                   <span>Subtotal:</span>
-                  <span>Rs.{selectedOrderForBilling.total_amount.toFixed(2)}</span>
+                  <span>₹{selectedOrderForBilling.total_amount.toFixed(2)}</span>
                 </div>
                 {calculateDiscountValue(selectedOrderForBilling.total_amount) > 0 && (
                   <div className="flex justify-between text-xs text-black mt-1">
-                    <span>Discount ({discountType === 'amount' ? 'Rs.' : '%'}{discountType === 'amount' ? discountAmount : discountPercentage}):</span>
-                    <span>-Rs.{calculateDiscountValue(selectedOrderForBilling.total_amount).toFixed(2)}</span>
+                    <span>Discount ({discountType === 'amount' ? '₹' : '%'}{discountType === 'amount' ? discountAmount : discountPercentage}):</span>
+                    <span>-₹{calculateDiscountValue(selectedOrderForBilling.total_amount).toFixed(2)}</span>
                   </div>
                 )}
                 <div className="flex justify-between text-xs font-bold text-black mt-2 pt-2 border-t border-dashed border-black">
                   <span>GRAND TOTAL:</span>
-                  <span>Rs.{calculateFinalAmount(selectedOrderForBilling.total_amount).toFixed(2)}</span>
+                  <span>₹{calculateFinalAmount(selectedOrderForBilling.total_amount).toFixed(2)}</span>
                 </div>
               </div>
 
@@ -1973,28 +1949,29 @@ For technical support, contact: support@everycom.com
               </div>
             </div>
 
-            <div className="flex gap-3 no-print">
+            <div className="flex gap-3 no-print mt-6">
               <button
                 onClick={() => setSelectedOrderForBilling(null)}
-                className="flex-1 px-6 py-3 border-2 border-gray-300 text-gray-700 rounded-xl font-semibold hover:bg-gray-50 transition-all duration-300"
+                className="flex-1 px-6 py-3 border-2 border-green-300 text-green-700 rounded-xl font-semibold hover:bg-green-50 transition-all duration-300"
               >
                 Close
               </button>
-              
               <button
-                onClick={async () => {
-                  // Use thermal print API since browser can't access EC58B
-                  await handleThermalPrint()
-                }}
-                className="flex-1 px-6 py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-xl font-semibold hover:shadow-lg transition-all duration-300 transform hover:scale-105"
+                onClick={handleThermalPrint}
+                className="flex-1 px-6 py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-xl font-semibold hover:shadow-lg transition-all duration-300"
               >
                 Print Bill
+              </button>
+              <button
+                onClick={() => handleMarkAsPaid(selectedOrderForBilling)}
+                className="flex-1 px-6 py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-xl font-semibold hover:shadow-lg transition-all duration-300"
+              >
+                Mark as Paid
               </button>
             </div>
           </div>
         </div>
       )}
-      </div>
     </div>
   )
 }
