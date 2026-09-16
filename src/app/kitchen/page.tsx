@@ -179,7 +179,7 @@ export default function KitchenPage() {
         console.log('Using browser print fallback')
         
         // Create a printable window with the bill content
-        const printWindow = window.open('', '_blank')
+        const printWindow = window.open('', '_blank', 'width=400,height=600')
         if (printWindow) {
           printWindow.document.write(`
             <html>
@@ -204,8 +204,14 @@ export default function KitchenPage() {
             </html>
           `)
           printWindow.document.close()
-          printWindow.print()
-          printWindow.close()
+          
+          // Wait for content to load before printing
+          setTimeout(() => {
+            printWindow.print()
+            printWindow.close()
+          }, 250)
+        } else {
+          alert('Please allow popups for this site to enable printing')
         }
       } else {
         console.log('Kitchen order printed successfully')

@@ -435,7 +435,7 @@ export default function AdminDashboard() {
           console.log('Using browser print fallback')
           
           // Create a printable version of the bill
-          const printWindow = window.open('', '_blank')
+          const printWindow = window.open('', '_blank', 'width=400,height=600')
           if (printWindow) {
             const plainText = billContent
               .replace(/\x1B[\x40-\x5F]/g, '') // Remove all ESC/POS commands
@@ -464,8 +464,14 @@ export default function AdminDashboard() {
               </html>
             `)
             printWindow.document.close()
-            printWindow.print()
-            printWindow.close()
+            
+            // Wait for content to load before printing
+            setTimeout(() => {
+              printWindow.print()
+              printWindow.close()
+            }, 250)
+          } else {
+            alert('Please allow popups for this site to enable printing')
           }
         } else {
           throw new Error(data.error || 'Print failed')
