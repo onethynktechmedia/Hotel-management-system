@@ -206,10 +206,11 @@ export default function KitchenPage() {
         `)
         printWindow.document.close()
         
+        // Wait for content to load before printing
         setTimeout(() => {
+          printWindow.focus()
           printWindow.print()
-          printWindow.close()
-        }, 250)
+        }, 500)
       } else {
         alert('Please allow popups for this site to enable printing')
       }
