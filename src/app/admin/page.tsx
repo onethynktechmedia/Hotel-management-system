@@ -246,7 +246,7 @@ export default function AdminDashboard() {
     }
   }
 
-  // Direct Print Function using browser print (most reliable)
+  // Direct Print Function using CUPS (server-side printing)
   const handleThermalPrint = async () => {
     if (!selectedOrderForBilling) return
     
@@ -255,23 +255,23 @@ export default function AdminDashboard() {
       
       // Generate plain text bill content for thermal printer
       const billContent = `
-GALAXY GARDEN
-Restaurant & Bar
+           GALAXY GARDEN
+        Restaurant & Bar
 ================================
-123, Main Street
-City, State - 123456
-Phone: +91 98765 43210
-GSTIN: 29ABCDE1234F1Z5
+       123, Main Street
+    City, State - 123456
+    Phone: +91 98765 43210
+   GSTIN: 29ABCDE1234F1Z5
 ================================
-BILL / INVOICE
+       BILL / INVOICE
 ================================
 
 Bill No: ${formatOrderId(selectedOrderForBilling.id)}
-Date: ${new Date(selectedOrderForBilling.created_at).toLocaleDateString()}
-Time: ${new Date(selectedOrderForBilling.created_at).toLocaleTimeString()}
-Table: ${selectedOrderForBilling.tables?.table_number}
-Waiter: ${selectedOrderForBilling.users?.name}
-Customer: ${selectedOrderForBilling.customer_name || 'Guest'}
+  Date: ${new Date(selectedOrderForBilling.created_at).toLocaleDateString()}
+  Time: ${new Date(selectedOrderForBilling.created_at).toLocaleTimeString()}
+  Table: ${selectedOrderForBilling.tables?.table_number}
+  Waiter: ${selectedOrderForBilling.users?.name}
+  Customer: ${selectedOrderForBilling.customer_name || 'Guest'}
 --------------------------------
 ITEM           QTY    TOTAL
 ------------------------
@@ -291,58 +291,30 @@ ${(() => {
 })()}GRAND TOTAL:    ₹${calculateFinalAmount(selectedOrderForBilling.total_amount).toFixed(2)}
 
 ================================
-Thank You for Dining!
-Visit Us Again
+    Thank You for Dining!
+       Visit Us Again
 ================================
-Developed by onethynk techmedia
+  Developed by onethynk techmedia
 ================================
 `
       
       console.log('Bill content generated')
-      console.log('Opening browser print dialog')
+      console.log('Sending to CUPS printer...')
       
-      // Create print window with proper thermal printer styling
-      const printWindow = window.open('', '_blank', 'width=400,height=600')
+      // Send to CUPS via API
+      const response = await fetch('/api/print', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ billContent })
+      })
       
-      if (printWindow) {
-        printWindow.document.write(`
-          <html>
-            <head>
-              <title>Bill - ${formatOrderId(selectedOrderForBilling.id)}</title>
-              <style>
-                @page {
-                  size: 58mm auto;
-                  margin: 2mm;
-                }
-                body {
-                  font-family: 'Courier New', monospace;
-                  font-size: 10px;
-                  line-height: 1.2;
-                  white-space: pre;
-                  margin: 0;
-                  padding: 0;
-                  text-align: center;
-                  width: 58mm;
-                }
-                @media print {
-                  body {
-                    font-size: 9px;
-                  }
-                }
-              </style>
-            </head>
-            <body>${billContent}</body>
-          </html>
-        `)
-        printWindow.document.close()
-        
-        // Wait for content to load before printing
-        setTimeout(() => {
-          printWindow.focus()
-          printWindow.print()
-        }, 500)
+      const data = await response.json()
+      
+      if (data.success) {
+        alert('Bill sent to printer successfully!')
       } else {
-        alert('Please allow popups for this site to enable printing')
+        console.error('Print error:', data.error)
+        alert('Printing failed: ' + data.error)
       }
       
     } catch (error) {

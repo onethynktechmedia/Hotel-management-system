@@ -104,7 +104,7 @@ export default function KitchenPage() {
     router.push('/login')
   }
 
-  // Thermal Print Function for Kitchen Bill
+  // Thermal Print Function for Kitchen Bill using CUPS
   const handleThermalPrint = async () => {
     if (!selectedOrderForBill) return
     
@@ -113,16 +113,16 @@ export default function KitchenPage() {
       
       // Generate plain text kitchen order content for thermal printer
       const billContent = `
-TABLE ${selectedOrderForBill.tables?.table_number}
+      TABLE ${selectedOrderForBill.tables?.table_number}
 ================================
 
-KITCHEN ORDER
+        KITCHEN ORDER
 --------------------------------
 
 Order: ${formatOrderId(selectedOrderForBill.id)}
-Date: ${new Date(selectedOrderForBill.created_at).toLocaleDateString()}
-Time: ${new Date(selectedOrderForBill.created_at).toLocaleTimeString()}
-Waiter: ${selectedOrderForBill.users?.name}
+  Date: ${new Date(selectedOrderForBill.created_at).toLocaleDateString()}
+  Time: ${new Date(selectedOrderForBill.created_at).toLocaleTimeString()}
+  Waiter: ${selectedOrderForBill.users?.name}
 --------------------------------
 
   ITEM                  QTY  TYPE
@@ -141,50 +141,22 @@ Status: ${selectedOrderForBill.status.toUpperCase()}
 `
       
       console.log('Bill content generated')
-      console.log('Opening browser print dialog')
+      console.log('Sending to CUPS printer...')
       
-      // Create print window with proper thermal printer styling
-      const printWindow = window.open('', '_blank', 'width=400,height=600')
+      // Send to CUPS via API
+      const response = await fetch('/api/print', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ billContent })
+      })
       
-      if (printWindow) {
-        printWindow.document.write(`
-          <html>
-            <head>
-              <title>Kitchen Order - ${formatOrderId(selectedOrderForBill.id)}</title>
-              <style>
-                @page {
-                  size: 58mm auto;
-                  margin: 2mm;
-                }
-                body {
-                  font-family: 'Courier New', monospace;
-                  font-size: 10px;
-                  line-height: 1.2;
-                  white-space: pre;
-                  margin: 0;
-                  padding: 0;
-                  text-align: center;
-                  width: 58mm;
-                }
-                @media print {
-                  body {
-                    font-size: 9px;
-                  }
-                }
-              </style>
-            </head>
-            <body>${billContent}</body>
-          </html>
-        `)
-        printWindow.document.close()
-        
-        // Wait for content to load before printing
-        setTimeout(() => {
-          printWindow.focus()
-          printWindow.print()
-        }, 500)
+      const data = await response.json()
+      
+      if (data.success) {
+        alert('Kitchen order sent to printer successfully!')
       } else {
-        alert('Please allow popups for this site to enable printing')
+        console.error('Print error:', data.error)
+        alert('Printing failed: ' + data.error)
       }
       
     } catch (error) {
