@@ -123,6 +123,11 @@ export default function KitchenPage() {
   const handleThermalPrint = async () => {
     if (!selectedOrderForBill) return
     
+    if (!printerConnected) {
+      alert('Please connect the printer first by clicking the "Connect Printer" button')
+      return
+    }
+    
     try {
       console.log('Starting thermal print for kitchen order...')
       

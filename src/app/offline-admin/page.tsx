@@ -74,7 +74,15 @@ export default function OfflineAdminPage() {
 
   const handleThermalPrint = async () => {
     if (!selectedOrderForBilling) return
+    
+    if (!printerConnected) {
+      alert('Please connect the printer first by clicking the "Connect Printer" button')
+      return
+    }
+    
     try {
+      console.log('Starting thermal print...')
+      
       let escposContent = '\x1B\x40'
       escposContent += '\x1B\x61\x01\x1B\x21\x30GALAXY GARDEN\n\x1B\x21\x00Restaurant & Bar\n================================\n123, Main Street\nCity, State - 123456\nPhone: +91 98765 43210\nGSTIN: 29ABCDE1234F1Z5\n================================\nBILL / INVOICE\n================================\n\n'
       escposContent += '\x1B\x61\x00'

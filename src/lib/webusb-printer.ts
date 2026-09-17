@@ -71,24 +71,17 @@ export class WebUSBPrinter {
 
 // Print function with automatic fallback based on device type
 export async function printWithFallback(content: string, plainText: string): Promise<void> {
-  // Detect if mobile device
-  const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
-  
-  if (isMobile) {
-    // Mobile: Use browser print directly (WebUSB not supported on mobile)
-    console.log('Mobile device detected, using browser print')
+  // Always try WebUSB first (works on desktop)
+  try {
+    const printer = new WebUSBPrinter()
+    await printer.connect()
+    await printer.print(content)
+    await printer.disconnect()
+    console.log('Printed successfully via WebUSB')
+  } catch (error) {
+    console.log('WebUSB failed, falling back to browser print:', error)
+    // Fallback to browser print
     openBrowserPrint(plainText)
-  } else {
-    // Desktop: Try WebUSB first, fallback to browser print
-    try {
-      const printer = new WebUSBPrinter()
-      await printer.connect()
-      await printer.print(content)
-      await printer.disconnect()
-    } catch (error) {
-      console.log('WebUSB failed, falling back to browser print:', error)
-      openBrowserPrint(plainText)
-    }
   }
 }
 
