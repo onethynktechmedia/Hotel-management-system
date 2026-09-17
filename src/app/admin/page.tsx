@@ -274,9 +274,9 @@ export default function AdminDashboard() {
       // Initialize printer
       escposContent += '\x1B\x40' // Initialize
       
-      // Hotel Header - Centered, Double height
+      // Hotel Header - Centered, Extra Large and Bold
       escposContent += '\x1B\x61\x01' // Center align
-      escposContent += '\x1B\x21\x30' // Double height, double width
+      escposContent += '\x1B\x21\x30' // Double width and height
       escposContent += 'GALAXY GARDEN\n'
       escposContent += '\x1B\x21\x00' // Normal text
       escposContent += 'Restaurant & Bar\n'
@@ -313,7 +313,7 @@ export default function AdminDashboard() {
         const price = (item.dishes?.price || item.price || 0)
         const total = (price * qty).toFixed(2)
         const itemName = name.length > 15 ? name.substring(0, 14) + '.' : name
-        escposContent += `${itemName.padEnd(15)} ${qty.toString().padStart(2)}  ₹${total.padStart(7)}\n`
+        escposContent += `${itemName.padEnd(15)} ${qty.toString().padStart(2)}  Rs${total.padStart(7)}\n`
       })
       escposContent += '\x1B\x21\x00' // Normal text
       
@@ -324,14 +324,14 @@ export default function AdminDashboard() {
       const discount = calculateDiscountValue(subtotal)
       const finalAmount = calculateFinalAmount(subtotal)
       
-      escposContent += `Subtotal:       ₹${subtotal.toFixed(2)}\n`
+      escposContent += `Subtotal:       Rs${subtotal.toFixed(2)}\n`
 
       if (discount > 0) {
-        escposContent += `Discount:        ₹${discount.toFixed(2)}\n`
+        escposContent += `Discount:        Rs${discount.toFixed(2)}\n`
       }
 
       escposContent += '\x1B\x21\x08' // Bold
-      escposContent += `GRAND TOTAL:    ₹${finalAmount.toFixed(2)}\n`
+      escposContent += `GRAND TOTAL:    Rs${finalAmount.toFixed(2)}\n`
       escposContent += '\x1B\x21\x00' // Normal text
       
       // Footer - Centered
@@ -342,7 +342,7 @@ export default function AdminDashboard() {
       escposContent += 'Visit Us Again\n'
       escposContent += '================================\n'
       escposContent += '\x1B\x4D\x01' // Font B (condensed/smaller)
-      escposContent += 'Developed by onethynk techmedia\n'
+      escposContent += 'Developed by onethynk\n'
       escposContent += '\x1B\x4D\x00' // Font A (normal)
       escposContent += '================================\n'
       escposContent += '\n \n' // Blank line
@@ -378,20 +378,20 @@ ${selectedOrderForBilling.order_items?.map((item: any) => {
   const price = (item.dishes?.price || item.price || 0)
   const total = (price * qty).toFixed(2)
   const itemName = name.length > 15 ? name.substring(0, 14) + '.' : name
-  return `${itemName.padEnd(15)} ${qty.toString().padStart(2)}  ₹${total.padStart(7)}`
+  return `${itemName.padEnd(15)} ${qty.toString().padStart(2)}  Rs${total.padStart(7)}`
 }).join('\n')}
 ------------------------
-Subtotal:       ₹${selectedOrderForBilling.total_amount.toFixed(2)}
+Subtotal:       Rs${selectedOrderForBilling.total_amount.toFixed(2)}
 ${(() => {
   const discount = calculateDiscountValue(selectedOrderForBilling.total_amount)
-  return discount > 0 ? `Discount:        ₹${discount.toFixed(2)}\n` : ''
-})()}GRAND TOTAL:    ₹${calculateFinalAmount(selectedOrderForBilling.total_amount).toFixed(2)}
+  return discount > 0 ? `Discount:        Rs${discount.toFixed(2)}\n` : ''
+})()}GRAND TOTAL:    Rs${calculateFinalAmount(selectedOrderForBilling.total_amount).toFixed(2)}
 
 ================================
     Thank You for Dining!
        Visit Us Again
 ================================
-  Developed by onethynk techmedia
+  Developed by onethynk
 ================================
 `
       

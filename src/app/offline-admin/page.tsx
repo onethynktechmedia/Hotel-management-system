@@ -90,18 +90,18 @@ export default function OfflineAdminPage() {
         const price = (item.dishes?.price || item.price || 0)
         const total = (price * qty).toFixed(2)
         const itemName = name.length > 15 ? name.substring(0, 14) + '.' : name
-        escposContent += `${itemName.padEnd(15)} ${qty.toString().padStart(2)}  ₹${total.padStart(7)}\n`
+        escposContent += `${itemName.padEnd(15)} ${qty.toString().padStart(2)}  Rs${total.padStart(7)}\n`
       })
       escposContent += '\x1B\x21\x00------------------------\n'
       const subtotal = selectedOrderForBilling.total_amount
       const discount = calculateDiscountValue(subtotal)
       const finalAmount = calculateFinalAmount(subtotal)
-      escposContent += `Subtotal:       ₹${subtotal.toFixed(2)}\n`
-      if (discount > 0) escposContent += `Discount:        ₹${discount.toFixed(2)}\n`
-      escposContent += '\x1B\x21\x08GRAND TOTAL:    ₹' + finalAmount.toFixed(2) + '\n\x1B\x21\x00\n'
-      escposContent += '\x1b\x61\x01================================\nThank You for Dining!\nVisit Us Again\n================================\n\x1B\x4D\x01Developed by onethynk techmedia\n\x1B\x4D\x00================================\n\n \n\x1D\x56\x00'
+      escposContent += `Subtotal:       Rs${subtotal.toFixed(2)}\n`
+      if (discount > 0) escposContent += `Discount:        Rs${discount.toFixed(2)}\n`
+      escposContent += '\x1B\x21\x08GRAND TOTAL:    Rs' + finalAmount.toFixed(2) + '\n\x1B\x21\x00\n'
+      escposContent += '\x1b\x61\x01================================\nThank You for Dining!\nVisit Us Again\n================================\n\x1B\x4D\x01Developed by onethynk\n\x1B\x4D\x00================================\n\n \n\x1D\x56\x00'
       
-      const plainText = `GALAXY GARDEN\nRestaurant & Bar\n================================\nBill No: ${formatOrderId(selectedOrderForBilling.id)}\nCustomer: ${selectedOrderForBilling.customer_name || 'Guest'}\nTable: ${selectedOrderForBilling.tables?.table_number}\nTotal: ₹${calculateFinalAmount(selectedOrderForBilling.total_amount).toFixed(2)}\n================================\nThank You for Dining!\n================================\n`
+      const plainText = `GALAXY GARDEN\nRestaurant & Bar\n================================\nBill No: ${formatOrderId(selectedOrderForBilling.id)}\nCustomer: ${selectedOrderForBilling.customer_name || 'Guest'}\nTable: ${selectedOrderForBilling.tables?.table_number}\nTotal: Rs${calculateFinalAmount(selectedOrderForBilling.total_amount).toFixed(2)}\n================================\nThank You for Dining!\n================================\nDeveloped by onethynk\n================================\n`
       
       await printWithFallback(escposContent, plainText)
       alert('Bill sent to printer!')

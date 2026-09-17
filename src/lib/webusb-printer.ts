@@ -140,6 +140,10 @@ function openBrowserPrint(plainText: string): void {
                 line-height: 1.2;
               }
             }
+            .developer {
+              font-size: 8px;
+              line-height: 1.0;
+            }
           </style>
         </head>
         <body>${plainText}</body>

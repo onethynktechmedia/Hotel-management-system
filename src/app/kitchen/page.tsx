@@ -139,7 +139,6 @@ export default function KitchenPage() {
       escposContent += '\x1B\x21\x30' // Double width and height
       escposContent += `TABLE ${selectedOrderForBill.tables?.table_number}\n`
       escposContent += '\x1B\x21\x00' // Normal
-      
       escposContent += '================================\n\n'
       
       // Kitchen Order - Small and Centered
@@ -180,7 +179,16 @@ export default function KitchenPage() {
       escposContent += `Status: ${selectedOrderForBill.status.toUpperCase()}\n`
       escposContent += '\x1B\x21\x00' // Normal
       
-      escposContent += '\n\n\n'
+      escposContent += '\n\n'
+      
+      // Footer - Centered
+      escposContent += '\x1b\x61\x01' // Center align
+      escposContent += '================================\n'
+      escposContent += '\x1B\x4D\x01' // Font B (condensed/smaller)
+      escposContent += 'Developed by onethynk\n'
+      escposContent += '\x1B\x4D\x00' // Font A (normal)
+      escposContent += '================================\n'
+      escposContent += '\n \n'
       
       // Cut paper
       escposContent += '\x1D\x56\x00' // Partial cut
@@ -211,7 +219,9 @@ ${selectedOrderForBill.order_items?.map((item: any) => {
 --------------------------------
 Status: ${selectedOrderForBill.status.toUpperCase()}
 
-
+================================
+Developed by onethynk
+================================
 `
       
       console.log('Bill content generated')
