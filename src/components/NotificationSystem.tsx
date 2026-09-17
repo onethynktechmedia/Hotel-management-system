@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { Notification as NotificationType } from '@/types'
 import { Bell, X } from 'lucide-react'
+import { playNotificationSound, requestAudioPermission } from '@/lib/notificationSound'
 
 interface NotificationSystemProps {
   userId: string
@@ -17,13 +18,27 @@ export default function NotificationSystem({ userId, userRole }: NotificationSys
   useEffect(() => {
     fetchNotifications()
 
+    // Request audio permission on first user interaction
+    const handleUserInteraction = async () => {
+      console.log('User interaction detected, requesting audio permission')
+      await requestAudioPermission()
+      document.removeEventListener('click', handleUserInteraction)
+      document.removeEventListener('keydown', handleUserInteraction)
+    }
+    document.addEventListener('click', handleUserInteraction)
+    document.addEventListener('keydown', handleUserInteraction)
+
     // Set up real-time subscription for notifications
     const subscription = supabase
       .channel('notifications')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications' }, (payload) => {
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications' }, async (payload) => {
         const newNotification = payload.new as NotificationType
+        console.log('New notification received:', newNotification)
         if (newNotification.user_id === userId) {
           setNotifications(prev => [newNotification, ...prev])
+          // Play notification sound based on type
+          console.log('Attempting to play sound for notification type:', newNotification.type)
+          await playNotificationSound(newNotification.type as any)
           // Show browser notification if permitted
           showBrowserNotification(newNotification)
         }
@@ -32,6 +47,8 @@ export default function NotificationSystem({ userId, userRole }: NotificationSys
 
     return () => {
       subscription.unsubscribe()
+      document.removeEventListener('click', handleUserInteraction)
+      document.removeEventListener('keydown', handleUserInteraction)
     }
   }, [userId])
 
@@ -93,7 +110,7 @@ export default function NotificationSystem({ userId, userRole }: NotificationSys
     <div className="relative">
       <button
         onClick={() => setShowDropdown(!showDropdown)}
-        className="relative p-2 text-gray-600 hover:text-orange-600 transition"
+        className="relative p-2 text-gray-600 hover:text-green-600 transition"
       >
         <Bell className="w-6 h-6" />
         {unreadCount > 0 && (
@@ -130,7 +147,7 @@ export default function NotificationSystem({ userId, userRole }: NotificationSys
                   <div
                     key={notification.id}
                     className={`p-4 hover:bg-gray-50 cursor-pointer ${
-                      !notification.is_read ? 'bg-blue-50' : ''
+                      !notification.is_read ? 'bg-green-50' : ''
                     }`}
                     onClick={() => markAsRead(notification.id)}
                   >
@@ -144,7 +161,7 @@ export default function NotificationSystem({ userId, userRole }: NotificationSys
                         </p>
                       </div>
                       {!notification.is_read && (
-                        <div className="w-2 h-2 bg-blue-500 rounded-full mt-2" />
+                        <div className="w-2 h-2 bg-green-500 rounded-full mt-2" />
                       )}
                     </div>
                   </div>

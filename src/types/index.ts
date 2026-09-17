@@ -59,7 +59,7 @@ export interface Notification {
   id: string
   user_id: string
   order_id: string
-  type: 'new_order' | 'order_confirmed' | 'order_ready' | 'order_completed' | 'payment_received'
+  type: 'new_order' | 'order_confirmed' | 'order_ready' | 'order_completed' | 'order_served' | 'payment_received'
   message: string
   is_read: boolean
   created_at: string

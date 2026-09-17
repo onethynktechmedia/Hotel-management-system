@@ -49,6 +49,7 @@ export default function Sidebar({ activeTab, setActiveTab, user, onLogout }: Sid
       <button
         onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
         className="lg:hidden fixed top-4 left-4 z-50 bg-gradient-to-r from-green-600 to-emerald-600 text-white p-3 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300"
+        style={{ left: isMobileMenuOpen ? '280px' : '16px' }}
       >
         {isMobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
       </button>

@@ -246,92 +246,6 @@ export default function AdminDashboard() {
     }
   }
 
-  // ESC/POS Command Generator for Thermal Printer
-  const generateESCPOSBill = () => {
-    if (!selectedOrderForBilling) return ''
-    
-    let escpos = ''
-    
-    // Initialize printer
-    escpos += '\x1B\x40' // Initialize
-    escpos += '\x1B\x61\x01' // Center align
-    
-    // Hotel Header
-    escpos += '\x1B\x61\x01' // Center align
-    escpos += '\x1B\x21\x30' // Double height, double width
-    escpos += 'Galaxy Garden\n'
-    escpos += '\x1B\x21\x00' // Normal text
-    escpos += 'Restaurant & Bar\n'
-    escpos += '====================\n'
-    escpos += '123, Main Street\n'
-    escpos += 'City, State - 123456\n'
-    escpos += 'Phone: +91 98765 43210\n'
-    escpos += 'GSTIN: 29ABCDE1234F1Z5\n'
-    escpos += '====================\n'
-    escpos += 'BILL / INVOICE\n'
-    escpos += '====================\n\n'
-    
-    // Order Info
-    escpos += '\x1B\x61\x00' // Left align
-    escpos += `Bill No: ${formatOrderId(selectedOrderForBilling.id)}\n`
-    escpos += `Date: ${new Date(selectedOrderForBilling.created_at).toLocaleDateString()}\n`
-    escpos += `Time: ${new Date(selectedOrderForBilling.created_at).toLocaleTimeString()}\n`
-    escpos += `Table: ${selectedOrderForBilling.tables?.table_number}\n`
-    escpos += `Waiter: ${selectedOrderForBilling.users?.name}\n`
-    escpos += `Customer: ${selectedOrderForBilling.customer_name || 'Guest'}\n`
-    escpos += '--------------------\n\n'
-    
-    // Items Header
-    escpos += '\x1B\x21\x20' // Double height
-    escpos += 'Item        Qty   Total\n'
-    escpos += '\x1B\x21\x00' // Normal
-    
-    // Items
-    selectedOrderForBilling.order_items?.forEach((item: any) => {
-      const name = item.dishes?.name || 'Unknown'
-      const qty = item.quantity
-      const price = (item.dishes?.price || item.price || 0)
-      const total = (price * qty).toFixed(2)
-      
-      // Format: Item name (truncated) | Qty | Total
-      const truncatedName = name.length > 12 ? name.substring(0, 12) : name
-      escpos += `${truncatedName.padEnd(16)}${qty.toString().padEnd(6)}${total}\n`
-    })
-    
-    escpos += '----------------------------\n\n'
-    
-    // Totals
-    const subtotal = selectedOrderForBilling.total_amount
-    const discount = calculateDiscountValue(subtotal)
-    const finalAmount = calculateFinalAmount(subtotal)
-    
-    escpos += '\x1B\x61\x00' // Left align
-    escpos += `Subtotal:         ₹${subtotal.toFixed(2)}\n`
-
-    if (discount > 0) {
-      escpos += `Discount:        -₹${discount.toFixed(2)}\n`
-    }
-
-    escpos += '\x1B\x21\x30' // Double height, double width
-    escpos += `GRAND TOTAL:      ₹${finalAmount.toFixed(2)}\n`
-    escpos += '\x1B\x21\x00' // Normal text
-    
-    // Footer
-    escpos += '\n\n'
-    escpos += '\x1b\x61\x01' // Center align
-    escpos += 'Thank You for Dining!\n'
-    escpos += 'Visit Us Again\n'
-    escpos += '====================\n'
-    escpos += 'Developed by onethynk techmedia\n'
-    escpos += '====================\n'
-    escpos += '\n' // Blank line at the end for proper printing
-    
-    // Cut paper
-    escpos += '\x1D\x56\x00' // Cut paper
-    
-    return escpos
-  }
-
   // Direct Print Function using browser print (most reliable)
   const handleThermalPrint = async () => {
     if (!selectedOrderForBilling) return
@@ -339,100 +253,55 @@ export default function AdminDashboard() {
     try {
       console.log('Starting thermal print...')
       
-      // Generate ESC/POS formatted bill content for thermal printer with proper font sizing
-      let billContent = ''
-      
-      // Initialize printer
-      billContent += '\x1B\x40' // Initialize
-      
-      // Hotel Header - Double height, double width, centered
-      billContent += '\x1B\x61\x01' // Center align
-      billContent += '\x1B\x21\x30' // Double height, double width
-      billContent += 'GALAXY GARDEN\n'
-      billContent += '\x1B\x21\x00' // Normal text
-      billContent += 'Restaurant & Bar\n'
-      billContent += '================================\n'
-      billContent += '123, Main Street\n'
-      billContent += 'City, State - 123456\n'
-      billContent += 'Phone: +91 98765 43210\n'
-      billContent += 'GSTIN: 29ABCDE1234F1Z5\n'
-      billContent += '================================\n'
-      billContent += 'BILL / INVOICE\n'
-      billContent += '================================\n\n'
-      
-      // Order Info - Normal size, left aligned
-      billContent += '\x1B\x61\x00' // Left align
-      billContent += `Bill No: ${formatOrderId(selectedOrderForBilling.id)}\n`
-      billContent += `Date: ${new Date(selectedOrderForBilling.created_at).toLocaleDateString()}\n`
-      billContent += `Time: ${new Date(selectedOrderForBilling.created_at).toLocaleTimeString()}\n`
-      billContent += `Table: ${selectedOrderForBilling.tables?.table_number}\n`
-      billContent += `Waiter: ${selectedOrderForBilling.users?.name}\n`
-      billContent += `Customer: ${selectedOrderForBilling.customer_name || 'Guest'}\n`
-      billContent += '--------------------------------\n'
-      
-      // Items Header - Very small font, bold
-      billContent += '\x1B\x21\x01' // Small font
-      billContent += '\x1B\x21\x09' // Bold
-      billContent += 'ITEM           QTY    TOTAL\n'
-      billContent += '------------------------\n'
-      billContent += '\x1B\x21\x00' // Normal
-      
-      // Items - Very small font, proper one line format for table orders
-      billContent += '\x1B\x21\x01' // Small font
-      selectedOrderForBilling.order_items?.forEach((item: any) => {
-        const name = item.dishes?.name || 'Unknown'
-        const qty = item.quantity
-        const price = (item.dishes?.price || item.price || 0)
-        const total = (price * qty).toFixed(2)
-        
-        // Format: Item name (15 chars), Qty (4), Total (8) - ensure one line
-        const itemName = name.length > 15 ? name.substring(0, 14) + '.' : name
-        billContent += `${itemName.padEnd(15)} ${qty.toString().padStart(2)}  ₹${total.padStart(7)}\n`
-      })
-      billContent += '\x1B\x21\x00' // Normal text
-      
-      billContent += '------------------------\n'
-      
-      // Totals - Proper format matching invoice
-      const subtotal = selectedOrderForBilling.total_amount
-      const discount = calculateDiscountValue(subtotal)
-      const finalAmount = calculateFinalAmount(subtotal)
-      
-      billContent += `Subtotal:       ₹${subtotal.toFixed(2)}\n`
+      // Generate plain text bill content for thermal printer
+      const billContent = `
+GALAXY GARDEN
+Restaurant & Bar
+================================
+123, Main Street
+City, State - 123456
+Phone: +91 98765 43210
+GSTIN: 29ABCDE1234F1Z5
+================================
+BILL / INVOICE
+================================
 
-      if (discount > 0) {
-        billContent += `Discount:        -₹${discount.toFixed(2)}\n`
-      }
+Bill No: ${formatOrderId(selectedOrderForBilling.id)}
+Date: ${new Date(selectedOrderForBilling.created_at).toLocaleDateString()}
+Time: ${new Date(selectedOrderForBilling.created_at).toLocaleTimeString()}
+Table: ${selectedOrderForBilling.tables?.table_number}
+Waiter: ${selectedOrderForBilling.users?.name}
+Customer: ${selectedOrderForBilling.customer_name || 'Guest'}
+--------------------------------
+ITEM           QTY    TOTAL
+------------------------
+${selectedOrderForBilling.order_items?.map((item: any) => {
+  const name = item.dishes?.name || 'Unknown'
+  const qty = item.quantity
+  const price = (item.dishes?.price || item.price || 0)
+  const total = (price * qty).toFixed(2)
+  const itemName = name.length > 15 ? name.substring(0, 14) + '.' : name
+  return `${itemName.padEnd(15)} ${qty.toString().padStart(2)}  ₹${total.padStart(7)}`
+}).join('\n')}
+------------------------
+Subtotal:       ₹${selectedOrderForBilling.total_amount.toFixed(2)}
+${(() => {
+  const discount = calculateDiscountValue(selectedOrderForBilling.total_amount)
+  return discount > 0 ? `Discount:        -₹${discount.toFixed(2)}\n` : ''
+})()}GRAND TOTAL:    ₹${calculateFinalAmount(selectedOrderForBilling.total_amount).toFixed(2)}
 
-      // Grand Total - Bold but normal size (professional but not too large)
-      billContent += '\x1B\x21\x08' // Bold
-      billContent += `GRAND TOTAL:    ₹${finalAmount.toFixed(2)}\n`
-      billContent += '\x1B\x21\x00' // Normal text
-      
-      // Footer - Centered, smaller size for developer credit
-      billContent += '\n'
-      billContent += '\x1b\x61\x01' // Center align
-      billContent += '================================\n'
-      billContent += 'Thank You for Dining!\n'
-      billContent += 'Visit Us Again\n'
-      billContent += '================================\n'
-      billContent += '\x1B\x4D\x01' // Font B (condensed/smaller)
-      billContent += 'Developed by onethynk techmedia\n'
-      billContent += '\x1B\x4D\x00' // Font A (normal)
-      billContent += '================================\n'
-      billContent += '\n \n' // Blank line at the end for proper printing
-      
-      // Cut paper
-      billContent += '\x1D\x56\x00' // Cut paper
+================================
+Thank You for Dining!
+Visit Us Again
+================================
+Developed by onethynk techmedia
+================================
+`
       
       console.log('Bill content generated')
-      
-      // Use browser print directly (most reliable)
-      const plainText = billContent
-        .replace(/\x1B[\x40-\x5F]/g, '') // Remove all ESC/POS commands
-        .replace(/\x1D[\x40-\x5F]/g, '') // Remove all ESC/POS commands
-      
       console.log('Opening browser print dialog')
+      
+      // Create print window with proper thermal printer styling
       const printWindow = window.open('', '_blank', 'width=400,height=600')
       
       if (printWindow) {
@@ -441,21 +310,28 @@ export default function AdminDashboard() {
             <head>
               <title>Bill - ${formatOrderId(selectedOrderForBilling.id)}</title>
               <style>
-                body { 
-                  font-family: 'Courier New', monospace; 
-                  white-space: pre; 
-                  padding: 20px; 
-                  text-align: center;
-                  font-size: 12px;
-                  line-height: 1.4;
+                @page {
+                  size: 58mm auto;
+                  margin: 2mm;
                 }
-                @media print { 
-                  body { font-size: 10px; }
-                  @page { margin: 5mm; }
+                body {
+                  font-family: 'Courier New', monospace;
+                  font-size: 10px;
+                  line-height: 1.2;
+                  white-space: pre;
+                  margin: 0;
+                  padding: 0;
+                  text-align: center;
+                  width: 58mm;
+                }
+                @media print {
+                  body {
+                    font-size: 9px;
+                  }
                 }
               </style>
             </head>
-            <body>${plainText}</body>
+            <body>${billContent}</body>
           </html>
         `)
         printWindow.document.close()
@@ -559,74 +435,6 @@ For technical support, contact: support@everycom.com
     } catch (error) {
       console.error('Error marking order as paid:', error)
       alert('Failed to mark order as paid')
-    }
-  }
-
-  const handleDirectPrint = () => {
-    // Try WebUSB first (for USB thermal printers)
-    if ('navigator' in window && 'usb' in (window as any)) {
-      (window as any).navigator.usb.requestDevice({ filters: [{ vendorId: 0x0456 }] })
-        .then((device: any) => {
-          return device.open();
-        })
-        .then((device: any) => {
-          return device.selectConfiguration(1);
-        })
-        .then((device: any) => {
-          return device.claimInterface(0);
-        })
-        .then((device: any) => {
-          const billContent = generateESCPOSBill();
-          const encoder = new TextEncoder();
-          return device.transferOut(1, encoder.encode(billContent));
-        })
-        .then(() => {
-          alert('Bill sent to USB thermal printer successfully!');
-        })
-        .catch((error: any) => {
-          console.error('USB printing failed:', error);
-          // Try Bluetooth as fallback
-          tryBluetoothPrint();
-        });
-    } else {
-      // Try Bluetooth as fallback
-      tryBluetoothPrint();
-    }
-  }
-
-  const tryBluetoothPrint = () => {
-    // Check if Web Bluetooth API is available
-    if ('navigator' in window && 'bluetooth' in (window as any)) {
-      // Try to connect to Bluetooth thermal printer
-      (window as any).navigator.bluetooth.requestDevice({
-        filters: [{ services: ['000018f0-0000-1000-8000-00805f9b34fb'] }]
-      })
-      .then((device: any) => {
-        return device.gatt.connect();
-      })
-      .then((server: any) => {
-        // Get the service and characteristic for printing
-        return server.getPrimaryService('000018f0-0000-1000-8000-00805f9b34fb')
-          .then((service: any) => service.getCharacteristic('00002af1-0000-1000-8000-00805f9b34fb'));
-      })
-      .then((characteristic: any) => {
-        // Generate ESC/POS commands for the bill
-        const billContent = generateESCPOSBill();
-        const encoder = new TextEncoder();
-        return characteristic.writeValue(encoder.encode(billContent));
-      })
-      .then(() => {
-        alert('Bill sent to Bluetooth thermal printer successfully!');
-      })
-      .catch((error: any) => {
-        console.error('Bluetooth printing failed:', error);
-        // Fallback to regular print
-        window.print();
-      });
-    } else {
-      // Fallback to regular print if Bluetooth not available
-      alert('Direct printing not available. Using system print dialog instead.\n\nMake sure your thermal printer is connected via USB/Bluetooth and is the default printer.');
-      window.print();
     }
   }
 

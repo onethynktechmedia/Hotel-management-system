@@ -111,74 +111,39 @@ export default function KitchenPage() {
     try {
       console.log('Starting thermal print for kitchen order...')
       
-      let billContent = ''
-      
-      // Initialize ESC/POS commands
-      billContent += '\x1B\x40' // Initialize printer
-      
-      // Center alignment for everything
-      billContent += '\x1B\x61\x01'
-      
-      // Table Number - Main Header - Large and Bold
-      billContent += '\x1B\x21\x30' // Double width and height
-      billContent += `TABLE ${selectedOrderForBill.tables?.table_number}\n`
-      billContent += '\x1B\x21\x00' // Normal
-      
-      billContent += '================================\n\n'
-      
-      // Kitchen Order - Small and Centered
-      billContent += '\x1B\x21\x01' // Small font
-      billContent += 'KITCHEN ORDER\n'
-      billContent += '\x1B\x21\x00' // Normal
-      billContent += '--------------------------------\n\n'
-      
-      // Order Info - Small size and centered
-      billContent += '\x1B\x21\x01' // Small font
-      billContent += `Order: ${formatOrderId(selectedOrderForBill.id)}\n`
-      billContent += `Date: ${new Date(selectedOrderForBill.created_at).toLocaleDateString()}\n`
-      billContent += `Time: ${new Date(selectedOrderForBill.created_at).toLocaleTimeString()}\n`
-      billContent += `Waiter: ${selectedOrderForBill.users?.name}\n`
-      billContent += '\x1B\x21\x00' // Normal
-      billContent += '--------------------------------\n\n'
-      
-      // Items Header - Adjusted for thermal printer width with proper alignment
-      billContent += '\x1B\x21\x09' // Bold
-      billContent += '  ITEM                  QTY  TYPE\n'
-      billContent += '-----------------------------------\n'
-      billContent += '\x1B\x21\x00' // Normal font for items (not bold)
-      
-      // Items - Normal font with proper alignment matching header
-      selectedOrderForBill.order_items?.forEach((item: any) => {
-        const name = item.dishes?.name || 'Unknown'
-        const qty = item.quantity
-        const dishType = item.dish_type || '-'
-        
-        // Format: Item name (14 chars), Qty (3), Type (4) - aligned with header
-        const itemName = name.length > 14 ? name.substring(0, 13) + '.' : name
-        billContent += `${itemName.padEnd(14)} ${qty.toString().padStart(2)} ${dishType.padEnd(4)}\n`
-      })
-      billContent += '\x1B\x21\x00' // Ensure normal text
-      
-      billContent += '--------------------------------\n'
-      
-      // Status - Small and centered
-      billContent += '\x1B\x21\x01' // Small font
-      billContent += `Status: ${selectedOrderForBill.status.toUpperCase()}\n`
-      billContent += '\x1B\x21\x00' // Normal
-      
-      billContent += '\n\n\n'
-      
-      // Cut paper
-      billContent += '\x1D\x56\x00' // Partial cut
+      // Generate plain text kitchen order content for thermal printer
+      const billContent = `
+TABLE ${selectedOrderForBill.tables?.table_number}
+================================
+
+KITCHEN ORDER
+--------------------------------
+
+Order: ${formatOrderId(selectedOrderForBill.id)}
+Date: ${new Date(selectedOrderForBill.created_at).toLocaleDateString()}
+Time: ${new Date(selectedOrderForBill.created_at).toLocaleTimeString()}
+Waiter: ${selectedOrderForBill.users?.name}
+--------------------------------
+
+  ITEM                  QTY  TYPE
+-----------------------------------
+${selectedOrderForBill.order_items?.map((item: any) => {
+  const name = item.dishes?.name || 'Unknown'
+  const qty = item.quantity
+  const dishType = item.dish_type || '-'
+  const itemName = name.length > 14 ? name.substring(0, 13) + '.' : name
+  return `${itemName.padEnd(14)} ${qty.toString().padStart(2)} ${dishType.padEnd(4)}`
+}).join('\n')}
+--------------------------------
+Status: ${selectedOrderForBill.status.toUpperCase()}
+
+
+`
       
       console.log('Bill content generated')
-      
-      // Use browser print directly (most reliable)
-      const plainText = billContent
-        .replace(/\x1B[\x40-\x5F]/g, '') // Remove all ESC/POS commands
-        .replace(/\x1D[\x40-\x5F]/g, '') // Remove all ESC/POS commands
-      
       console.log('Opening browser print dialog')
+      
+      // Create print window with proper thermal printer styling
       const printWindow = window.open('', '_blank', 'width=400,height=600')
       
       if (printWindow) {
@@ -187,21 +152,28 @@ export default function KitchenPage() {
             <head>
               <title>Kitchen Order - ${formatOrderId(selectedOrderForBill.id)}</title>
               <style>
-                body { 
-                  font-family: 'Courier New', monospace; 
-                  white-space: pre; 
-                  padding: 20px; 
-                  text-align: center;
-                  font-size: 12px;
-                  line-height: 1.4;
+                @page {
+                  size: 58mm auto;
+                  margin: 2mm;
                 }
-                @media print { 
-                  body { font-size: 10px; }
-                  @page { margin: 5mm; }
+                body {
+                  font-family: 'Courier New', monospace;
+                  font-size: 10px;
+                  line-height: 1.2;
+                  white-space: pre;
+                  margin: 0;
+                  padding: 0;
+                  text-align: center;
+                  width: 58mm;
+                }
+                @media print {
+                  body {
+                    font-size: 9px;
+                  }
                 }
               </style>
             </head>
-            <body>${plainText}</body>
+            <body>${billContent}</body>
           </html>
         `)
         printWindow.document.close()
