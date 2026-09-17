@@ -75,11 +75,6 @@ export default function OfflineAdminPage() {
   const handleThermalPrint = async () => {
     if (!selectedOrderForBilling) return
     
-    if (!printerConnected) {
-      alert('Please connect the printer first by clicking the "Connect Printer" button')
-      return
-    }
-    
     try {
       console.log('Starting thermal print...')
       
