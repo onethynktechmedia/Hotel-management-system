@@ -94,7 +94,7 @@ export async function printWithFallback(content: string, plainText: string): Pro
                 }
                 body {
                   margin: 0;
-                  padding: 2mm;
+                  padding: 3mm;
                   width: 58mm;
                 }
               }
@@ -103,20 +103,20 @@ export async function printWithFallback(content: string, plainText: string): Pro
               }
               body {
                 font-family: 'Courier New', monospace;
-                font-size: 10px;
-                line-height: 1.1;
+                font-size: 12px;
+                line-height: 1.3;
                 white-space: pre;
                 margin: 0;
-                padding: 2mm;
+                padding: 3mm;
                 text-align: center;
-                width: 54mm;
-                max-width: 54mm;
+                width: 52mm;
+                max-width: 52mm;
                 overflow: hidden;
               }
               @media print {
                 body {
-                  font-size: 9px;
-                  line-height: 1.0;
+                  font-size: 11px;
+                  line-height: 1.2;
                 }
               }
             </style>
