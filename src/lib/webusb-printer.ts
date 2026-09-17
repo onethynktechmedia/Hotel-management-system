@@ -24,20 +24,30 @@ export class WebUSBPrinter {
         throw new Error('WebUSB is not supported in this browser. Please use Chrome or Edge.')
       }
 
-      // Check if device is already connected
+      // Check if device is already connected/authorized
       const devices = await (navigator as any).usb.getDevices()
       const existingDevice = devices.find((d: any) => d.vendorId === this.vendorId)
       
       if (existingDevice) {
-        this.device = existingDevice
-        await this.device.open()
-        await this.device.selectConfiguration(1)
-        await this.device.claimInterface(0)
-        console.log('USB printer reconnected successfully')
-        return true
+        try {
+          this.device = existingDevice
+          if (this.device.opened) {
+            // Device is already open, just use it
+            console.log('USB printer already connected')
+            return true
+          }
+          await this.device.open()
+          await this.device.selectConfiguration(1)
+          await this.device.claimInterface(0)
+          console.log('USB printer reconnected successfully')
+          return true
+        } catch (reconnectError) {
+          console.log('Reconnect failed, requesting new device:', reconnectError)
+          // Fall through to request new device
+        }
       }
 
-      // Request device access with user permission
+      // Request device access with user permission (only if not already authorized)
       this.device = await (navigator as any).usb.requestDevice({
         filters: [{ vendorId: this.vendorId }]
       })
@@ -58,6 +68,10 @@ export class WebUSBPrinter {
       
       if (error.name === 'SecurityError' || error.message?.includes('Access denied')) {
         throw new Error('USB access denied. Please allow USB access when prompted by the browser.')
+      }
+      
+      if (error.name === 'NotFoundError') {
+        throw new Error('Printer not found. Please connect the printer via USB.')
       }
       
       throw error
@@ -125,7 +139,7 @@ export async function printWithFallback(escposContent: string, plainTextContent:
     console.log('WebUSB failed, falling back to browser print')
     
     // Show alert to user about fallback
-    alert('USB printer not connected or access denied. Using browser print instead.\n\nTo use USB printing:\n1. Connect printer via USB\n2. Allow browser USB access when prompted\n3. Use Chrome or Edge browser')
+    alert('USB printer not connected or access denied. Using browser print instead.\n\nTo use USB printing:\n1. Connect printer via USB\n2. Allow browser USB access when prompted (first time only)\n3. Use Chrome or Edge browser\n\nAfter first connection, it will print directly without prompts.')
     
     const printWindow = window.open('', '_blank', 'width=400,height=600')
     
