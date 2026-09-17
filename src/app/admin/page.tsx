@@ -246,7 +246,7 @@ export default function AdminDashboard() {
     }
   }
 
-  // Direct Print Function using CUPS (server-side printing)
+  // Direct Print Function using browser print (most reliable)
   const handleThermalPrint = async () => {
     if (!selectedOrderForBilling) return
     
@@ -299,22 +299,50 @@ ${(() => {
 `
       
       console.log('Bill content generated')
-      console.log('Sending to CUPS printer...')
+      console.log('Opening browser print dialog')
       
-      // Send to CUPS via API
-      const response = await fetch('/api/print', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ billContent })
-      })
+      // Create print window with proper thermal printer styling
+      const printWindow = window.open('', '_blank', 'width=400,height=600')
       
-      const data = await response.json()
-      
-      if (data.success) {
-        alert('Bill sent to printer successfully!')
+      if (printWindow) {
+        printWindow.document.write(`
+          <html>
+            <head>
+              <title>Bill - ${formatOrderId(selectedOrderForBilling.id)}</title>
+              <style>
+                @page {
+                  size: 58mm auto;
+                  margin: 2mm;
+                }
+                body {
+                  font-family: 'Courier New', monospace;
+                  font-size: 10px;
+                  line-height: 1.2;
+                  white-space: pre;
+                  margin: 0;
+                  padding: 0;
+                  text-align: center;
+                  width: 58mm;
+                }
+                @media print {
+                  body {
+                    font-size: 9px;
+                  }
+                }
+              </style>
+            </head>
+            <body>${billContent}</body>
+          </html>
+        `)
+        printWindow.document.close()
+        
+        // Wait for content to load before printing
+        setTimeout(() => {
+          printWindow.focus()
+          printWindow.print()
+        }, 500)
       } else {
-        console.error('Print error:', data.error)
-        alert('Printing failed: ' + data.error)
+        alert('Please allow popups for this site to enable printing')
       }
       
     } catch (error) {
