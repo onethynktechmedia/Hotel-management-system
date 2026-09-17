@@ -287,7 +287,7 @@ ${selectedOrderForBilling.order_items?.map((item: any) => {
 Subtotal:       ₹${selectedOrderForBilling.total_amount.toFixed(2)}
 ${(() => {
   const discount = calculateDiscountValue(selectedOrderForBilling.total_amount)
-  return discount > 0 ? `Discount:        -₹${discount.toFixed(2)}\n` : ''
+  return discount > 0 ? `Discount:        ₹${discount.toFixed(2)}\n` : ''
 })()}GRAND TOTAL:    ₹${calculateFinalAmount(selectedOrderForBilling.total_amount).toFixed(2)}
 
 ================================
