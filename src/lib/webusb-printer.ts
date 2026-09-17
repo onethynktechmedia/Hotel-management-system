@@ -87,9 +87,11 @@ export async function printWithFallback(content: string, plainText: string): Pro
 
 // Browser print function with responsive sizing
 function openBrowserPrint(plainText: string): void {
+  console.log('Opening browser print dialog...')
   const printWindow = window.open('', '_blank', 'width=400,height=600')
   
   if (printWindow) {
+    console.log('Print window created')
     printWindow.document.write(`
       <html>
         <head>
@@ -144,10 +146,15 @@ function openBrowserPrint(plainText: string): void {
       </html>
     `)
     printWindow.document.close()
+    console.log('Print window content written')
     
     setTimeout(() => {
+      console.log('Calling print() on window')
       printWindow.focus()
       printWindow.print()
     }, 500)
+  } else {
+    console.error('Failed to open print window - popup blocked')
+    alert('Please allow popups for this site to enable printing')
   }
 }
