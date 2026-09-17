@@ -88,77 +88,83 @@ export async function printWithFallback(content: string, plainText: string): Pro
 // Browser print function with responsive sizing
 function openBrowserPrint(plainText: string): void {
   console.log('Opening browser print dialog...')
-  const printWindow = window.open('', '_blank', 'width=400,height=600')
   
-  if (printWindow) {
-    console.log('Print window created')
-    printWindow.document.write(`
-      <html>
-        <head>
-          <title>Bill Print</title>
-          <meta name="viewport" content="width=device-width, initial-scale=1.0">
-          <style>
+  // Create a hidden iframe to print from
+  const iframe = document.createElement('iframe')
+  iframe.style.display = 'none'
+  document.body.appendChild(iframe)
+  
+  const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document
+  if (!iframeDoc) {
+    console.error('Failed to access iframe document')
+    alert('Printing failed: Could not create print window')
+    return
+  }
+  
+  iframeDoc.write(`
+    <html>
+      <head>
+        <title>Bill Print</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <style>
+          @page {
+            size: 58mm auto;
+            margin: 0;
+          }
+          @media print {
             @page {
               size: 58mm auto;
               margin: 0;
             }
-            @media print {
-              @page {
-                size: 58mm auto;
-                margin: 0;
-              }
-              body {
-                margin: 0;
-                padding: 3mm;
-                width: 58mm;
-              }
-            }
-            * {
-              box-sizing: border-box;
-            }
             body {
-              font-family: 'Courier New', monospace;
-              font-size: 12px;
-              line-height: 1.3;
-              white-space: pre;
               margin: 0;
               padding: 3mm;
-              text-align: center;
-              width: 52mm;
-              max-width: 52mm;
-              overflow: hidden;
+              width: 58mm;
             }
-            @media print {
-              body {
-                font-size: 11px;
-                line-height: 1.2;
-              }
+          }
+          * {
+            box-sizing: border-box;
+          }
+          body {
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            line-height: 1.3;
+            white-space: pre;
+            margin: 0;
+            padding: 3mm;
+            text-align: center;
+            width: 52mm;
+            max-width: 52mm;
+            overflow: hidden;
+          }
+          @media print {
+            body {
+              font-size: 11px;
+              line-height: 1.2;
             }
-            @media (max-width: 768px) {
-              body {
-                font-size: 10px;
-                line-height: 1.2;
-              }
+          }
+          @media (max-width: 768px) {
+            body {
+              font-size: 10px;
+              line-height: 1.2;
             }
-            .developer {
-              font-size: 8px;
-              line-height: 1.0;
-            }
-          </style>
-        </head>
-        <body>${plainText}</body>
-      </html>
-    `)
-    printWindow.document.close()
-    console.log('Print window content written')
+          }
+        </style>
+      </head>
+      <body>${plainText}</body>
+    </html>
+  `)
+  iframeDoc.close()
+  
+  console.log('Print content written to iframe')
+  
+  setTimeout(() => {
+    console.log('Calling print() on iframe')
+    iframe.contentWindow?.print()
     
+    // Clean up iframe after printing
     setTimeout(() => {
-      console.log('Calling print() on window')
-      printWindow.focus()
-      printWindow.print()
-    }, 500)
-  } else {
-    console.error('Failed to open print window - popup blocked')
-    alert('Please allow popups for this site to enable printing')
-  }
+      document.body.removeChild(iframe)
+    }, 1000)
+  }, 500)
 }
