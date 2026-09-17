@@ -4,11 +4,11 @@ import React, { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { User, Order, Dish, Table, Payment, Notification } from '@/types'
-import { Plus, Edit, Trash2, DollarSign, Users, Utensils, User as UserIcon, Search, Filter, HelpCircle, Bell, LogOut, Download } from 'lucide-react'
+import { Plus, Edit, Trash2, DollarSign, Users, Utensils, User as UserIcon, Search, Filter, HelpCircle, Bell, LogOut, Download, Printer } from 'lucide-react'
 import Sidebar from '@/components/Sidebar'
 import WaiterStatus from '@/components/WaiterStatus'
 import Reports from '@/components/Reports'
-import { printWithFallback } from '@/lib/webusb-printer'
+import { printWithFallback, WebUSBPrinter } from '@/lib/webusb-printer'
 
 // Utility function to format order ID as GGR-XXX
 const formatOrderId = (orderId: string) => {
@@ -70,6 +70,7 @@ export default function AdminDashboard() {
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [currentDateTime, setCurrentDateTime] = useState(new Date())
   const [showProfileMenu, setShowProfileMenu] = useState(false)
+  const [printerConnected, setPrinterConnected] = useState(false)
 
   useEffect(() => {
     const userData = localStorage.getItem('user')
@@ -331,6 +332,19 @@ export default function AdminDashboard() {
     escpos += '\x1D\x56\x00' // Cut paper
     
     return escpos
+  }
+
+  // Connect USB Printer
+  const handleConnectPrinter = async () => {
+    try {
+      const printer = new WebUSBPrinter()
+      await printer.connect()
+      setPrinterConnected(true)
+      alert('Printer connected successfully! You can now print bills directly.')
+    } catch (error: any) {
+      console.error('Failed to connect printer:', error)
+      alert('Failed to connect printer: ' + error.message + '\n\nPlease:\n1. Connect printer via USB\n2. Use Chrome or Edge browser\n3. Allow USB access when prompted')
+    }
   }
 
   // Direct Print Function using WebUSB for production
@@ -1917,6 +1931,13 @@ For technical support, contact: support@everycom.com
                 className="flex-1 px-6 py-3 border-2 border-green-300 text-green-700 rounded-xl font-semibold hover:bg-green-50 transition-all duration-300"
               >
                 Close
+              </button>
+              <button
+                onClick={handleConnectPrinter}
+                className="flex-1 px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-xl font-semibold hover:shadow-lg transition-all duration-300 flex items-center justify-center gap-2"
+              >
+                <Printer className="w-4 h-4" />
+                {printerConnected ? 'Printer Connected' : 'Connect Printer'}
               </button>
               <button
                 onClick={handleThermalPrint}
