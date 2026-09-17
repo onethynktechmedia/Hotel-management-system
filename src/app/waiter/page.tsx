@@ -44,6 +44,7 @@ export default function WaiterPage() {
   const [viewingBill, setViewingBill] = useState<Order | null>(null)
   const [billOrderItems, setBillOrderItems] = useState<any[]>([])
   const [customerName, setCustomerName] = useState('')
+  const [customerMobile, setCustomerMobile] = useState('')
 
   const dishTypes = ['Normal', 'Medium', 'Spicy', 'Extra Spicy']
 
@@ -178,7 +179,8 @@ export default function WaiterPage() {
           waiter_id: user?.id,
           status: 'pending',
           total_amount: getCartTotal(),
-          customer_name: customerName || null
+          customer_name: customerName || null,
+          customer_mobile: customerMobile || null
         })
       })
 
@@ -242,6 +244,7 @@ export default function WaiterPage() {
       setCart([])
       setSelectedTable(null)
       setCustomerName('')
+      setCustomerMobile('')
       
       // Refresh data
       fetchData()
@@ -1270,7 +1273,7 @@ export default function WaiterPage() {
               <div className="p-4 sm:p-6 border-b border-gray-200 bg-green-50">
                 <h3 className="text-lg sm:text-xl font-bold text-gray-900">Customer Details</h3>
               </div>
-              <div className="p-4 sm:p-6">
+              <div className="p-4 sm:p-6 space-y-4">
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
                     Customer Name (Optional)
@@ -1280,6 +1283,18 @@ export default function WaiterPage() {
                     value={customerName}
                     onChange={(e) => setCustomerName(e.target.value)}
                     placeholder="Enter customer name..."
+                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-green-500 focus:outline-none transition-colors text-sm sm:text-base"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Mobile Number (Optional - Not shown on bill)
+                  </label>
+                  <input
+                    type="tel"
+                    value={customerMobile}
+                    onChange={(e) => setCustomerMobile(e.target.value)}
+                    placeholder="Enter mobile number..."
                     className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-green-500 focus:outline-none transition-colors text-sm sm:text-base"
                   />
                 </div>

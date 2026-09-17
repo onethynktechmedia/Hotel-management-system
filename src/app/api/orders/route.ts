@@ -74,7 +74,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { table_id, waiter_id, status, total_amount, customer_name } = body
+    const { table_id, waiter_id, status, total_amount, customer_name, customer_mobile } = body
 
     const { data, error } = await supabase
       .from('orders')
@@ -83,7 +83,8 @@ export async function POST(request: NextRequest) {
         waiter_id,
         status,
         total_amount,
-        customer_name: customer_name || null
+        customer_name: customer_name || null,
+        customer_mobile: customer_mobile || null
       })
       .select()
       .single()
