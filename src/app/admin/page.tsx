@@ -347,7 +347,7 @@ export default function AdminDashboard() {
     }
   }
 
-  // Direct Print Function using WebUSB for production
+  // Direct Print Function using browser print (most reliable)
   const handleThermalPrint = async () => {
     if (!selectedOrderForBilling) return
     
@@ -442,14 +442,46 @@ export default function AdminDashboard() {
       
       console.log('Bill content generated')
       
-      // Generate plain text version for fallback
+      // Use browser print directly (most reliable)
       const plainText = billContent
         .replace(/\x1B[\x40-\x5F]/g, '') // Remove all ESC/POS commands
         .replace(/\x1D[\x40-\x5F]/g, '') // Remove all ESC/POS commands
       
-      // Use WebUSB printing with browser print fallback
-      await printWithFallback(billContent, plainText)
-      alert('Bill sent to printer successfully!')
+      console.log('Opening browser print dialog')
+      const printWindow = window.open('', '_blank', 'width=400,height=600')
+      
+      if (printWindow) {
+        printWindow.document.write(`
+          <html>
+            <head>
+              <title>Bill - ${formatOrderId(selectedOrderForBilling.id)}</title>
+              <style>
+                body { 
+                  font-family: 'Courier New', monospace; 
+                  white-space: pre; 
+                  padding: 20px; 
+                  text-align: center;
+                  font-size: 12px;
+                  line-height: 1.4;
+                }
+                @media print { 
+                  body { font-size: 10px; }
+                  @page { margin: 5mm; }
+                }
+              </style>
+            </head>
+            <body>${plainText}</body>
+          </html>
+        `)
+        printWindow.document.close()
+        
+        setTimeout(() => {
+          printWindow.print()
+          printWindow.close()
+        }, 250)
+      } else {
+        alert('Please allow popups for this site to enable printing')
+      }
       
     } catch (error) {
       console.error('Direct printing failed:', error)
