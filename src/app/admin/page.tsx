@@ -4,10 +4,11 @@ import React, { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { User, Order, Dish, Table, Payment, Notification } from '@/types'
-import { Plus, Edit, Trash2, DollarSign, Users, Utensils, User as UserIcon, Search, Filter, HelpCircle, Bell, LogOut, Download } from 'lucide-react'
+import { Plus, Edit, Trash2, DollarSign, Users, Utensils, User as UserIcon, Search, Filter, HelpCircle, Bell, LogOut, Download, Printer } from 'lucide-react'
 import Sidebar from '@/components/Sidebar'
 import WaiterStatus from '@/components/WaiterStatus'
 import Reports from '@/components/Reports'
+import { printWithFallback, WebUSBPrinter } from '@/lib/webusb-printer'
 
 // Utility function to format order ID as GGR-XXX
 const formatOrderId = (orderId: string) => {
@@ -69,6 +70,7 @@ export default function AdminDashboard() {
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [currentDateTime, setCurrentDateTime] = useState(new Date())
   const [showProfileMenu, setShowProfileMenu] = useState(false)
+  const [printerConnected, setPrinterConnected] = useState(false)
 
   useEffect(() => {
     const userData = localStorage.getItem('user')
@@ -246,15 +248,110 @@ export default function AdminDashboard() {
     }
   }
 
-  // Direct Print Function using browser print (most reliable)
+  // Connect USB Printer
+  const handleConnectPrinter = async () => {
+    try {
+      const printer = new WebUSBPrinter()
+      await printer.connect()
+      setPrinterConnected(true)
+      alert('Printer connected successfully! You can now print bills directly.')
+    } catch (error: any) {
+      console.error('Failed to connect printer:', error)
+      alert('Failed to connect printer: ' + error.message + '\n\nPlease:\n1. Connect printer via USB\n2. Use Chrome or Edge browser\n3. Allow USB access when prompted')
+    }
+  }
+
+  // Direct Print Function using WebUSB with browser print fallback
   const handleThermalPrint = async () => {
     if (!selectedOrderForBilling) return
     
     try {
       console.log('Starting thermal print...')
       
-      // Generate plain text bill content for thermal printer
-      const billContent = `
+      // Generate ESC/POS formatted bill content for thermal printer
+      let escposContent = ''
+      
+      // Initialize printer
+      escposContent += '\x1B\x40' // Initialize
+      
+      // Hotel Header - Centered, Double height
+      escposContent += '\x1B\x61\x01' // Center align
+      escposContent += '\x1B\x21\x30' // Double height, double width
+      escposContent += 'GALAXY GARDEN\n'
+      escposContent += '\x1B\x21\x00' // Normal text
+      escposContent += 'Restaurant & Bar\n'
+      escposContent += '================================\n'
+      escposContent += '123, Main Street\n'
+      escposContent += 'City, State - 123456\n'
+      escposContent += 'Phone: +91 98765 43210\n'
+      escposContent += 'GSTIN: 29ABCDE1234F1Z5\n'
+      escposContent += '================================\n'
+      escposContent += 'BILL / INVOICE\n'
+      escposContent += '================================\n\n'
+      
+      // Order Info - Left align
+      escposContent += '\x1B\x61\x00' // Left align
+      escposContent += `Bill No: ${formatOrderId(selectedOrderForBilling.id)}\n`
+      escposContent += `Date: ${new Date(selectedOrderForBilling.created_at).toLocaleDateString()}\n`
+      escposContent += `Time: ${new Date(selectedOrderForBilling.created_at).toLocaleTimeString()}\n`
+      escposContent += `Table: ${selectedOrderForBilling.tables?.table_number}\n`
+      escposContent += `Waiter: ${selectedOrderForBilling.users?.name}\n`
+      escposContent += `Customer: ${selectedOrderForBilling.customer_name || 'Guest'}\n`
+      escposContent += '--------------------------------\n'
+      
+      // Items Header - Small font
+      escposContent += '\x1B\x21\x01' // Small font
+      escposContent += 'ITEM           QTY    TOTAL\n'
+      escposContent += '------------------------\n'
+      escposContent += '\x1B\x21\x00' // Normal
+      
+      // Items
+      escposContent += '\x1B\x21\x01' // Small font
+      selectedOrderForBilling.order_items?.forEach((item: any) => {
+        const name = item.dishes?.name || 'Unknown'
+        const qty = item.quantity
+        const price = (item.dishes?.price || item.price || 0)
+        const total = (price * qty).toFixed(2)
+        const itemName = name.length > 15 ? name.substring(0, 14) + '.' : name
+        escposContent += `${itemName.padEnd(15)} ${qty.toString().padStart(2)}  ₹${total.padStart(7)}\n`
+      })
+      escposContent += '\x1B\x21\x00' // Normal text
+      
+      escposContent += '------------------------\n'
+      
+      // Totals
+      const subtotal = selectedOrderForBilling.total_amount
+      const discount = calculateDiscountValue(subtotal)
+      const finalAmount = calculateFinalAmount(subtotal)
+      
+      escposContent += `Subtotal:       ₹${subtotal.toFixed(2)}\n`
+
+      if (discount > 0) {
+        escposContent += `Discount:        ₹${discount.toFixed(2)}\n`
+      }
+
+      escposContent += '\x1B\x21\x08' // Bold
+      escposContent += `GRAND TOTAL:    ₹${finalAmount.toFixed(2)}\n`
+      escposContent += '\x1B\x21\x00' // Normal text
+      
+      // Footer - Centered
+      escposContent += '\n'
+      escposContent += '\x1b\x61\x01' // Center align
+      escposContent += '================================\n'
+      escposContent += 'Thank You for Dining!\n'
+      escposContent += 'Visit Us Again\n'
+      escposContent += '================================\n'
+      escposContent += '\x1B\x4D\x01' // Font B (condensed/smaller)
+      escposContent += 'Developed by onethynk techmedia\n'
+      escposContent += '\x1B\x4D\x00' // Font A (normal)
+      escposContent += '================================\n'
+      escposContent += '\n \n' // Blank line
+      
+      // Cut paper
+      escposContent += '\x1D\x56\x00' // Cut paper
+      
+      // Generate plain text version for fallback
+      const plainText = `
            GALAXY GARDEN
         Restaurant & Bar
 ================================
@@ -299,51 +396,10 @@ ${(() => {
 `
       
       console.log('Bill content generated')
-      console.log('Opening browser print dialog')
       
-      // Create print window with proper thermal printer styling
-      const printWindow = window.open('', '_blank', 'width=400,height=600')
-      
-      if (printWindow) {
-        printWindow.document.write(`
-          <html>
-            <head>
-              <title>Bill - ${formatOrderId(selectedOrderForBilling.id)}</title>
-              <style>
-                @page {
-                  size: 58mm auto;
-                  margin: 2mm;
-                }
-                body {
-                  font-family: 'Courier New', monospace;
-                  font-size: 10px;
-                  line-height: 1.2;
-                  white-space: pre;
-                  margin: 0;
-                  padding: 0;
-                  text-align: center;
-                  width: 58mm;
-                }
-                @media print {
-                  body {
-                    font-size: 9px;
-                  }
-                }
-              </style>
-            </head>
-            <body>${billContent}</body>
-          </html>
-        `)
-        printWindow.document.close()
-        
-        // Wait for content to load before printing
-        setTimeout(() => {
-          printWindow.focus()
-          printWindow.print()
-        }, 500)
-      } else {
-        alert('Please allow popups for this site to enable printing')
-      }
+      // Use WebUSB with browser print fallback
+      await printWithFallback(escposContent, plainText)
+      alert('Bill sent to printer successfully!')
       
     } catch (error) {
       console.error('Direct printing failed:', error)
@@ -1757,6 +1813,13 @@ For technical support, contact: support@everycom.com
                 className="flex-1 px-6 py-3 border-2 border-green-300 text-green-700 rounded-xl font-semibold hover:bg-green-50 transition-all duration-300"
               >
                 Close
+              </button>
+              <button
+                onClick={handleConnectPrinter}
+                className="flex-1 px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-xl font-semibold hover:shadow-lg transition-all duration-300 flex items-center justify-center gap-2"
+              >
+                <Printer className="w-4 h-4" />
+                {printerConnected ? 'Printer Connected' : 'Connect Printer'}
               </button>
               <button
                 onClick={handleThermalPrint}

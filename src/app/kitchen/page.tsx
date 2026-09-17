@@ -5,8 +5,9 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { User, Order, OrderItem } from '@/types'
-import { Bell, LogOut, CheckCircle, Clock, ChefHat, AlertCircle } from 'lucide-react'
+import { Bell, LogOut, CheckCircle, Clock, ChefHat, AlertCircle, Printer } from 'lucide-react'
 import NotificationSystem from '@/components/NotificationSystem'
+import { printWithFallback, WebUSBPrinter } from '@/lib/webusb-printer'
 
 // Utility function to format order ID as GGR-XXX
 const formatOrderId = (orderId: string) => {
@@ -26,6 +27,7 @@ export default function KitchenPage() {
   const [notifications, setNotifications] = useState<any[]>([])
   const [selectedFilter, setSelectedFilter] = useState<string>('all')
   const [selectedOrderForBill, setSelectedOrderForBill] = useState<Order | null>(null)
+  const [printerConnected, setPrinterConnected] = useState(false)
 
   useEffect(() => {
     const userData = localStorage.getItem('user')
@@ -104,15 +106,87 @@ export default function KitchenPage() {
     router.push('/login')
   }
 
-  // Thermal Print Function for Kitchen Bill using browser print
+  // Connect USB Printer
+  const handleConnectPrinter = async () => {
+    try {
+      const printer = new WebUSBPrinter()
+      await printer.connect()
+      setPrinterConnected(true)
+      alert('Printer connected successfully! You can now print kitchen orders directly.')
+    } catch (error: any) {
+      console.error('Failed to connect printer:', error)
+      alert('Failed to connect printer: ' + error.message + '\n\nPlease:\n1. Connect printer via USB\n2. Use Chrome or Edge browser\n3. Allow USB access when prompted')
+    }
+  }
+
+  // Thermal Print Function for Kitchen Bill using WebUSB with fallback
   const handleThermalPrint = async () => {
     if (!selectedOrderForBill) return
     
     try {
       console.log('Starting thermal print for kitchen order...')
       
-      // Generate plain text kitchen order content for thermal printer
-      const billContent = `
+      // Generate ESC/POS formatted content
+      let escposContent = ''
+      
+      // Initialize printer
+      escposContent += '\x1B\x40' // Initialize
+      
+      // Center alignment
+      escposContent += '\x1B\x61\x01'
+      
+      // Table Number - Large and Bold
+      escposContent += '\x1B\x21\x30' // Double width and height
+      escposContent += `TABLE ${selectedOrderForBill.tables?.table_number}\n`
+      escposContent += '\x1B\x21\x00' // Normal
+      
+      escposContent += '================================\n\n'
+      
+      // Kitchen Order - Small and Centered
+      escposContent += '\x1B\x21\x01' // Small font
+      escposContent += 'KITCHEN ORDER\n'
+      escposContent += '\x1B\x21\x00' // Normal
+      escposContent += '--------------------------------\n\n'
+      
+      // Order Info - Small size and centered
+      escposContent += '\x1B\x21\x01' // Small font
+      escposContent += `Order: ${formatOrderId(selectedOrderForBill.id)}\n`
+      escposContent += `Date: ${new Date(selectedOrderForBill.created_at).toLocaleDateString()}\n`
+      escposContent += `Time: ${new Date(selectedOrderForBill.created_at).toLocaleTimeString()}\n`
+      escposContent += `Waiter: ${selectedOrderForBill.users?.name}\n`
+      escposContent += '\x1B\x21\x00' // Normal
+      escposContent += '--------------------------------\n\n'
+      
+      // Items Header
+      escposContent += '\x1B\x21\x09' // Bold
+      escposContent += '  ITEM                  QTY  TYPE\n'
+      escposContent += '-----------------------------------\n'
+      escposContent += '\x1B\x21\x00' // Normal font for items
+      
+      // Items
+      selectedOrderForBill.order_items?.forEach((item: any) => {
+        const name = item.dishes?.name || 'Unknown'
+        const qty = item.quantity
+        const dishType = item.dish_type || '-'
+        const itemName = name.length > 14 ? name.substring(0, 13) + '.' : name
+        escposContent += `${itemName.padEnd(14)} ${qty.toString().padStart(2)} ${dishType.padEnd(4)}\n`
+      })
+      escposContent += '\x1B\x21\x00' // Ensure normal text
+      
+      escposContent += '--------------------------------\n'
+      
+      // Status - Small and centered
+      escposContent += '\x1B\x21\x01' // Small font
+      escposContent += `Status: ${selectedOrderForBill.status.toUpperCase()}\n`
+      escposContent += '\x1B\x21\x00' // Normal
+      
+      escposContent += '\n\n\n'
+      
+      // Cut paper
+      escposContent += '\x1D\x56\x00' // Partial cut
+      
+      // Generate plain text version for fallback
+      const plainText = `
       TABLE ${selectedOrderForBill.tables?.table_number}
 ================================
 
@@ -141,51 +215,10 @@ Status: ${selectedOrderForBill.status.toUpperCase()}
 `
       
       console.log('Bill content generated')
-      console.log('Opening browser print dialog')
       
-      // Create print window with proper thermal printer styling
-      const printWindow = window.open('', '_blank', 'width=400,height=600')
-      
-      if (printWindow) {
-        printWindow.document.write(`
-          <html>
-            <head>
-              <title>Kitchen Order - ${formatOrderId(selectedOrderForBill.id)}</title>
-              <style>
-                @page {
-                  size: 58mm auto;
-                  margin: 2mm;
-                }
-                body {
-                  font-family: 'Courier New', monospace;
-                  font-size: 10px;
-                  line-height: 1.2;
-                  white-space: pre;
-                  margin: 0;
-                  padding: 0;
-                  text-align: center;
-                  width: 58mm;
-                }
-                @media print {
-                  body {
-                    font-size: 9px;
-                  }
-                }
-              </style>
-            </head>
-            <body>${billContent}</body>
-          </html>
-        `)
-        printWindow.document.close()
-        
-        // Wait for content to load before printing
-        setTimeout(() => {
-          printWindow.focus()
-          printWindow.print()
-        }, 500)
-      } else {
-        alert('Please allow popups for this site to enable printing')
-      }
+      // Use WebUSB with browser print fallback
+      await printWithFallback(escposContent, plainText)
+      alert('Kitchen order sent to printer successfully!')
       
     } catch (error) {
       console.error('Error printing kitchen order:', error)
@@ -583,6 +616,13 @@ Status: ${selectedOrderForBill.status.toUpperCase()}
                 className="flex-1 px-6 py-3 border-2 border-green-300 text-green-700 rounded-xl font-semibold hover:bg-green-50 transition-all duration-300"
               >
                 Close
+              </button>
+              <button
+                onClick={handleConnectPrinter}
+                className="flex-1 px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-xl font-semibold hover:shadow-lg transition-all duration-300 flex items-center justify-center gap-2"
+              >
+                <Printer className="w-4 h-4" />
+                {printerConnected ? 'Printer Connected' : 'Connect Printer'}
               </button>
               <button
                 onClick={handleThermalPrint}
