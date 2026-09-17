@@ -7,6 +7,7 @@ import { supabase } from '@/lib/supabase'
 import { User, Order, OrderItem } from '@/types'
 import { Bell, LogOut, CheckCircle, Clock, ChefHat, AlertCircle } from 'lucide-react'
 import NotificationSystem from '@/components/NotificationSystem'
+import { printWithFallback } from '@/lib/webusb-printer'
 
 // Utility function to format order ID as GGR-XXX
 const formatOrderId = (orderId: string) => {
@@ -78,8 +79,16 @@ export default function KitchenPage() {
         })
       })
       
+      // Filter orders: show recent orders (last 1 hour) OR active orders (not served)
+      const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000)
+      const filteredOrders = (data || []).filter((order: Order) => {
+        const isRecent = new Date(order.created_at) > oneHourAgo
+        const isActive = order.status !== 'served'
+        return isRecent || isActive
+      })
+      
       // Sort orders by created_at (newest first)
-      const sortedOrders = (data || []).sort((a: Order, b: Order) => 
+      const sortedOrders = filteredOrders.sort((a: Order, b: Order) => 
         new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
       )
       setOrders(sortedOrders)
@@ -163,60 +172,17 @@ export default function KitchenPage() {
       // Cut paper
       billContent += '\x1D\x56\x00' // Partial cut
       
-      // Send to CUPS API
-      const response = await fetch('/api/print', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ billContent }),
-      })
+      console.log('Bill content generated')
       
-      const result = await response.json()
+      // Generate plain text version for fallback
+      const plainText = billContent
+        .replace(/\x1B[\x40-\x5F]/g, '') // Remove all ESC/POS commands
+        .replace(/\x1D[\x40-\x5F]/g, '') // Remove all ESC/POS commands
       
-      if (!result.success || result.fallback) {
-        // Fallback to browser print if thermal printer not available
-        console.log('Using browser print fallback')
-        
-        // Create a printable window with the bill content
-        const printWindow = window.open('', '_blank', 'width=400,height=600')
-        if (printWindow) {
-          printWindow.document.write(`
-            <html>
-              <head>
-                <title>Kitchen Order - ${formatOrderId(selectedOrderForBill.id)}</title>
-                <style>
-                  body { 
-                    font-family: 'Courier New', monospace; 
-                    white-space: pre; 
-                    padding: 20px; 
-                    text-align: center;
-                    font-size: 12px;
-                    line-height: 1.4;
-                  }
-                  @media print { 
-                    body { font-size: 10px; }
-                    @page { margin: 5mm; }
-                  }
-                </style>
-              </head>
-              <body>${billContent.replace(/\x1B[\x40-\x5F]/g, '')}</body>
-            </html>
-          `)
-          printWindow.document.close()
-          
-          // Wait for content to load before printing
-          setTimeout(() => {
-            printWindow.print()
-            printWindow.close()
-          }, 250)
-        } else {
-          alert('Please allow popups for this site to enable printing')
-        }
-      } else {
-        console.log('Kitchen order printed successfully')
-        alert('Kitchen order printed successfully!')
-      }
+      // Use WebUSB printing with browser print fallback
+      await printWithFallback(billContent, plainText)
+      alert('Kitchen order printed successfully!')
+      
     } catch (error) {
       console.error('Error printing kitchen order:', error)
       alert('Failed to print kitchen order. Check console for details.')
@@ -287,7 +253,7 @@ export default function KitchenPage() {
   // Filter orders based on selected filter
   const filteredOrders = selectedFilter === 'all' 
     ? orders 
-    : selectedFilter === 'completed' 
+    : selectedFilter === 'completed'    
       ? completedOrders
       : selectedFilter === 'pending'
         ? pendingOrders
@@ -306,7 +272,7 @@ export default function KitchenPage() {
           <div className="flex justify-between h-16">
             <div className="flex items-center">
               <h1 className="text-xl font-bold bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">
-                🍽️ Kitchen Display
+                 Kitchen Display
               </h1>
             </div>
             <div className="flex items-center space-x-2 sm:space-x-4">

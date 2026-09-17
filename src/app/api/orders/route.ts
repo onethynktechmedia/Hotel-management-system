@@ -12,12 +12,9 @@ export async function GET(request: NextRequest) {
         *,
         tables(*),
         users(*),
-        order_items(
-          *,
-          dishes(*)
-        )
+        order_items(*)
       `)
-      .order('created_at', { ascending: true })
+      .order('created_at', { ascending: false })
 
     if (status) {
       const statuses = status.split(',')
@@ -30,6 +27,34 @@ export async function GET(request: NextRequest) {
       console.error('Supabase error:', error)
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
+
+    // Fetch dish details separately for each order item
+    const dishIds = new Set<string>()
+    data?.forEach((order: any) => {
+      order.order_items?.forEach((item: any) => {
+        if (item.dish_id) dishIds.add(item.dish_id)
+      })
+    })
+
+    let dishesMap: Record<string, any> = {}
+    if (dishIds.size > 0) {
+      const { data: dishes } = await supabase
+        .from('dishes')
+        .select('*')
+        .in('id', Array.from(dishIds))
+
+      dishes?.forEach((dish: any) => {
+        dishesMap[dish.id] = dish
+      })
+    }
+
+    // Attach dish data to order items
+    data?.forEach((order: any) => {
+      order.order_items?.forEach((item: any) => {
+        item.dishes = dishesMap[item.dish_id] || null
+        item.dish = dishesMap[item.dish_id] || null
+      })
+    })
 
     console.log('Orders fetched:', data?.length)
     data?.forEach((order: any) => {
@@ -49,7 +74,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { table_id, waiter_id, status, total_amount } = body
+    const { table_id, waiter_id, status, total_amount, customer_name } = body
 
     const { data, error } = await supabase
       .from('orders')
@@ -57,13 +82,34 @@ export async function POST(request: NextRequest) {
         table_id,
         waiter_id,
         status,
-        total_amount
+        total_amount,
+        customer_name: customer_name || null
       })
       .select()
       .single()
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 })
+    }
+
+    // Create notification for all kitchen staff when new order is placed
+    const { data: kitchenStaff } = await supabase
+      .from('users')
+      .select('id')
+      .eq('role', 'kitchen')
+
+    if (kitchenStaff && kitchenStaff.length > 0) {
+      const notifications = kitchenStaff.map(staff => ({
+        user_id: staff.id,
+        order_id: data.id,
+        type: 'new_order',
+        message: `New order received - Table ${table_id}`,
+        is_read: false
+      }))
+
+      await supabase
+        .from('notifications')
+        .insert(notifications)
     }
 
     return NextResponse.json(data)
@@ -121,8 +167,31 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
-    // Create notification if order is ready (for waiter)
+    // Create notification if order is preparing (for kitchen staff)
+    if (status === 'preparing') {
+      const { data: kitchenStaff } = await supabase
+        .from('users')
+        .select('id')
+        .eq('role', 'kitchen')
+
+      if (kitchenStaff && kitchenStaff.length > 0) {
+        const notifications = kitchenStaff.map(staff => ({
+          user_id: staff.id,
+          order_id: data.id,
+          type: 'order_confirmed',
+          message: `Order is now being prepared`,
+          is_read: false
+        }))
+
+        await supabase
+          .from('notifications')
+          .insert(notifications)
+      }
+    }
+
+    // Create notification if order is ready (for waiter and kitchen staff)
     if (status === 'ready') {
+      // Notify waiter
       await supabase
         .from('notifications')
         .insert({
@@ -132,9 +201,29 @@ export async function PATCH(request: NextRequest) {
           message: `Order is ready to serve`,
           is_read: false
         })
+
+      // Also notify kitchen staff
+      const { data: kitchenStaff } = await supabase
+        .from('users')
+        .select('id')
+        .eq('role', 'kitchen')
+
+      if (kitchenStaff && kitchenStaff.length > 0) {
+        const notifications = kitchenStaff.map(staff => ({
+          user_id: staff.id,
+          order_id: data.id,
+          type: 'order_ready',
+          message: `Order marked as ready to serve`,
+          is_read: false
+        }))
+
+        await supabase
+          .from('notifications')
+          .insert(notifications)
+      }
     }
 
-    // Create notification if order is served (for admin)
+    // Create notification if order is served (for admin and kitchen staff)
     if (status === 'served') {
       // Get admin user
       const { data: adminData } = await supabase
@@ -149,10 +238,30 @@ export async function PATCH(request: NextRequest) {
           .insert({
             user_id: adminData.id,
             order_id: data.id,
-            type: 'order_served',
+            type: 'order_completed',
             message: `Order has been served - ready for billing`,
             is_read: false
           })
+      }
+
+      // Also notify kitchen staff
+      const { data: kitchenStaff } = await supabase
+        .from('users')
+        .select('id')
+        .eq('role', 'kitchen')
+
+      if (kitchenStaff && kitchenStaff.length > 0) {
+        const notifications = kitchenStaff.map(staff => ({
+          user_id: staff.id,
+          order_id: data.id,
+          type: 'order_completed',
+          message: `Order has been served`,
+          is_read: false
+        }))
+
+        await supabase
+          .from('notifications')
+          .insert(notifications)
       }
     }
 

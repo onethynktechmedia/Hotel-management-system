@@ -8,6 +8,7 @@ import { Plus, Edit, Trash2, DollarSign, Users, Utensils, User as UserIcon, Sear
 import Sidebar from '@/components/Sidebar'
 import WaiterStatus from '@/components/WaiterStatus'
 import Reports from '@/components/Reports'
+import { printWithFallback } from '@/lib/webusb-printer'
 
 // Utility function to format order ID as GGR-XXX
 const formatOrderId = (orderId: string) => {
@@ -83,6 +84,21 @@ export default function AdminDashboard() {
     }
     setUser(parsedUser)
     fetchData()
+
+    // Set up real-time subscription for order updates
+    const subscription = supabase
+      .channel('admin_orders')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, (payload) => {
+        fetchData()
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'order_items' }, (payload) => {
+        fetchData()
+      })
+      .subscribe()
+
+    return () => {
+      subscription.unsubscribe()
+    }
   }, [router])
 
   useEffect(() => {
@@ -317,7 +333,7 @@ export default function AdminDashboard() {
     return escpos
   }
 
-  // Direct Print Function using CUPS API
+  // Direct Print Function using WebUSB for production
   const handleThermalPrint = async () => {
     if (!selectedOrderForBilling) return
     
@@ -410,77 +426,17 @@ export default function AdminDashboard() {
       // Cut paper
       billContent += '\x1D\x56\x00' // Cut paper
       
-      console.log('Bill content generated, sending to API...')
-      console.log('Bill content:', billContent)
+      console.log('Bill content generated')
       
-      // Send to backend API for direct printing
-      const response = await fetch('/api/print', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ billContent }),
-      })
+      // Generate plain text version for fallback
+      const plainText = billContent
+        .replace(/\x1B[\x40-\x5F]/g, '') // Remove all ESC/POS commands
+        .replace(/\x1D[\x40-\x5F]/g, '') // Remove all ESC/POS commands
       
-      console.log('API response received:', response.status)
+      // Use WebUSB printing with browser print fallback
+      await printWithFallback(billContent, plainText)
+      alert('Bill sent to printer successfully!')
       
-      if (response.ok) {
-        const data = await response.json()
-        console.log('Print response:', data)
-        
-        if (data.success) {
-          alert('Bill sent to printer successfully!')
-        } else if (data.fallback) {
-          // Fallback to browser print if server-side printing is not available
-          console.log('Using browser print fallback')
-          
-          // Create a printable version of the bill
-          const printWindow = window.open('', '_blank', 'width=400,height=600')
-          if (printWindow) {
-            const plainText = billContent
-              .replace(/\x1B[\x40-\x5F]/g, '') // Remove all ESC/POS commands
-              .replace(/\x1D[\x40-\x5F]/g, '') // Remove all ESC/POS commands
-            
-            printWindow.document.write(`
-              <html>
-                <head>
-                  <title>Bill - ${formatOrderId(selectedOrderForBilling.id)}</title>
-                  <style>
-                    body { 
-                      font-family: 'Courier New', monospace; 
-                      white-space: pre; 
-                      padding: 20px; 
-                      text-align: center;
-                      font-size: 12px;
-                      line-height: 1.4;
-                    }
-                    @media print { 
-                      body { font-size: 10px; }
-                      @page { margin: 5mm; }
-                    }
-                  </style>
-                </head>
-                <body>${plainText}</body>
-              </html>
-            `)
-            printWindow.document.close()
-            
-            // Wait for content to load before printing
-            setTimeout(() => {
-              printWindow.print()
-              printWindow.close()
-            }, 250)
-          } else {
-            alert('Please allow popups for this site to enable printing')
-          }
-        } else {
-          throw new Error(data.error || 'Print failed')
-        }
-      } else {
-        const errorData = await response.json()
-        console.error('Print API error:', errorData)
-        throw new Error(errorData.error || 'Print API failed')
-      }
     } catch (error) {
       console.error('Direct printing failed:', error)
       alert('Printing failed: ' + (error as Error).message + '\n\nCheck browser console for details.')
