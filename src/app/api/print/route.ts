@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { exec } from 'child_process'
 import { promisify } from 'util'
-import { writeFileSync, unlinkSync } from 'fs'
-import { join } from 'path'
 
 const execAsync = promisify(exec)
 
@@ -14,61 +12,26 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'No content provided' }, { status: 400 })
     }
 
-    console.log('Print request received, content length:', content.length)
+    console.log('Print request received')
 
-    // Create a temporary file with the content
-    const tempFilePath = join('/tmp', `print-${Date.now()}.txt`)
-    writeFileSync(tempFilePath, content)
-
-    try {
-      // Print using CUPS (server-side printing)
-      // This uses the configured EC58 printer
-      const command = `lp -d EC58 "${tempFilePath}"`
-      console.log('Executing print command:', command)
-      
-      await execAsync(command)
-      console.log('Print job sent successfully')
-      
-      // Clean up temp file
-      unlinkSync(tempFilePath)
-      
-      return NextResponse.json({ success: true, message: 'Print job sent to printer' })
-    } catch (printError) {
-      console.error('CUPS print error:', printError)
-      
-      // Clean up temp file
-      try {
-        unlinkSync(tempFilePath)
-      } catch (e) {
-        console.error('Error cleaning temp file:', e)
-      }
-      
-      // Fallback: Try EC58B printer
-      try {
-        const fallbackCommand = `lp -d EC58B "${tempFilePath}"`
-        console.log('Trying fallback printer:', fallbackCommand)
-        await execAsync(fallbackCommand)
-        unlinkSync(tempFilePath)
-        return NextResponse.json({ success: true, message: 'Print job sent to EC58B printer' })
-      } catch (fallbackError) {
-        console.error('Fallback print error:', fallbackError)
-        
-        // Final fallback: Try default printer
-        try {
-          await execAsync(`lp "${tempFilePath}"`)
-          unlinkSync(tempFilePath)
-          return NextResponse.json({ success: true, message: 'Print job sent to default printer' })
-        } catch (finalError) {
-          console.error('Final print error:', finalError)
-          return NextResponse.json({ 
-            error: 'Failed to print. Please check printer connection.', 
-            details: String(finalError) 
-          }, { status: 500 })
-        }
-      }
-    }
+    // Format content for thermal printer with proper font settings
+    // Use CUPS options for better thermal printing
+    const escapedContent = content.replace(/'/g, "'\\''")
+    
+    // CUPS options for thermal printing:
+    // -o raw: Send raw data to printer
+    // -o cpi=12: Characters per inch (12 is standard for 58mm)
+    // -o lpi=8: Lines per inch
+    // -o orientation-requested=3: Portrait mode
+    const command = `echo '${escapedContent}' | lp -d EC58 -o cpi=12 -o lpi=8 -o orientation-requested=3`
+    
+    console.log('Executing print command')
+    await execAsync(command)
+    console.log('Print job sent successfully')
+    
+    return NextResponse.json({ success: true, message: 'Print job sent to printer' })
   } catch (error) {
     console.error('Print API error:', error)
-    return NextResponse.json({ error: 'Failed to process print request' }, { status: 500 })
+    return NextResponse.json({ error: 'Failed to print', details: String(error) }, { status: 500 })
   }
 }
