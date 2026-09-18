@@ -246,23 +246,23 @@ export default function AdminDashboard() {
       
       // Generate plain text bill content for thermal printer
       const plainText = `
-           GALAXY GARDEN
-        Restaurant & Bar
+GALAXY GARDEN
+Restaurant & Bar
 ================================
-       123, Main Street
-    City, State - 123456
-    Phone: +91 98765 43210
-   GSTIN: 29ABCDE1234F1Z5
+123, Main Street
+City, State - 123456
+Phone: +91 98765 43210
+GSTIN: 29ABCDE1234F1Z5
 ================================
-       BILL / INVOICE
+BILL / INVOICE
 ================================
 
 Bill No: ${formatOrderId(selectedOrderForBilling.id)}
-  Date: ${new Date(selectedOrderForBilling.created_at).toLocaleDateString()}
-  Time: ${new Date(selectedOrderForBilling.created_at).toLocaleTimeString()}
-  Table: ${selectedOrderForBilling.tables?.table_number}
-  Waiter: ${selectedOrderForBilling.users?.name}
-  Customer: ${selectedOrderForBilling.customer_name || 'Guest'}
+Date: ${new Date(selectedOrderForBilling.created_at).toLocaleDateString()}
+Time: ${new Date(selectedOrderForBilling.created_at).toLocaleTimeString()}
+Table: ${selectedOrderForBilling.tables?.table_number}
+Waiter: ${selectedOrderForBilling.users?.name}
+Customer: ${selectedOrderForBilling.customer_name || 'Guest'}
 --------------------------------
 ITEM           QTY    TOTAL
 ------------------------
@@ -282,10 +282,8 @@ ${(() => {
 })()}GRAND TOTAL:    Rs${calculateFinalAmount(selectedOrderForBilling.total_amount).toFixed(2)}
 
 ================================
-    Thank You for Dining!
-       Visit Us Again
-================================
-  Developed by onethynk
+Thank You for Dining!
+Visit Us Again
 ================================
 `
       
