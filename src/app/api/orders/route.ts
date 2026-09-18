@@ -90,6 +90,8 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const { table_id, waiter_id, status, total_amount, customer_name, customer_mobile } = body
 
+    console.log('Creating order with:', { table_id, waiter_id, status, total_amount, customer_name, customer_mobile })
+
     const result = await query(
       'INSERT INTO orders (table_id, waiter_id, status, total_amount, customer_name, customer_mobile) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
       [table_id, waiter_id, status, total_amount, customer_name || null, customer_mobile || null]
@@ -99,7 +101,8 @@ export async function POST(request: NextRequest) {
     order.total_amount = parseFloat(order.total_amount)
     return NextResponse.json(order)
   } catch (error) {
-    return NextResponse.json({ error: 'Failed to create order' }, { status: 500 })
+    console.error('Error creating order:', error)
+    return NextResponse.json({ error: 'Failed to create order', details: String(error) }, { status: 500 })
   }
 }
 
