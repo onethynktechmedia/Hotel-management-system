@@ -305,29 +305,65 @@ ${(() => {
       } else {
         // Fallback to browser print if server printing fails
         console.log('Server printing failed, using browser print fallback')
-        const iframe = document.createElement('iframe')
-        iframe.style.display = 'none'
-        document.body.appendChild(iframe)
         
-        const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document
-        if (iframeDoc) {
-          iframeDoc.write(`
+        // Create a new window for printing with better cross-platform support
+        const printWindow = window.open('', '_blank')
+        if (printWindow) {
+          printWindow.document.write(`
+            <!DOCTYPE html>
             <html>
               <head>
                 <title>Bill Print</title>
                 <style>
-                  @page { size: 58mm auto; margin: 0; }
-                  body { font-family: 'Courier New', monospace; font-size: 12px; white-space: pre; margin: 0; padding: 3mm; text-align: center; }
+                  @page {
+                    size: 58mm auto;
+                    margin: 0;
+                  }
+                  @media print {
+                    @page {
+                      size: 58mm auto;
+                      margin: 0;
+                    }
+                    body {
+                      margin: 0;
+                      padding: 2mm;
+                      width: 58mm;
+                    }
+                  }
+                  * {
+                    box-sizing: border-box;
+                  }
+                  body {
+                    font-family: 'Courier New', 'Consolas', monospace;
+                    font-size: 11px;
+                    line-height: 1.2;
+                    white-space: pre;
+                    margin: 0;
+                    padding: 2mm;
+                    text-align: center;
+                    width: 54mm;
+                    max-width: 54mm;
+                    overflow: hidden;
+                  }
+                  @media print {
+                    body {
+                      font-size: 10px;
+                      line-height: 1.1;
+                    }
+                  }
                 </style>
               </head>
-              <body>${plainText}</body>
+              <body>${plainText.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</body>
             </html>
           `)
-          iframeDoc.close()
+          printWindow.document.close()
+          printWindow.focus()
           setTimeout(() => {
-            iframe.contentWindow?.print()
-            setTimeout(() => document.body.removeChild(iframe), 1000)
+            printWindow.print()
+            printWindow.close()
           }, 500)
+        } else {
+          alert('Please allow popups for printing')
         }
       }
       
