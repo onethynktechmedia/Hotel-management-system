@@ -1,18 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabase } from '@/lib/supabase'
+import { query } from '@/lib/db'
 
 export async function GET() {
   try {
-    const { data, error } = await supabase
-      .from('tables')
-      .select('*')
-      .order('table_number')
-
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 })
-    }
-
-    return NextResponse.json(data)
+    const result = await query('SELECT * FROM tables ORDER BY table_number')
+    return NextResponse.json(result.rows)
   } catch (error) {
     return NextResponse.json({ error: 'Failed to fetch tables' }, { status: 500 })
   }
@@ -27,42 +19,28 @@ export async function POST(request: NextRequest) {
     if (initialize) {
       const tables = []
       for (let i = 1; i <= 8; i++) {
-        const { data, error } = await supabase
-          .from('tables')
-          .insert({
-            table_number: i,
-            capacity: 4,
-            is_master: false
-          })
-          .select()
-          .single()
-
-        if (error) {
-          // Table might already exist, continue
-          console.log(`Table ${i} might already exist:`, error.message)
-        } else {
-          tables.push(data)
+        try {
+          const result = await query(
+            'INSERT INTO tables (table_number, capacity, is_master) VALUES ($1, $2, $3) ON CONFLICT (table_number) DO NOTHING RETURNING *',
+            [i, 4, false]
+          )
+          if (result.rows.length > 0) {
+            tables.push(result.rows[0])
+          }
+        } catch (error) {
+          console.log(`Table ${i} might already exist`)
         }
       }
       return NextResponse.json({ success: true, tables, message: 'Initialized 8 tables' })
     }
 
     // Create single table
-    const { data, error } = await supabase
-      .from('tables')
-      .insert({
-        table_number,
-        capacity,
-        is_master: is_master || false
-      })
-      .select()
-      .single()
+    const result = await query(
+      'INSERT INTO tables (table_number, capacity, is_master) VALUES ($1, $2, $3) RETURNING *',
+      [table_number, capacity, is_master || false]
+    )
 
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 })
-    }
-
-    return NextResponse.json(data)
+    return NextResponse.json(result.rows[0])
   } catch (error) {
     return NextResponse.json({ error: 'Failed to create table' }, { status: 500 })
   }
@@ -78,38 +56,21 @@ export async function DELETE(request: NextRequest) {
     }
 
     // Get all orders for this table
-    const { data: orders } = await supabase
-      .from('orders')
-      .select('id')
-      .eq('table_id', id)
+    const ordersResult = await query('SELECT id FROM orders WHERE table_id = $1', [id])
+    const orders = ordersResult.rows
 
     // Delete all orders associated with this table
-    if (orders && orders.length > 0) {
-      for (const order of orders) {
-        // Delete notifications for each order
-        await supabase
-          .from('notifications')
-          .delete()
-          .eq('order_id', order.id)
-
-        // Delete the order (CASCADE will handle order_items)
-        await supabase
-          .from('orders')
-          .delete()
-          .eq('id', order.id)
-      }
+    for (const order of orders) {
+      // Delete notifications for each order
+      await query('DELETE FROM notifications WHERE order_id = $1', [order.id])
+      // Delete order items
+      await query('DELETE FROM order_items WHERE order_id = $1', [order.id])
+      // Delete the order
+      await query('DELETE FROM orders WHERE id = $1', [order.id])
     }
 
     // Delete the table
-    const { error } = await supabase
-      .from('tables')
-      .delete()
-      .eq('id', id)
-
-    if (error) {
-      console.error('Error deleting table:', error)
-      return NextResponse.json({ error: error.message }, { status: 500 })
-    }
+    await query('DELETE FROM tables WHERE id = $1', [id])
 
     return NextResponse.json({ success: true })
   } catch (error) {
@@ -123,22 +84,28 @@ export async function PATCH(request: NextRequest) {
     const body = await request.json()
     const { id, is_occupied, is_master } = body
 
-    const updateData: any = {}
-    if (is_occupied !== undefined) updateData.is_occupied = is_occupied
-    if (is_master !== undefined) updateData.is_master = is_master
+    const updateFields: string[] = []
+    const values: any[] = []
+    let paramCount = 1
 
-    const { data, error } = await supabase
-      .from('tables')
-      .update(updateData)
-      .eq('id', id)
-      .select()
-      .single()
-
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 })
+    if (is_occupied !== undefined) {
+      updateFields.push(`is_occupied = $${paramCount++}`)
+      values.push(is_occupied)
+    }
+    if (is_master !== undefined) {
+      updateFields.push(`is_master = $${paramCount++}`)
+      values.push(is_master)
     }
 
-    return NextResponse.json(data)
+    if (updateFields.length === 0) {
+      return NextResponse.json({ error: 'No fields to update' }, { status: 400 })
+    }
+
+    values.push(id)
+    const queryText = `UPDATE tables SET ${updateFields.join(', ')} WHERE id = $${paramCount} RETURNING *`
+
+    const result = await query(queryText, values)
+    return NextResponse.json(result.rows[0])
   } catch (error) {
     return NextResponse.json({ error: 'Failed to update table' }, { status: 500 })
   }

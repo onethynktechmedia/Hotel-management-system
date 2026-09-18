@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabase } from '@/lib/supabase'
+import { query } from '@/lib/db'
 
 export async function PATCH(
   request: NextRequest,
@@ -10,70 +10,29 @@ export async function PATCH(
     const body = await request.json()
     const { status, total_amount } = body
 
-    const updateData: any = {}
-    if (status !== undefined) updateData.status = status
-    if (total_amount !== undefined) updateData.total_amount = total_amount
+    const updateFields: string[] = []
+    const values: any[] = []
+    let paramCount = 1
 
-    const { data, error } = await supabase
-      .from('orders')
-      .update(updateData)
-      .eq('id', params.id)
-      .select('*, tables(*), users(*)')
-      .single()
-
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 })
+    if (status !== undefined) {
+      updateFields.push(`status = $${paramCount++}`)
+      values.push(status)
+    }
+    if (total_amount !== undefined) {
+      updateFields.push(`total_amount = $${paramCount++}`)
+      values.push(total_amount)
     }
 
-    // Create notification if order is confirmed
-    if (status === 'confirmed') {
-      await supabase
-        .from('notifications')
-        .insert({
-          user_id: data.waiter_id,
-          order_id: data.id,
-          type: 'order_confirmed',
-          message: `Order for Table ${data.tables?.table_number} confirmed and sent to kitchen`,
-          is_read: false
-        })
+    values.push(params.id)
+    const queryText = `UPDATE orders SET ${updateFields.join(', ')} WHERE id = $${paramCount} RETURNING *`
+
+    const result = await query(queryText, values)
+    const order = result.rows[0]
+    if (order.total_amount) {
+      order.total_amount = parseFloat(order.total_amount)
     }
 
-    // Create notification if order is ready (for waiter)
-    if (status === 'ready') {
-      await supabase
-        .from('notifications')
-        .insert({
-          user_id: data.waiter_id,
-          order_id: data.id,
-          type: 'order_ready',
-          message: `Order is ready to serve`,
-          is_read: false
-        })
-    }
-
-    // Create notification if order is served (for admin)
-    if (status === 'served') {
-      // Get admin user
-      const { data: adminData } = await supabase
-        .from('users')
-        .select('id')
-        .eq('role', 'admin')
-        .single()
-
-      if (adminData) {
-        await supabase
-          .from('notifications')
-          .insert({
-            user_id: adminData.id,
-            order_id: data.id,
-            type: 'order_served',
-            message: `Order has been served - ready for billing`,
-            is_read: false
-          })
-      }
-    }
-
-    return NextResponse.json(data)
+    return NextResponse.json(order)
   } catch (error) {
     return NextResponse.json({ error: 'Failed to update order' }, { status: 500 })
   }

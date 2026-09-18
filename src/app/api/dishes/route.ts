@@ -4,7 +4,11 @@ import { query } from '@/lib/db'
 export async function GET() {
   try {
     const result = await query('SELECT * FROM dishes ORDER BY name')
-    return NextResponse.json(result.rows)
+    const dishes = result.rows.map((dish: any) => ({
+      ...dish,
+      price: parseFloat(dish.price)
+    }))
+    return NextResponse.json(dishes)
   } catch (error) {
     console.error('Failed to fetch dishes:', error)
     return NextResponse.json({ error: 'Failed to fetch dishes' }, { status: 500 })
@@ -19,7 +23,9 @@ export async function POST(request: NextRequest) {
       'INSERT INTO dishes (name, description, price, category, image_url, is_available) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
       [name, description, price, category, image_url, is_available !== undefined ? is_available : true]
     )
-    return NextResponse.json(result.rows[0])
+    const dish = result.rows[0]
+    dish.price = parseFloat(dish.price)
+    return NextResponse.json(dish)
   } catch (error) {
     return NextResponse.json({ error: 'Failed to create dish' }, { status: 500 })
   }
@@ -33,7 +39,9 @@ export async function PATCH(request: NextRequest) {
       'UPDATE dishes SET name = $1, description = $2, price = $3, category = $4, image_url = $5, is_available = $6 WHERE id = $7 RETURNING *',
       [name, description, price, category, image_url, is_available, id]
     )
-    return NextResponse.json(result.rows[0])
+    const dish = result.rows[0]
+    dish.price = parseFloat(dish.price)
+    return NextResponse.json(dish)
   } catch (error) {
     return NextResponse.json({ error: 'Failed to update dish' }, { status: 500 })
   }

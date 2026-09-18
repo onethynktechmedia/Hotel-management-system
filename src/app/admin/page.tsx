@@ -2,7 +2,6 @@
 
 import React, { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { supabase } from '@/lib/supabase'
 import { User, Order, Dish, Table, Payment, Notification } from '@/types'
 import { Plus, Edit, Trash2, DollarSign, Users, Utensils, User as UserIcon, Search, Filter, HelpCircle, Bell, LogOut, Download, Printer } from 'lucide-react'
 import Sidebar from '@/components/Sidebar'
@@ -86,19 +85,13 @@ export default function AdminDashboard() {
     setUser(parsedUser)
     fetchData()
 
-    // Set up real-time subscription for order updates
-    const subscription = supabase
-      .channel('admin_orders')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, (payload) => {
-        fetchData()
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'order_items' }, (payload) => {
-        fetchData()
-      })
-      .subscribe()
+    // Set up polling for order updates (replacing real-time subscription)
+    const interval = setInterval(() => {
+      fetchData()
+    }, 5000)
 
     return () => {
-      subscription.unsubscribe()
+      clearInterval(interval)
     }
   }, [router])
 
@@ -114,9 +107,9 @@ export default function AdminDashboard() {
       const [ordersRes, dishesRes, tablesRes, paymentsRes, notificationsRes] = await Promise.all([
         fetch('/api/orders').then(res => res.json()),
         fetch('/api/dishes').then(res => res.json()),
-        supabase.from('tables').select('*').order('table_number'),
-        supabase.from('payments').select('*').order('created_at', { ascending: false }),
-        supabase.from('notifications').select('*').order('created_at', { ascending: false })
+        fetch('/api/tables').then(res => res.json()),
+        fetch('/api/payments').then(res => res.json()).catch(() => []),
+        fetch('/api/notifications').then(res => res.json()).catch(() => [])
       ])
 
       // Fetch order items for each order
@@ -128,11 +121,11 @@ export default function AdminDashboard() {
         })
       )
 
-      setOrders(ordersWithItems || [])
+      setOrders(ordersWithItems)
       setDishes(dishesRes || [])
-      setTables(tablesRes.data || [])
-      setPayments(paymentsRes.data || [])
-      setNotifications(notificationsRes.data || [])
+      setTables(tablesRes || [])
+      setPayments(paymentsRes.data || paymentsRes || [])
+      setNotifications(notificationsRes.data || notificationsRes || [])
     } catch (error) {
       console.error('Error fetching data:', error)
     } finally {
@@ -229,10 +222,8 @@ export default function AdminDashboard() {
 
   const handleGenerateBill = async (order: Order) => {
     try {
-      const { data: orderItems } = await supabase
-        .from('order_items')
-        .select('*, dishes(*)')
-        .eq('order_id', order.id)
+      const itemsRes = await fetch(`/api/orders/${order.id}/items`)
+      const orderItems = await itemsRes.json()
 
       setSelectedOrderForBilling({
         ...order,
@@ -522,8 +513,7 @@ For technical support, contact: support@everycom.com
     if (!confirm('Are you sure you want to delete this table?')) return
 
     try {
-      const { error } = await supabase.from('tables').delete().eq('id', id)
-      if (error) throw error
+      await fetch(`/api/tables?id=${id}`, { method: 'DELETE' })
       fetchData()
     } catch (error) {
       console.error('Error deleting table:', error)
@@ -536,21 +526,26 @@ For technical support, contact: support@everycom.com
       const payload = {
         table_number: parseInt(tableForm.table_number),
         capacity: parseInt(tableForm.capacity),
-        is_occupied: false
+        is_master: false
       }
 
       if (editingTable) {
-        const { error } = await supabase
-          .from('tables')
-          .update(payload)
-          .eq('id', editingTable.id)
-        if (error) throw error
+        await fetch(`/api/tables`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: editingTable.id, ...payload })
+        })
       } else {
-        const { error } = await supabase.from('tables').insert(payload)
-        if (error) throw error
+        await fetch('/api/tables', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        })
       }
 
       setShowTableModal(false)
+      setEditingTable(null)
+      setTableForm({ table_number: '', capacity: '' })
       fetchData()
     } catch (error) {
       console.error('Error saving table:', error)
@@ -560,14 +555,11 @@ For technical support, contact: support@everycom.com
 
   const handleViewTableOrders = async (tableId: string) => {
     try {
-      const { data } = await supabase
-        .from('orders')
-        .select('*, users(*), order_items(*, dishes(*))')
-        .eq('table_id', tableId)
-        .in('status', ['pending', 'preparing', 'ready'])
-        .order('created_at', { ascending: false })
+      const ordersRes = await fetch(`/api/orders`)
+      const orders = await ordersRes.json()
+      const tableOrders = orders.filter((o: any) => o.table_id === tableId && ['pending', 'preparing', 'ready'].includes(o.status))
 
-      setSelectedTableOrders(data || [])
+      setSelectedTableOrders(tableOrders || [])
       setShowTableOrders(true)
     } catch (error) {
       console.error('Error fetching table orders:', error)
@@ -668,7 +660,11 @@ For technical support, contact: support@everycom.com
                       <button
                         onClick={() => {
                           notifications.forEach(n => {
-                            supabase.from('notifications').update({ is_read: true }).eq('id', n.id)
+                            fetch(`/api/notifications/${n.id}`, {
+                              method: 'PATCH',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ is_read: true })
+                            })
                           })
                           setNotifications(notifications.map(n => ({ ...n, is_read: true })))
                         }}
@@ -688,7 +684,11 @@ For technical support, contact: support@everycom.com
                             key={notification.id}
                             className={`px-4 py-3 hover:bg-green-50 transition-colors cursor-pointer ${!notification.is_read ? 'bg-green-50' : ''}`}
                             onClick={() => {
-                              supabase.from('notifications').update({ is_read: true }).eq('id', notification.id)
+                              fetch(`/api/notifications/${notification.id}`, {
+                                method: 'PATCH',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ is_read: true })
+                              })
                               setNotifications(notifications.map(n => n.id === notification.id ? { ...n, is_read: true } : n))
                             }}
                           >
