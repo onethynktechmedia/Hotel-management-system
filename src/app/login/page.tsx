@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { supabase } from '@/lib/supabase'
+import Link from 'next/link'
 import { User } from '@/types'
 
 export default function LoginPage() {
@@ -18,24 +18,26 @@ export default function LoginPage() {
     setError('')
 
     try {
-      // First, get the user from our users table
-      const { data: userData, error: userError } = await supabase
-        .from('users')
-        .select('*')
-        .eq('email', email)
-        .eq('password', password)
-        .single()
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, password }),
+      })
 
-      if (userError || !userData) {
-        setError('Invalid credentials')
+      const data = await response.json()
+
+      if (!response.ok) {
+        setError(data.error || 'Invalid credentials')
         return
       }
 
       // Store user data in localStorage
-      localStorage.setItem('user', JSON.stringify(userData))
+      localStorage.setItem('user', JSON.stringify(data.user))
 
       // Redirect based on role
-      switch (userData.role) {
+      switch (data.user.role) {
         case 'admin':
           router.push('/admin')
           break
@@ -138,5 +140,3 @@ export default function LoginPage() {
     </div>
   )
 }
-
-import Link from 'next/link'
