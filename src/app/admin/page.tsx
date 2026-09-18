@@ -314,6 +314,7 @@ ${(() => {
             <html>
               <head>
                 <title>Bill Print</title>
+                <meta charset="UTF-8">
                 <style>
                   @page {
                     size: 58mm auto;
@@ -324,31 +325,46 @@ ${(() => {
                       size: 58mm auto;
                       margin: 0;
                     }
+                    @page :left {
+                      margin: 0;
+                    }
+                    @page :right {
+                      margin: 0;
+                    }
                     body {
                       margin: 0;
-                      padding: 2mm;
+                      padding: 1mm;
                       width: 58mm;
+                      -webkit-print-color-adjust: exact;
+                      print-color-adjust: exact;
+                    }
+                    * {
+                      -webkit-print-color-adjust: exact;
+                      print-color-adjust: exact;
                     }
                   }
                   * {
                     box-sizing: border-box;
                   }
                   body {
-                    font-family: 'Courier New', 'Consolas', monospace;
-                    font-size: 11px;
-                    line-height: 1.2;
+                    font-family: 'Courier New', 'Consolas', 'Lucida Console', monospace;
+                    font-size: 10px;
+                    line-height: 1.1;
                     white-space: pre;
                     margin: 0;
-                    padding: 2mm;
+                    padding: 1mm;
                     text-align: center;
-                    width: 54mm;
-                    max-width: 54mm;
+                    width: 56mm;
+                    max-width: 56mm;
                     overflow: hidden;
+                    background: white;
+                    color: black;
                   }
-                  @media print {
+                  /* Windows-specific fixes */
+                  @media screen and (-ms-high-contrast: active), (-ms-high-contrast: none) {
                     body {
-                      font-size: 10px;
-                      line-height: 1.1;
+                      font-size: 9px;
+                      line-height: 1.0;
                     }
                   }
                 </style>
@@ -358,10 +374,15 @@ ${(() => {
           `)
           printWindow.document.close()
           printWindow.focus()
+          
+          // Wait for content to load before printing
           setTimeout(() => {
             printWindow.print()
-            printWindow.close()
-          }, 500)
+            // Close window after print dialog closes
+            setTimeout(() => {
+              printWindow.close()
+            }, 1000)
+          }, 750)
         } else {
           alert('Please allow popups for printing')
         }
