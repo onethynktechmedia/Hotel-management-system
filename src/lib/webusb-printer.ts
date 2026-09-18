@@ -116,26 +116,41 @@ function openBrowserPrint(plainText: string): void {
               size: 58mm auto;
               margin: 0;
             }
+            @page :left {
+              margin: 0;
+            }
+            @page :right {
+              margin: 0;
+            }
             body {
               margin: 0;
-              padding: 3mm;
+              padding: 2mm;
               width: 58mm;
+              -webkit-print-color-adjust: exact;
+              print-color-adjust: exact;
+            }
+            * {
+              -webkit-print-color-adjust: exact;
+              print-color-adjust: exact;
             }
           }
           * {
             box-sizing: border-box;
           }
           body {
-            font-family: 'Courier New', monospace;
+            font-family: 'Courier New', 'Consolas', 'Lucida Console', monospace;
             font-size: 12px;
             line-height: 1.3;
             white-space: pre;
             margin: 0;
-            padding: 3mm;
+            padding: 2mm;
             text-align: center;
-            width: 52mm;
-            max-width: 52mm;
+            width: 54mm;
+            max-width: 54mm;
             overflow: hidden;
+            background: white;
+            color: black;
+            font-weight: normal;
           }
           @media print {
             body {
@@ -146,6 +161,13 @@ function openBrowserPrint(plainText: string): void {
           @media (max-width: 768px) {
             body {
               font-size: 10px;
+              line-height: 1.2;
+            }
+          }
+          /* Windows-specific fixes */
+          @media screen and (-ms-high-contrast: active), (-ms-high-contrast: none) {
+            body {
+              font-size: 11px;
               line-height: 1.2;
             }
           }

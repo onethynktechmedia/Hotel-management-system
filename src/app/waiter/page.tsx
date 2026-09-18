@@ -735,49 +735,141 @@ export default function WaiterPage() {
     if (!viewingBill) return
     
     try {
-      const billContent = generateESCPOSBill()
+      // Generate properly formatted plain text bill content for thermal printer
+      // 58mm paper width = approximately 32-35 characters per line
+      const plainText = `
+              GALAXY GARDEN
+         Restaurant & Bar
+================================
+123, Main Street
+City, State - 123456
+Phone: +91 98765 43210
+GSTIN: 29ABCDE1234F1Z5
+================================
+          BILL / INVOICE
+================================
+
+Bill No: ${formatOrderId(viewingBill.id)}
+Date: ${new Date(viewingBill.created_at).toLocaleDateString()}
+Time: ${new Date(viewingBill.created_at).toLocaleTimeString()}
+Table: ${viewingBill.tables?.table_number}
+Waiter: ${viewingBill.users?.name}
+Customer: ${viewingBill.customer_name || 'Guest'}
+--------------------------------
+ITEM             QTY  AMOUNT
+--------------------------------
+${viewingBill.order_items?.map((item: any) => {
+  const name = item.dishes?.name || 'Unknown'
+  const qty = item.quantity
+  const price = (item.dishes?.price || item.price || 0)
+  const total = (price * qty).toFixed(2)
+  // Truncate name to fit within 16 characters
+  const itemName = name.length > 16 ? name.substring(0, 15) + '.' : name
+  // Format: Item name (16 chars) | Qty (2 chars) | Amount (8 chars)
+  return `${itemName.padEnd(16)} ${qty.toString().padStart(2)}  ${total.padStart(8)}`
+}).join('\n')}
+--------------------------------
+Subtotal:      Rs${viewingBill.total_amount.toFixed(2).padStart(8)}
+GRAND TOTAL:   Rs${viewingBill.total_amount.toFixed(2).padStart(8)}
+
+================================
+      Thank You for Dining!
+        Visit Us Again
+================================
+`
+      
+      console.log('Bill content generated')
       
       const response = await fetch('/api/print', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content: billContent })
+        body: JSON.stringify({ content: plainText })
       })
       
       if (response.ok) {
-        const data = await response.json()
-        if (data.success) {
-          alert('Bill sent to printer successfully!')
-        } else if (data.fallback) {
-          alert('Direct printing not available. Opening browser print dialog...')
-          const printWindow = window.open('', '_blank')
-          if (printWindow) {
-            const printableContent = billContent
-              .replace(/\x1B\x40/g, '')
-              .replace(/\x1B\x61\x01/g, '<div style="text-align: center;">')
-              .replace(/\x1B\x61\x00/g, '</div><div style="text-align: left;">')
-              .replace(/\x1D\x21\x11/g, '<span style="font-size: 24px; font-weight: bold;">')
-              .replace(/\x1D\x21\x00/g, '</span>')
-              .replace(/\x1D\x56\x00/g, '')
-              .replace(/\n/g, '<br>')
-            
-            printWindow.document.write(`
-              <html>
-                <head>
-                  <title>Print Bill</title>
-                  <style>
-                    body { font-family: monospace; padding: 20px; }
-                    @media print { body { padding: 0; } }
-                  </style>
-                </head>
-                <body>${printableContent}</body>
-              </html>
-            `)
-            printWindow.document.close()
-            printWindow.print()
-          }
-        }
+        alert('Bill sent to printer successfully!')
       } else {
-        throw new Error('Print API failed')
+        // Fallback to browser print if server printing fails
+        console.log('Server printing failed, using browser print fallback')
+        
+        const printWindow = window.open('', '_blank')
+        if (printWindow) {
+          printWindow.document.write(`
+            <!DOCTYPE html>
+            <html>
+              <head>
+                <title>Bill Print</title>
+                <meta charset="UTF-8">
+                <style>
+                  @page {
+                    size: 58mm auto;
+                    margin: 0;
+                  }
+                  @media print {
+                    @page {
+                      size: 58mm auto;
+                      margin: 0;
+                    }
+                    @page :left {
+                      margin: 0;
+                    }
+                    @page :right {
+                      margin: 0;
+                    }
+                    body {
+                      margin: 0;
+                      padding: 2mm;
+                      width: 58mm;
+                      -webkit-print-color-adjust: exact;
+                      print-color-adjust: exact;
+                    }
+                    * {
+                      -webkit-print-color-adjust: exact;
+                      print-color-adjust: exact;
+                    }
+                  }
+                  * {
+                    box-sizing: border-box;
+                  }
+                  body {
+                    font-family: 'Courier New', 'Consolas', 'Lucida Console', monospace;
+                    font-size: 12px;
+                    line-height: 1.3;
+                    white-space: pre;
+                    margin: 0;
+                    padding: 2mm;
+                    text-align: center;
+                    width: 54mm;
+                    max-width: 54mm;
+                    overflow: hidden;
+                    background: white;
+                    color: black;
+                    font-weight: normal;
+                  }
+                  /* Windows-specific fixes */
+                  @media screen and (-ms-high-contrast: active), (-ms-high-contrast: none) {
+                    body {
+                      font-size: 11px;
+                      line-height: 1.2;
+                    }
+                  }
+                </style>
+              </head>
+              <body>${plainText.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</body>
+            </html>
+          `)
+          printWindow.document.close()
+          printWindow.focus()
+          
+          setTimeout(() => {
+            printWindow.print()
+            setTimeout(() => {
+              printWindow.close()
+            }, 1000)
+          }, 750)
+        } else {
+          alert('Please allow popups for printing')
+        }
       }
     } catch (error) {
       console.error('Printing failed:', error)

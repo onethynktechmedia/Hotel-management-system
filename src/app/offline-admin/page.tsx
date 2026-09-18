@@ -78,32 +78,55 @@ export default function OfflineAdminPage() {
     try {
       console.log('Starting thermal print...')
       
-      let escposContent = '\x1B\x40'
-      escposContent += '\x1B\x61\x01\x1B\x21\x30GALAXY GARDEN\n\x1B\x21\x00Restaurant & Bar\n================================\n123, Main Street\nCity, State - 123456\nPhone: +91 98765 43210\nGSTIN: 29ABCDE1234F1Z5\n================================\nBILL / INVOICE\n================================\n\n'
-      escposContent += '\x1B\x61\x00'
-      escposContent += `Bill No: ${formatOrderId(selectedOrderForBilling.id)}\nDate: ${new Date(selectedOrderForBilling.created_at).toLocaleDateString()}\nTime: ${new Date(selectedOrderForBilling.created_at).toLocaleTimeString()}\nTable: ${selectedOrderForBilling.tables?.table_number}\nWaiter: ${selectedOrderForBilling.users?.name}\nCustomer: ${selectedOrderForBilling.customer_name || 'Guest'}\n--------------------------------\n`
-      escposContent += '\x1B\x21\x01ITEM           QTY    TOTAL\n------------------------\n\x1B\x21\x00'
-      escposContent += '\x1B\x21\x01'
-      selectedOrderForBilling.order_items?.forEach((item: any) => {
-        const name = item.dishes?.name || 'Unknown'
-        const qty = item.quantity
-        const price = (item.dishes?.price || item.price || 0)
-        const total = (price * qty).toFixed(2)
-        const itemName = name.length > 15 ? name.substring(0, 14) + '.' : name
-        escposContent += `${itemName.padEnd(15)} ${qty.toString().padStart(2)}  Rs${total.padStart(7)}\n`
-      })
-      escposContent += '\x1B\x21\x00------------------------\n'
-      const subtotal = selectedOrderForBilling.total_amount
-      const discount = calculateDiscountValue(subtotal)
-      const finalAmount = calculateFinalAmount(subtotal)
-      escposContent += `Subtotal:       Rs${subtotal.toFixed(2)}\n`
-      if (discount > 0) escposContent += `Discount:        Rs${discount.toFixed(2)}\n`
-      escposContent += '\x1B\x21\x08GRAND TOTAL:    Rs' + finalAmount.toFixed(2) + '\n\x1B\x21\x00\n'
-      escposContent += '\x1b\x61\x01================================\nThank You for Dining!\nVisit Us Again\n================================\n\x1B\x4D\x01Developed by onethynk\n\x1B\x4D\x00================================\n\n \n\x1D\x56\x00'
+      // Generate properly formatted plain text bill content for thermal printer
+      // 58mm paper width = approximately 32-35 characters per line
+      const plainText = `
+              GALAXY GARDEN
+         Restaurant & Bar
+================================
+123, Main Street
+City, State - 123456
+Phone: +91 98765 43210
+GSTIN: 29ABCDE1234F1Z5
+================================
+          BILL / INVOICE
+================================
+
+Bill No: ${formatOrderId(selectedOrderForBilling.id)}
+Date: ${new Date(selectedOrderForBilling.created_at).toLocaleDateString()}
+Time: ${new Date(selectedOrderForBilling.created_at).toLocaleTimeString()}
+Table: ${selectedOrderForBilling.tables?.table_number}
+Waiter: ${selectedOrderForBilling.users?.name}
+Customer: ${selectedOrderForBilling.customer_name || 'Guest'}
+--------------------------------
+ITEM             QTY  AMOUNT
+--------------------------------
+${selectedOrderForBilling.order_items?.map((item: any) => {
+  const name = item.dishes?.name || 'Unknown'
+  const qty = item.quantity
+  const price = (item.dishes?.price || item.price || 0)
+  const total = (price * qty).toFixed(2)
+  // Truncate name to fit within 16 characters
+  const itemName = name.length > 16 ? name.substring(0, 15) + '.' : name
+  // Format: Item name (16 chars) | Qty (2 chars) | Amount (8 chars)
+  return `${itemName.padEnd(16)} ${qty.toString().padStart(2)}  ${total.padStart(8)}`
+}).join('\n')}
+--------------------------------
+Subtotal:      Rs${selectedOrderForBilling.total_amount.toFixed(2).padStart(8)}
+${(() => {
+  const discount = calculateDiscountValue(selectedOrderForBilling.total_amount)
+  return discount > 0 ? `Discount:      Rs${discount.toFixed(2).padStart(8)}\n` : ''
+})()}GRAND TOTAL:   Rs${calculateFinalAmount(selectedOrderForBilling.total_amount).toFixed(2).padStart(8)}
+
+================================
+      Thank You for Dining!
+        Visit Us Again
+================================
+`
       
-      const plainText = `GALAXY GARDEN\nRestaurant & Bar\n================================\nBill No: ${formatOrderId(selectedOrderForBilling.id)}\nCustomer: ${selectedOrderForBilling.customer_name || 'Guest'}\nTable: ${selectedOrderForBilling.tables?.table_number}\nTotal: Rs${calculateFinalAmount(selectedOrderForBilling.total_amount).toFixed(2)}\n================================\nThank You for Dining!\n================================\nDeveloped by onethynk\n================================\n`
+      console.log('Bill content generated')
       
-      await printWithFallback(escposContent, plainText)
+      await printWithFallback(plainText, plainText)
       alert('Bill sent to printer!')
     } catch (error) {
       alert('Printing failed: ' + (error as Error).message)

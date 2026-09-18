@@ -244,17 +244,18 @@ export default function AdminDashboard() {
     try {
       console.log('Starting thermal print...')
       
-      // Generate plain text bill content for thermal printer
+      // Generate properly formatted plain text bill content for thermal printer
+      // 58mm paper width = approximately 32-35 characters per line
       const plainText = `
-GALAXY GARDEN
-Restaurant & Bar
+              GALAXY GARDEN
+         Restaurant & Bar
 ================================
 123, Main Street
 City, State - 123456
 Phone: +91 98765 43210
 GSTIN: 29ABCDE1234F1Z5
 ================================
-BILL / INVOICE
+          BILL / INVOICE
 ================================
 
 Bill No: ${formatOrderId(selectedOrderForBilling.id)}
@@ -264,26 +265,28 @@ Table: ${selectedOrderForBilling.tables?.table_number}
 Waiter: ${selectedOrderForBilling.users?.name}
 Customer: ${selectedOrderForBilling.customer_name || 'Guest'}
 --------------------------------
-ITEM           QTY    TOTAL
-------------------------
+ITEM             QTY  AMOUNT
+--------------------------------
 ${selectedOrderForBilling.order_items?.map((item: any) => {
   const name = item.dishes?.name || 'Unknown'
   const qty = item.quantity
   const price = (item.dishes?.price || item.price || 0)
   const total = (price * qty).toFixed(2)
-  const itemName = name.length > 15 ? name.substring(0, 14) + '.' : name
-  return `${itemName.padEnd(15)} ${qty.toString().padStart(2)}  Rs${total.padStart(7)}`
+  // Truncate name to fit within 16 characters
+  const itemName = name.length > 16 ? name.substring(0, 15) + '.' : name
+  // Format: Item name (16 chars) | Qty (2 chars) | Amount (8 chars)
+  return `${itemName.padEnd(16)} ${qty.toString().padStart(2)}  ${total.padStart(8)}`
 }).join('\n')}
-------------------------
-Subtotal:       Rs${selectedOrderForBilling.total_amount.toFixed(2)}
+--------------------------------
+Subtotal:      Rs${selectedOrderForBilling.total_amount.toFixed(2).padStart(8)}
 ${(() => {
   const discount = calculateDiscountValue(selectedOrderForBilling.total_amount)
-  return discount > 0 ? `Discount:        Rs${discount.toFixed(2)}\n` : ''
-})()}GRAND TOTAL:    Rs${calculateFinalAmount(selectedOrderForBilling.total_amount).toFixed(2)}
+  return discount > 0 ? `Discount:      Rs${discount.toFixed(2).padStart(8)}\n` : ''
+})()}GRAND TOTAL:   Rs${calculateFinalAmount(selectedOrderForBilling.total_amount).toFixed(2).padStart(8)}
 
 ================================
-Thank You for Dining!
-Visit Us Again
+      Thank You for Dining!
+        Visit Us Again
 ================================
 `
       
@@ -331,7 +334,7 @@ Visit Us Again
                     }
                     body {
                       margin: 0;
-                      padding: 1mm;
+                      padding: 2mm;
                       width: 58mm;
                       -webkit-print-color-adjust: exact;
                       print-color-adjust: exact;
@@ -346,23 +349,24 @@ Visit Us Again
                   }
                   body {
                     font-family: 'Courier New', 'Consolas', 'Lucida Console', monospace;
-                    font-size: 10px;
-                    line-height: 1.1;
+                    font-size: 12px;
+                    line-height: 1.3;
                     white-space: pre;
                     margin: 0;
-                    padding: 1mm;
+                    padding: 2mm;
                     text-align: center;
-                    width: 56mm;
-                    max-width: 56mm;
+                    width: 54mm;
+                    max-width: 54mm;
                     overflow: hidden;
                     background: white;
                     color: black;
+                    font-weight: normal;
                   }
                   /* Windows-specific fixes */
                   @media screen and (-ms-high-contrast: active), (-ms-high-contrast: none) {
                     body {
-                      font-size: 9px;
-                      line-height: 1.0;
+                      font-size: 11px;
+                      line-height: 1.2;
                     }
                   }
                 </style>

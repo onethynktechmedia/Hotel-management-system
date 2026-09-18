@@ -202,12 +202,12 @@ export default function KitchenPage() {
 --------------------------------
 
 Order: ${formatOrderId(selectedOrderForBill.id)}
-  Date: ${new Date(selectedOrderForBill.created_at).toLocaleDateString()}
-  Time: ${new Date(selectedOrderForBill.created_at).toLocaleTimeString()}
-  Waiter: ${selectedOrderForBill.users?.name}
+Date: ${new Date(selectedOrderForBill.created_at).toLocaleDateString()}
+Time: ${new Date(selectedOrderForBill.created_at).toLocaleTimeString()}
+Waiter: ${selectedOrderForBill.users?.name}
 --------------------------------
 
-  ITEM                  QTY  TYPE
+ITEM                  QTY  TYPE
 -----------------------------------
 ${selectedOrderForBill.order_items?.map((item: any) => {
   const name = item.dishes?.name || 'Unknown'
