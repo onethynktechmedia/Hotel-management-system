@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { supabase } from '@/lib/supabase'
 import { Dish } from '@/types'
 
 export default function MenuPage() {
@@ -17,13 +16,9 @@ export default function MenuPage() {
 
   const fetchDishes = async () => {
     try {
-      const { data, error } = await supabase
-        .from('dishes')
-        .select('*')
-        .order('category')
-
-      if (error) throw error
-      setDishes(data || [])
+      const response = await fetch('/api/dishes')
+      const data = await response.json()
+      setDishes(data)
     } catch (error) {
       console.error('Error fetching dishes:', error)
     } finally {
