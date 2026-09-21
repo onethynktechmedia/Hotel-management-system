@@ -112,8 +112,12 @@ export default function AdminDashboard() {
     const handleOnline = () => {
       setIsOnline(true)
       syncOfflineOrders()
+      fetchData()
     }
-    const handleOffline = () => setIsOnline(false)
+    const handleOffline = () => {
+      setIsOnline(false)
+      loadCachedData()
+    }
 
     window.addEventListener('online', handleOnline)
     window.addEventListener('offline', handleOffline)
@@ -125,11 +129,31 @@ export default function AdminDashboard() {
       setOfflineOrders(JSON.parse(savedOfflineOrders))
     }
 
+    // Load cached data on initial load
+    loadCachedData()
+
     return () => {
       window.removeEventListener('online', handleOnline)
       window.removeEventListener('offline', handleOffline)
     }
   }, [])
+
+  // Load cached data from localStorage
+  const loadCachedData = () => {
+    try {
+      const cachedDishes = localStorage.getItem('cached_dishes')
+      const cachedTables = localStorage.getItem('cached_tables')
+      
+      if (cachedDishes) {
+        setDishes(JSON.parse(cachedDishes))
+      }
+      if (cachedTables) {
+        setTables(JSON.parse(cachedTables))
+      }
+    } catch (error) {
+      console.error('Error loading cached data:', error)
+    }
+  }
 
   // Sync offline orders when coming online
   const syncOfflineOrders = async () => {
@@ -230,6 +254,14 @@ export default function AdminDashboard() {
       setTables(tablesRes || [])
       setPayments(paymentsRes.data || paymentsRes || [])
       setNotifications(notificationsRes.data || notificationsRes || [])
+
+      // Cache dishes and tables for offline use
+      if (dishesRes && dishesRes.length > 0) {
+        localStorage.setItem('cached_dishes', JSON.stringify(dishesRes))
+      }
+      if (tablesRes && tablesRes.length > 0) {
+        localStorage.setItem('cached_tables', JSON.stringify(tablesRes))
+      }
     } catch (error) {
       console.error('Error fetching data:', error)
     } finally {
