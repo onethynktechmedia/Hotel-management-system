@@ -75,6 +75,11 @@ export default function AdminDashboard() {
   const [selectedTable, setSelectedTable] = useState<string>('')
   const [customerName, setCustomerName] = useState('')
   const [isOnline, setIsOnline] = useState(true)
+  const [menuSearchTerm, setMenuSearchTerm] = useState('')
+  const [showBillPreview, setShowBillPreview] = useState(false)
+  const [billDiscountAmount, setBillDiscountAmount] = useState('')
+  const [billDiscountPercentage, setBillDiscountPercentage] = useState('')
+  const [billDiscountType, setBillDiscountType] = useState<'amount' | 'percentage'>('amount')
 
   useEffect(() => {
     const userData = localStorage.getItem('user')
@@ -910,6 +915,123 @@ GRAND TOTAL:   Rs${order.total_amount.toFixed(2).padStart(8)}
     localStorage.setItem('offline_orders', JSON.stringify(updatedOrders))
   }
 
+  // Calculate bill total with discount
+  const calculateBillTotal = () => {
+    const subtotal = getCartTotal()
+    let discount = 0
+    if (billDiscountType === 'amount' && billDiscountAmount) {
+      discount = parseFloat(billDiscountAmount)
+    } else if (billDiscountType === 'percentage' && billDiscountPercentage) {
+      discount = (parseFloat(billDiscountPercentage) / 100) * subtotal
+    }
+    return Math.max(0, subtotal - discount)
+  }
+
+  const handleCreateBill = () => {
+    if (offlineCart.length === 0) {
+      alert('Please add items to cart first')
+      return
+    }
+    if (!selectedTable) {
+      alert('Please select a table')
+      return
+    }
+    setShowBillPreview(true)
+  }
+
+  const handlePrintBill = async () => {
+    const tableNumber = tables.find(t => t.id === selectedTable)?.table_number || 'N/A'
+    const plainText = `
+              GALAXY GARDEN
+         Restaurant & Bar
+================================
+123, Main Street
+City, State - 123456
+Phone: +91 98765 43210
+GSTIN: 29ABCDE1234F1Z5
+================================
+          BILL / INVOICE
+================================
+
+Bill No: OFF-${Date.now()}
+Date: ${new Date().toLocaleDateString()}
+Time: ${new Date().toLocaleTimeString()}
+Table: ${tableNumber}
+Customer: ${customerName || 'Guest'}
+--------------------------------
+ITEM             QTY  AMOUNT
+--------------------------------
+${offlineCart.map((item) => {
+  const name = item.name
+  const qty = item.quantity
+  const price = item.price
+  const total = (price * qty).toFixed(2)
+  const itemName = name.length > 16 ? name.substring(0, 15) + '.' : name
+  return `${itemName.padEnd(16)} ${qty.toString().padStart(2)}  ${total.padStart(8)}`
+}).join('\n')}
+--------------------------------
+Subtotal:      Rs${getCartTotal().toFixed(2).padStart(8)}
+${(() => {
+  const subtotal = getCartTotal()
+  let discount = 0
+  if (billDiscountType === 'amount' && billDiscountAmount) {
+    discount = parseFloat(billDiscountAmount)
+  } else if (billDiscountType === 'percentage' && billDiscountPercentage) {
+    discount = (parseFloat(billDiscountPercentage) / 100) * subtotal
+  }
+  return discount > 0 ? `Discount:      Rs${discount.toFixed(2).padStart(8)}\n` : ''
+})()}GRAND TOTAL:   Rs${calculateBillTotal().toFixed(2).padStart(8)}
+
+================================
+      Thank You for Dining!
+        Visit Us Again
+================================
+`
+
+    try {
+      const response = await fetch('/api/print', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: plainText })
+      })
+
+      if (response.ok) {
+        alert('Bill sent to printer successfully!')
+        // Create offline order after printing
+        await createOfflineOrder()
+        setShowBillPreview(false)
+        setBillDiscountAmount('')
+        setBillDiscountPercentage('')
+      } else {
+        // Fallback to browser print
+        const printWindow = window.open('', '_blank')
+        if (printWindow) {
+          printWindow.document.write(`
+            <!DOCTYPE html>
+            <html>
+              <head>
+                <title>Bill Print</title>
+                <style>
+                  @page { size: 58mm auto; margin: 0; }
+                  body { font-family: 'Courier New', monospace; font-size: 12px; white-space: pre; margin: 0; padding: 2mm; width: 54mm; }
+                </style>
+              </head>
+              <body>${plainText.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</body>
+            </html>
+          `)
+          printWindow.document.close()
+          printWindow.print()
+          await createOfflineOrder()
+          setShowBillPreview(false)
+          setBillDiscountAmount('')
+          setBillDiscountPercentage('')
+        }
+      }
+    } catch (error) {
+      alert('Printing failed: ' + (error as Error).message)
+    }
+  }
+
   const stats = {
     totalOrders: orders.length,
     activeOrders: orders.filter(o => !['completed', 'paid'].includes(o.status)).length,
@@ -1687,6 +1809,18 @@ GRAND TOTAL:   Rs${order.total_amount.toFixed(2).padStart(8)}
               {/* Menu Section */}
               <div className="lg:col-span-2 bg-white/95 backdrop-blur-sm rounded-2xl shadow-xl p-6 animate-fade-in">
                 <h2 className="text-xl font-bold text-gray-900 mb-4">Menu Items</h2>
+                
+                {/* Search Bar */}
+                <div className="mb-4">
+                  <input
+                    type="text"
+                    placeholder="Search menu items..."
+                    className="w-full px-4 py-2 border-2 border-gray-200 rounded-xl focus:border-green-500 focus:outline-none"
+                    value={menuSearchTerm}
+                    onChange={(e) => setMenuSearchTerm(e.target.value)}
+                  />
+                </div>
+                
                 {dishes.length === 0 ? (
                   <div className="text-center py-12">
                     <Utensils className="w-16 h-16 text-gray-300 mx-auto mb-4" />
@@ -1695,26 +1829,38 @@ GRAND TOTAL:   Rs${order.total_amount.toFixed(2).padStart(8)}
                     </p>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4 max-h-[600px] overflow-y-auto">
-                    {dishes.filter(d => d.is_available).map((dish) => (
-                    <div
-                      key={dish.id}
-                      onClick={() => addToCart(dish)}
-                      className="bg-gradient-to-br from-green-50 to-emerald-50 border-2 border-green-200 rounded-xl p-4 cursor-pointer hover:shadow-lg hover:scale-105 transition-all duration-300"
-                    >
-                      <div className="w-full h-24 bg-white rounded-lg mb-3 flex items-center justify-center overflow-hidden">
-                        {dish.image_url ? (
-                          <img src={dish.image_url} alt={dish.name} className="w-full h-full object-cover" />
-                        ) : (
-                          <Utensils className="w-12 h-12 text-green-300" />
+                  <div className="space-y-2 max-h-[600px] overflow-y-auto">
+                    {dishes
+                      .filter(d => d.is_available)
+                      .filter(d => d.name.toLowerCase().includes(menuSearchTerm.toLowerCase()) || d.category.toLowerCase().includes(menuSearchTerm.toLowerCase()))
+                      .map((dish) => (
+                      <div
+                        key={dish.id}
+                        onClick={() => addToCart(dish)}
+                        className="flex items-center gap-4 bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-200 rounded-xl p-3 cursor-pointer hover:shadow-lg hover:scale-[1.02] transition-all duration-300"
+                      >
+                        {/* Show image only when online */}
+                        {isOnline && dish.image_url && (
+                          <div className="w-16 h-16 bg-white rounded-lg flex-shrink-0 flex items-center justify-center overflow-hidden">
+                            <img src={dish.image_url} alt={dish.name} className="w-full h-full object-cover" />
+                          </div>
                         )}
+                        {!isOnline && (
+                          <div className="w-16 h-16 bg-white rounded-lg flex-shrink-0 flex items-center justify-center">
+                            <Utensils className="w-8 h-8 text-green-300" />
+                          </div>
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <h3 className="font-semibold text-gray-900 text-sm mb-1 truncate">{dish.name}</h3>
+                          <p className="text-xs text-gray-600 mb-1 truncate">{dish.category}</p>
+                          <p className="text-lg font-bold text-green-600">₹{dish.price.toFixed(2)}</p>
+                        </div>
+                        <button className="bg-green-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-green-700 transition-colors">
+                          Add
+                        </button>
                       </div>
-                      <h3 className="font-semibold text-gray-900 text-sm mb-1 truncate">{dish.name}</h3>
-                      <p className="text-xs text-gray-600 mb-2 truncate">{dish.category}</p>
-                      <p className="text-lg font-bold text-green-600">₹{dish.price.toFixed(2)}</p>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
                 )}
               </div>
 
@@ -1790,18 +1936,18 @@ GRAND TOTAL:   Rs${order.total_amount.toFixed(2).padStart(8)}
                   )}
                 </div>
 
-                {/* Total and Create Order */}
+                {/* Total and Create Bill */}
                 <div className="border-t border-gray-200 pt-4">
                   <div className="flex justify-between items-center mb-4">
                     <span className="text-lg font-semibold text-gray-900">Total:</span>
                     <span className="text-2xl font-bold text-green-600">₹{getCartTotal().toFixed(2)}</span>
                   </div>
                   <button
-                    onClick={createOfflineOrder}
+                    onClick={handleCreateBill}
                     disabled={offlineCart.length === 0 || !selectedTable}
                     className="w-full bg-gradient-to-r from-green-600 to-emerald-600 text-white px-6 py-3 rounded-xl font-semibold hover:shadow-lg transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    Create Offline Order
+                    Create Bill
                   </button>
                 </div>
               </div>
@@ -1855,6 +2001,131 @@ GRAND TOTAL:   Rs${order.total_amount.toFixed(2).padStart(8)}
         )}
       </main>
       </div>
+
+      {/* Bill Preview Modal */}
+      {showBillPreview && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 animate-slide-in">
+          <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
+            <h2 className="text-2xl font-bold mb-6 bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">
+              Bill Preview
+            </h2>
+            
+            {/* Bill Details */}
+            <div className="bg-gray-50 rounded-xl p-4 mb-6">
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Table:</span>
+                  <span className="font-semibold">Table {tables.find(t => t.id === selectedTable)?.table_number || 'N/A'}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Customer:</span>
+                  <span className="font-semibold">{customerName || 'Guest'}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Date:</span>
+                  <span className="font-semibold">{new Date().toLocaleDateString()}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Items */}
+            <div className="space-y-2 mb-6">
+              <h3 className="font-semibold text-gray-900 mb-3">Items</h3>
+              {offlineCart.map((item) => (
+                <div key={item.dish_id} className="flex justify-between items-center py-2 border-b border-gray-100">
+                  <div>
+                    <p className="font-semibold text-gray-900">{item.name}</p>
+                    <p className="text-sm text-gray-600">Qty: {item.quantity} × ₹{item.price.toFixed(2)}</p>
+                  </div>
+                  <span className="font-bold text-green-600">₹{(item.price * item.quantity).toFixed(2)}</span>
+                </div>
+              ))}
+            </div>
+
+            {/* Discount Section */}
+            <div className="bg-green-50 rounded-xl p-4 mb-6">
+              <h3 className="font-semibold text-gray-900 mb-3">Discount</h3>
+              <div className="flex gap-2 mb-3">
+                <button
+                  onClick={() => setBillDiscountType('amount')}
+                  className={`flex-1 px-4 py-2 rounded-lg font-semibold transition-colors ${
+                    billDiscountType === 'amount' 
+                      ? 'bg-green-600 text-white' 
+                      : 'bg-white text-gray-700 border-2 border-green-200'
+                  }`}
+                >
+                  Amount
+                </button>
+                <button
+                  onClick={() => setBillDiscountType('percentage')}
+                  className={`flex-1 px-4 py-2 rounded-lg font-semibold transition-colors ${
+                    billDiscountType === 'percentage' 
+                      ? 'bg-green-600 text-white' 
+                      : 'bg-white text-gray-700 border-2 border-green-200'
+                  }`}
+                >
+                  Percentage
+                </button>
+              </div>
+              {billDiscountType === 'amount' ? (
+                <input
+                  type="number"
+                  placeholder="Enter discount amount (₹)"
+                  value={billDiscountAmount}
+                  onChange={(e) => setBillDiscountAmount(e.target.value)}
+                  className="w-full px-4 py-2 border-2 border-green-200 rounded-xl focus:border-green-500 focus:outline-none"
+                />
+              ) : (
+                <input
+                  type="number"
+                  placeholder="Enter discount percentage (%)"
+                  value={billDiscountPercentage}
+                  onChange={(e) => setBillDiscountPercentage(e.target.value)}
+                  className="w-full px-4 py-2 border-2 border-green-200 rounded-xl focus:border-green-500 focus:outline-none"
+                />
+              )}
+            </div>
+
+            {/* Totals */}
+            <div className="space-y-2 mb-6">
+              <div className="flex justify-between items-center">
+                <span className="text-gray-600">Subtotal:</span>
+                <span className="font-semibold">₹{getCartTotal().toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-gray-600">Discount:</span>
+                <span className="font-semibold text-red-600">
+                  -₹{(getCartTotal() - calculateBillTotal()).toFixed(2)}
+                </span>
+              </div>
+              <div className="flex justify-between items-center text-xl font-bold border-t border-gray-200 pt-2">
+                <span>Grand Total:</span>
+                <span className="text-green-600">₹{calculateBillTotal().toFixed(2)}</span>
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  setShowBillPreview(false)
+                  setBillDiscountAmount('')
+                  setBillDiscountPercentage('')
+                }}
+                className="flex-1 bg-gray-200 text-gray-700 px-6 py-3 rounded-xl font-semibold hover:bg-gray-300 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handlePrintBill}
+                className="flex-1 bg-gradient-to-r from-green-600 to-emerald-600 text-white px-6 py-3 rounded-xl font-semibold hover:shadow-lg transition-all"
+              >
+                Print Bill
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Dish Modal */}
       {showDishModal && (
