@@ -928,6 +928,9 @@ GRAND TOTAL:   Rs${order.total_amount.toFixed(2).padStart(8)}
   }
 
   const handleCreateBill = () => {
+    console.log('Creating bill - Cart items:', offlineCart)
+    console.log('Selected table:', selectedTable)
+    
     if (offlineCart.length === 0) {
       alert('Please add items to cart first')
       return
@@ -940,6 +943,13 @@ GRAND TOTAL:   Rs${order.total_amount.toFixed(2).padStart(8)}
   }
 
   const handlePrintBill = async () => {
+    console.log('Printing bill - Cart items:', offlineCart)
+    
+    if (offlineCart.length === 0) {
+      alert('Cart is empty. Cannot print bill.')
+      return
+    }
+    
     const tableNumber = tables.find(t => t.id === selectedTable)?.table_number || 'N/A'
     const plainText = `
               GALAXY GARDEN
@@ -989,12 +999,15 @@ ${(() => {
 `
 
     try {
+      console.log('Sending print request to API...')
       const response = await fetch('/api/print', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ content: plainText })
       })
 
+      console.log('Print API response:', response.status)
+      
       if (response.ok) {
         alert('Bill sent to printer successfully!')
         // Create offline order after printing
@@ -1003,6 +1016,9 @@ ${(() => {
         setBillDiscountAmount('')
         setBillDiscountPercentage('')
       } else {
+        const errorData = await response.json()
+        console.error('Print API error:', errorData)
+        alert('Server printing failed: ' + (errorData.error || 'Unknown error'))
         // Fallback to browser print
         const printWindow = window.open('', '_blank')
         if (printWindow) {
@@ -1028,7 +1044,31 @@ ${(() => {
         }
       }
     } catch (error) {
-      alert('Printing failed: ' + (error as Error).message)
+      console.error('Printing error:', error)
+      alert('Printing failed: ' + (error as Error).message + '\n\nFalling back to browser print...')
+      // Fallback to browser print
+      const printWindow = window.open('', '_blank')
+      if (printWindow) {
+        printWindow.document.write(`
+          <!DOCTYPE html>
+          <html>
+            <head>
+              <title>Bill Print</title>
+              <style>
+                @page { size: 58mm auto; margin: 0; }
+                body { font-family: 'Courier New', monospace; font-size: 12px; white-space: pre; margin: 0; padding: 2mm; width: 54mm; }
+              </style>
+            </head>
+            <body>${plainText.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</body>
+          </html>
+        `)
+        printWindow.document.close()
+        printWindow.print()
+        await createOfflineOrder()
+        setShowBillPreview(false)
+        setBillDiscountAmount('')
+        setBillDiscountPercentage('')
+      }
     }
   }
 
@@ -2031,15 +2071,19 @@ ${(() => {
             {/* Items */}
             <div className="space-y-2 mb-6">
               <h3 className="font-semibold text-gray-900 mb-3">Items</h3>
-              {offlineCart.map((item) => (
-                <div key={item.dish_id} className="flex justify-between items-center py-2 border-b border-gray-100">
-                  <div>
-                    <p className="font-semibold text-gray-900">{item.name}</p>
-                    <p className="text-sm text-gray-600">Qty: {item.quantity} × ₹{item.price.toFixed(2)}</p>
+              {offlineCart.length === 0 ? (
+                <p className="text-gray-500 text-center py-4">No items in cart</p>
+              ) : (
+                offlineCart.map((item) => (
+                  <div key={item.dish_id} className="flex justify-between items-center py-2 border-b border-gray-100">
+                    <div>
+                      <p className="font-semibold text-gray-900">{item.name}</p>
+                      <p className="text-sm text-gray-600">Qty: {item.quantity} × ₹{item.price.toFixed(2)}</p>
+                    </div>
+                    <span className="font-bold text-green-600">₹{(item.price * item.quantity).toFixed(2)}</span>
                   </div>
-                  <span className="font-bold text-green-600">₹{(item.price * item.quantity).toFixed(2)}</span>
-                </div>
-              ))}
+                ))
+              )}
             </div>
 
             {/* Discount Section */}
