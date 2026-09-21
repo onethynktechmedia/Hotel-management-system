@@ -1687,8 +1687,16 @@ GRAND TOTAL:   Rs${order.total_amount.toFixed(2).padStart(8)}
               {/* Menu Section */}
               <div className="lg:col-span-2 bg-white/95 backdrop-blur-sm rounded-2xl shadow-xl p-6 animate-fade-in">
                 <h2 className="text-xl font-bold text-gray-900 mb-4">Menu Items</h2>
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-4 max-h-[600px] overflow-y-auto">
-                  {dishes.filter(d => d.is_available).map((dish) => (
+                {dishes.length === 0 ? (
+                  <div className="text-center py-12">
+                    <Utensils className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                    <p className="text-gray-500">
+                      {isOnline ? 'Loading menu items...' : 'No menu items available offline. Please go online to load menu items.'}
+                    </p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4 max-h-[600px] overflow-y-auto">
+                    {dishes.filter(d => d.is_available).map((dish) => (
                     <div
                       key={dish.id}
                       onClick={() => addToCart(dish)}
@@ -1707,6 +1715,7 @@ GRAND TOTAL:   Rs${order.total_amount.toFixed(2).padStart(8)}
                     </div>
                   ))}
                 </div>
+                )}
               </div>
 
               {/* Cart Section */}
@@ -1720,14 +1729,22 @@ GRAND TOTAL:   Rs${order.total_amount.toFixed(2).padStart(8)}
                     value={selectedTable}
                     onChange={(e) => setSelectedTable(e.target.value)}
                     className="w-full px-4 py-2 border-2 border-gray-200 rounded-xl focus:border-green-500 focus:outline-none"
+                    disabled={tables.length === 0}
                   >
-                    <option value="">Choose a table...</option>
+                    <option value="">
+                      {tables.length === 0 ? 'No tables available' : 'Choose a table...'}
+                    </option>
                     {tables.map((table) => (
                       <option key={table.id} value={table.id}>
                         Table {table.table_number} (Capacity: {table.capacity})
                       </option>
                     ))}
                   </select>
+                  {tables.length === 0 && (
+                    <p className="text-xs text-gray-500 mt-1">
+                      {isOnline ? 'Loading tables...' : 'No tables available offline. Please go online to load tables.'}
+                    </p>
+                  )}
                 </div>
 
                 {/* Customer Name */}
