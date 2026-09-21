@@ -27,7 +27,7 @@ export default function AdminDashboard() {
   const [payments, setPayments] = useState<Payment[]>([])
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [showNotifications, setShowNotifications] = useState(false)
-  const [activeTab, setActiveTab] = useState<'overview' | 'orders' | 'dishes' | 'tables' | 'waiters' | 'reports'>('overview')
+  const [activeTab, setActiveTab] = useState<'overview' | 'orders' | 'dishes' | 'tables' | 'waiters' | 'reports' | 'offline-orders'>('overview')
   const [loading, setLoading] = useState(true)
   const [showDishModal, setShowDishModal] = useState(false)
   const [editingDish, setEditingDish] = useState<Dish | null>(null)
@@ -68,6 +68,13 @@ export default function AdminDashboard() {
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [currentDateTime, setCurrentDateTime] = useState(new Date())
   const [showProfileMenu, setShowProfileMenu] = useState(false)
+  
+  // Offline Orders State
+  const [offlineCart, setOfflineCart] = useState<any[]>([])
+  const [offlineOrders, setOfflineOrders] = useState<any[]>([])
+  const [selectedTable, setSelectedTable] = useState<string>('')
+  const [customerName, setCustomerName] = useState('')
+  const [isOnline, setIsOnline] = useState(true)
 
   useEffect(() => {
     const userData = localStorage.getItem('user')
@@ -99,6 +106,84 @@ export default function AdminDashboard() {
     }, 1000)
     return () => clearInterval(timer)
   }, [])
+
+  // Track online/offline status
+  useEffect(() => {
+    const handleOnline = () => {
+      setIsOnline(true)
+      syncOfflineOrders()
+    }
+    const handleOffline = () => setIsOnline(false)
+
+    window.addEventListener('online', handleOnline)
+    window.addEventListener('offline', handleOffline)
+    setIsOnline(navigator.onLine)
+
+    // Load offline orders from localStorage
+    const savedOfflineOrders = localStorage.getItem('offline_orders')
+    if (savedOfflineOrders) {
+      setOfflineOrders(JSON.parse(savedOfflineOrders))
+    }
+
+    return () => {
+      window.removeEventListener('online', handleOnline)
+      window.removeEventListener('offline', handleOffline)
+    }
+  }, [])
+
+  // Sync offline orders when coming online
+  const syncOfflineOrders = async () => {
+    const savedOfflineOrders = localStorage.getItem('offline_orders')
+    if (!savedOfflineOrders) return
+
+    const orders = JSON.parse(savedOfflineOrders)
+    if (orders.length === 0) return
+
+    try {
+      for (const order of orders) {
+        // Create order in database
+        const orderResponse = await fetch('/api/orders', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            table_id: order.table_id,
+            waiter_id: order.waiter_id,
+            customer_name: order.customer_name,
+            total_amount: order.total_amount,
+            status: 'pending'
+          })
+        })
+
+        if (orderResponse.ok) {
+          const createdOrder = await orderResponse.json()
+
+          // Create order items
+          for (const item of order.order_items) {
+            await fetch('/api/order-items', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                order_id: createdOrder.id,
+                dish_id: item.dish_id,
+                quantity: item.quantity,
+                price: item.price,
+                special_instructions: item.special_instructions
+              })
+            })
+          }
+        }
+      }
+
+      // Clear synced orders from localStorage
+      localStorage.removeItem('offline_orders')
+      setOfflineOrders([])
+      fetchData()
+      alert(`Successfully synced ${orders.length} offline orders to database!`)
+    } catch (error) {
+      console.error('Error syncing offline orders:', error)
+      alert('Failed to sync some offline orders. Please try again.')
+    }
+  }
 
   const fetchData = async () => {
     try {
@@ -583,6 +668,172 @@ For technical support, contact: support@everycom.com
       console.error('Error releasing table:', error)
       alert('Failed to release table')
     }
+  }
+
+  // Offline Orders Functions
+  const addToCart = (dish: Dish) => {
+    const existingItem = offlineCart.find(item => item.dish_id === dish.id)
+    if (existingItem) {
+      setOfflineCart(offlineCart.map(item => 
+        item.dish_id === dish.id 
+          ? { ...item, quantity: item.quantity + 1 }
+          : item
+      ))
+    } else {
+      setOfflineCart([...offlineCart, {
+        dish_id: dish.id,
+        name: dish.name,
+        price: dish.price,
+        quantity: 1,
+        image_url: dish.image_url
+      }])
+    }
+  }
+
+  const removeFromCart = (dishId: string) => {
+    setOfflineCart(offlineCart.filter(item => item.dish_id !== dishId))
+  }
+
+  const updateCartQuantity = (dishId: string, quantity: number) => {
+    if (quantity <= 0) {
+      removeFromCart(dishId)
+    } else {
+      setOfflineCart(offlineCart.map(item => 
+        item.dish_id === dishId 
+          ? { ...item, quantity }
+          : item
+      ))
+    }
+  }
+
+  const getCartTotal = () => {
+    return offlineCart.reduce((sum, item) => sum + (item.price * item.quantity), 0)
+  }
+
+  const createOfflineOrder = async () => {
+    if (offlineCart.length === 0) {
+      alert('Please add items to cart first')
+      return
+    }
+    if (!selectedTable) {
+      alert('Please select a table')
+      return
+    }
+
+    const offlineOrder = {
+      id: Date.now().toString(),
+      table_id: selectedTable,
+      waiter_id: user?.id,
+      customer_name: customerName || 'Guest',
+      total_amount: getCartTotal(),
+      status: 'pending',
+      created_at: new Date().toISOString(),
+      order_items: offlineCart.map(item => ({
+        dish_id: item.dish_id,
+        quantity: item.quantity,
+        price: item.price,
+        special_instructions: null
+      }))
+    }
+
+    // Save to localStorage
+    const savedOfflineOrders = localStorage.getItem('offline_orders') || '[]'
+    const orders = JSON.parse(savedOfflineOrders)
+    orders.push(offlineOrder)
+    localStorage.setItem('offline_orders', JSON.stringify(orders))
+
+    setOfflineOrders([...offlineOrders, offlineOrder])
+    setOfflineCart([])
+    setSelectedTable('')
+    setCustomerName('')
+    alert('Offline order created successfully!')
+
+    // If online, try to sync immediately
+    if (isOnline) {
+      syncOfflineOrders()
+    }
+  }
+
+  const printOfflineBill = async (order: any) => {
+    try {
+      const plainText = `
+              GALAXY GARDEN
+         Restaurant & Bar
+================================
+123, Main Street
+City, State - 123456
+Phone: +91 98765 43210
+GSTIN: 29ABCDE1234F1Z5
+================================
+          BILL / INVOICE
+================================
+
+Bill No: OFF-${order.id}
+Date: ${new Date(order.created_at).toLocaleDateString()}
+Time: ${new Date(order.created_at).toLocaleTimeString()}
+Table: ${tables.find(t => t.id === order.table_id)?.table_number || 'N/A'}
+Customer: ${order.customer_name || 'Guest'}
+--------------------------------
+ITEM             QTY  AMOUNT
+--------------------------------
+${order.order_items?.map((item: any) => {
+  const dish = dishes.find(d => d.id === item.dish_id)
+  const name = dish?.name || 'Unknown'
+  const qty = item.quantity
+  const price = item.price
+  const total = (price * qty).toFixed(2)
+  const itemName = name.length > 16 ? name.substring(0, 15) + '.' : name
+  return `${itemName.padEnd(16)} ${qty.toString().padStart(2)}  ${total.padStart(8)}`
+}).join('\n')}
+--------------------------------
+Subtotal:      Rs${order.total_amount.toFixed(2).padStart(8)}
+GRAND TOTAL:   Rs${order.total_amount.toFixed(2).padStart(8)}
+
+================================
+      Thank You for Dining!
+        Visit Us Again
+================================
+`
+
+      const response = await fetch('/api/print', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: plainText })
+      })
+
+      if (response.ok) {
+        alert('Bill sent to printer successfully!')
+      } else {
+        // Fallback to browser print
+        const printWindow = window.open('', '_blank')
+        if (printWindow) {
+          printWindow.document.write(`
+            <!DOCTYPE html>
+            <html>
+              <head>
+                <title>Bill Print</title>
+                <style>
+                  @page { size: 58mm auto; margin: 0; }
+                  body { font-family: 'Courier New', monospace; font-size: 12px; white-space: pre; margin: 0; padding: 2mm; width: 54mm; }
+                </style>
+              </head>
+              <body>${plainText.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</body>
+            </html>
+          `)
+          printWindow.document.close()
+          printWindow.print()
+        }
+      }
+    } catch (error) {
+      alert('Printing failed: ' + (error as Error).message)
+    }
+  }
+
+  const deleteOfflineOrder = (orderId: string) => {
+    if (!confirm('Delete this offline order?')) return
+    const updatedOrders = offlineOrders.filter(o => o.id !== orderId)
+    setOfflineOrders(updatedOrders)
+    localStorage.setItem('offline_orders', JSON.stringify(updatedOrders))
   }
 
   const stats = {
@@ -1330,6 +1581,186 @@ For technical support, contact: support@everycom.com
 
         {activeTab === 'reports' && (
           <Reports orders={orders} payments={payments} dishes={dishes} />
+        )}
+
+        {activeTab === 'offline-orders' && (
+          <>
+            <div className="mb-6 animate-fade-in">
+              <div className="flex items-center justify-between mb-4">
+                <h1 className="text-3xl font-bold bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">
+                  Offline Orders
+                </h1>
+                <div className="flex items-center gap-2">
+                  <span className={`px-3 py-1 rounded-full text-sm font-semibold ${isOnline ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                    {isOnline ? '🟢 Online' : '🔴 Offline'}
+                  </span>
+                  {!isOnline && offlineOrders.length > 0 && (
+                    <button
+                      onClick={syncOfflineOrders}
+                      className="bg-blue-600 text-white px-4 py-2 rounded-xl font-semibold hover:bg-blue-700 transition-all"
+                    >
+                      Sync Orders ({offlineOrders.length})
+                    </button>
+                  )}
+                </div>
+              </div>
+              <p className="text-gray-600 text-sm">
+                Create and manage orders offline. Orders will automatically sync to the database when internet is available.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              {/* Menu Section */}
+              <div className="lg:col-span-2 bg-white/95 backdrop-blur-sm rounded-2xl shadow-xl p-6 animate-fade-in">
+                <h2 className="text-xl font-bold text-gray-900 mb-4">Menu Items</h2>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4 max-h-[600px] overflow-y-auto">
+                  {dishes.filter(d => d.is_available).map((dish) => (
+                    <div
+                      key={dish.id}
+                      onClick={() => addToCart(dish)}
+                      className="bg-gradient-to-br from-green-50 to-emerald-50 border-2 border-green-200 rounded-xl p-4 cursor-pointer hover:shadow-lg hover:scale-105 transition-all duration-300"
+                    >
+                      <div className="w-full h-24 bg-white rounded-lg mb-3 flex items-center justify-center overflow-hidden">
+                        {dish.image_url ? (
+                          <img src={dish.image_url} alt={dish.name} className="w-full h-full object-cover" />
+                        ) : (
+                          <Utensils className="w-12 h-12 text-green-300" />
+                        )}
+                      </div>
+                      <h3 className="font-semibold text-gray-900 text-sm mb-1 truncate">{dish.name}</h3>
+                      <p className="text-xs text-gray-600 mb-2 truncate">{dish.category}</p>
+                      <p className="text-lg font-bold text-green-600">₹{dish.price.toFixed(2)}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Cart Section */}
+              <div className="bg-white/95 backdrop-blur-sm rounded-2xl shadow-xl p-6 animate-fade-in h-fit">
+                <h2 className="text-xl font-bold text-gray-900 mb-4">Cart ({offlineCart.length} items)</h2>
+                
+                {/* Table Selection */}
+                <div className="mb-4">
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Select Table</label>
+                  <select
+                    value={selectedTable}
+                    onChange={(e) => setSelectedTable(e.target.value)}
+                    className="w-full px-4 py-2 border-2 border-gray-200 rounded-xl focus:border-green-500 focus:outline-none"
+                  >
+                    <option value="">Choose a table...</option>
+                    {tables.map((table) => (
+                      <option key={table.id} value={table.id}>
+                        Table {table.table_number} (Capacity: {table.capacity})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Customer Name */}
+                <div className="mb-4">
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Customer Name (Optional)</label>
+                  <input
+                    type="text"
+                    value={customerName}
+                    onChange={(e) => setCustomerName(e.target.value)}
+                    placeholder="Enter customer name"
+                    className="w-full px-4 py-2 border-2 border-gray-200 rounded-xl focus:border-green-500 focus:outline-none"
+                  />
+                </div>
+
+                {/* Cart Items */}
+                <div className="space-y-3 max-h-[300px] overflow-y-auto mb-4">
+                  {offlineCart.length === 0 ? (
+                    <p className="text-gray-500 text-center py-8">Cart is empty</p>
+                  ) : (
+                    offlineCart.map((item) => (
+                      <div key={item.dish_id} className="flex items-center justify-between bg-gray-50 rounded-lg p-3">
+                        <div className="flex-1">
+                          <p className="font-semibold text-gray-900 text-sm">{item.name}</p>
+                          <p className="text-sm text-green-600">₹{item.price.toFixed(2)}</p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => updateCartQuantity(item.dish_id, item.quantity - 1)}
+                            className="w-8 h-8 rounded-full bg-red-100 text-red-600 hover:bg-red-200 transition-colors"
+                          >
+                            -
+                          </button>
+                          <span className="w-8 text-center font-semibold">{item.quantity}</span>
+                          <button
+                            onClick={() => updateCartQuantity(item.dish_id, item.quantity + 1)}
+                            className="w-8 h-8 rounded-full bg-green-100 text-green-600 hover:bg-green-200 transition-colors"
+                          >
+                            +
+                          </button>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+
+                {/* Total and Create Order */}
+                <div className="border-t border-gray-200 pt-4">
+                  <div className="flex justify-between items-center mb-4">
+                    <span className="text-lg font-semibold text-gray-900">Total:</span>
+                    <span className="text-2xl font-bold text-green-600">₹{getCartTotal().toFixed(2)}</span>
+                  </div>
+                  <button
+                    onClick={createOfflineOrder}
+                    disabled={offlineCart.length === 0 || !selectedTable}
+                    className="w-full bg-gradient-to-r from-green-600 to-emerald-600 text-white px-6 py-3 rounded-xl font-semibold hover:shadow-lg transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Create Offline Order
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Offline Orders List */}
+            <div className="mt-6 bg-white/95 backdrop-blur-sm rounded-2xl shadow-xl p-6 animate-fade-in">
+              <h2 className="text-xl font-bold text-gray-900 mb-4">Pending Offline Orders ({offlineOrders.length})</h2>
+              {offlineOrders.length === 0 ? (
+                <p className="text-gray-500 text-center py-8">No offline orders pending</p>
+              ) : (
+                <div className="space-y-4">
+                  {offlineOrders.map((order) => (
+                    <div key={order.id} className="border border-gray-200 rounded-xl p-4 hover:shadow-md transition-all">
+                      <div className="flex justify-between items-start mb-3">
+                        <div>
+                          <p className="font-semibold text-gray-900">Order OFF-{order.id}</p>
+                          <p className="text-sm text-gray-600">
+                            Table: {tables.find(t => t.id === order.table_id)?.table_number || 'N/A'} • 
+                            Customer: {order.customer_name || 'Guest'}
+                          </p>
+                          <p className="text-xs text-gray-500">
+                            {new Date(order.created_at).toLocaleString()}
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-lg font-bold text-green-600">₹{order.total_amount.toFixed(2)}</p>
+                          <p className="text-xs text-gray-500">{order.order_items?.length} items</p>
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => printOfflineBill(order)}
+                          className="flex-1 bg-gradient-to-r from-green-600 to-emerald-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:shadow-lg transition-all"
+                        >
+                          Print Bill
+                        </button>
+                        <button
+                          onClick={() => deleteOfflineOrder(order.id)}
+                          className="bg-red-500 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-red-600 transition-all"
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </>
         )}
       </main>
       </div>

@@ -15,12 +15,13 @@ import {
   X,
   Calendar,
   BarChart3,
-  PieChart
+  PieChart,
+  WifiOff
 } from 'lucide-react'
 
 interface SidebarProps {
-  activeTab: 'overview' | 'orders' | 'dishes' | 'tables' | 'waiters' | 'reports'
-  setActiveTab: (tab: 'overview' | 'orders' | 'dishes' | 'tables' | 'waiters' | 'reports') => void
+  activeTab: 'overview' | 'orders' | 'dishes' | 'tables' | 'waiters' | 'reports' | 'offline-orders'
+  setActiveTab: (tab: 'overview' | 'orders' | 'dishes' | 'tables' | 'waiters' | 'reports' | 'offline-orders') => void
   user: any
   onLogout: () => void
 }
@@ -29,16 +30,17 @@ export default function Sidebar({ activeTab, setActiveTab, user, onLogout }: Sid
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
   const router = useRouter()
 
-  const menuItems: { id: 'overview' | 'orders' | 'dishes' | 'tables' | 'waiters' | 'reports', label: string, icon: any }[] = [
+  const menuItems: { id: 'overview' | 'orders' | 'dishes' | 'tables' | 'waiters' | 'reports' | 'offline-orders', label: string, icon: any }[] = [
     { id: 'overview', label: 'Overview', icon: LayoutDashboard },
     { id: 'orders', label: 'Orders', icon: ShoppingCart },
     { id: 'dishes', label: 'Menu Management', icon: Utensils },
     { id: 'tables', label: 'Table Management', icon: Table },
     { id: 'waiters', label: 'Waiter Status', icon: Users },
     { id: 'reports', label: 'Reports', icon: BarChart3 },
+    { id: 'offline-orders', label: 'Offline Orders', icon: WifiOff },
   ]
 
-  const handleTabChange = (tabId: 'overview' | 'orders' | 'dishes' | 'tables' | 'waiters' | 'reports') => {
+  const handleTabChange = (tabId: 'overview' | 'orders' | 'dishes' | 'tables' | 'waiters' | 'reports' | 'offline-orders') => {
     setActiveTab(tabId)
     setIsMobileMenuOpen(false)
   }
