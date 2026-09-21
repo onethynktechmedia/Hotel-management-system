@@ -188,19 +188,40 @@ export default function AdminDashboard() {
   const fetchData = async () => {
     try {
       const [ordersRes, dishesRes, tablesRes, paymentsRes, notificationsRes] = await Promise.all([
-        fetch('/api/orders').then(res => res.json()),
-        fetch('/api/dishes').then(res => res.json()),
-        fetch('/api/tables').then(res => res.json()),
-        fetch('/api/payments').then(res => res.json()).catch(() => []),
-        fetch('/api/notifications').then(res => res.json()).catch(() => [])
+        fetch('/api/orders').then(async res => {
+          if (!res.ok) throw new Error(`Orders API error: ${res.status}`)
+          return res.json()
+        }).catch(() => []),
+        fetch('/api/dishes').then(async res => {
+          if (!res.ok) throw new Error(`Dishes API error: ${res.status}`)
+          return res.json()
+        }).catch(() => []),
+        fetch('/api/tables').then(async res => {
+          if (!res.ok) throw new Error(`Tables API error: ${res.status}`)
+          return res.json()
+        }).catch(() => []),
+        fetch('/api/payments').then(async res => {
+          if (!res.ok) throw new Error(`Payments API error: ${res.status}`)
+          return res.json()
+        }).catch(() => []),
+        fetch('/api/notifications').then(async res => {
+          if (!res.ok) throw new Error(`Notifications API error: ${res.status}`)
+          return res.json()
+        }).catch(() => [])
       ])
 
       // Fetch order items for each order
       const ordersWithItems = await Promise.all(
         (ordersRes || []).map(async (order: any) => {
-          const itemsRes = await fetch(`/api/orders/${order.id}/items`)
-          const items = await itemsRes.json()
-          return { ...order, order_items: items }
+          try {
+            const itemsRes = await fetch(`/api/orders/${order.id}/items`)
+            if (!itemsRes.ok) throw new Error(`Order items API error: ${itemsRes.status}`)
+            const items = await itemsRes.json()
+            return { ...order, order_items: items }
+          } catch (error) {
+            console.error('Error fetching order items:', error)
+            return { ...order, order_items: [] }
+          }
         })
       )
 
