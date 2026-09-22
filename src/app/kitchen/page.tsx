@@ -5,9 +5,8 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import supabase from '@/lib/db'
 import { User, Order, OrderItem } from '@/types'
-import { Bell, LogOut, CheckCircle, Clock, ChefHat, AlertCircle, Printer } from 'lucide-react'
+import { Bell, LogOut, CheckCircle, Clock, ChefHat, AlertCircle } from 'lucide-react'
 import NotificationSystem from '@/components/NotificationSystem'
-import { printWithFallback, WebUSBPrinter } from '@/lib/webusb-printer'
 
 // Utility function to format order ID as GGR-XXX
 const formatOrderId = (orderId: string) => {
@@ -27,7 +26,6 @@ export default function KitchenPage() {
   const [notifications, setNotifications] = useState<any[]>([])
   const [selectedFilter, setSelectedFilter] = useState<string>('all')
   const [selectedOrderForBill, setSelectedOrderForBill] = useState<Order | null>(null)
-  const [printerConnected, setPrinterConnected] = useState(false)
 
   useEffect(() => {
     const userData = localStorage.getItem('user')
@@ -111,18 +109,6 @@ export default function KitchenPage() {
     router.push('/login')
   }
 
-  // Connect USB Printer
-  const handleConnectPrinter = async () => {
-    try {
-      const printer = new WebUSBPrinter()
-      await printer.connect()
-      setPrinterConnected(true)
-      alert('Printer connected successfully! You can now print kitchen orders directly.')
-    } catch (error: any) {
-      console.error('Failed to connect printer:', error)
-      alert('Failed to connect printer: ' + error.message + '\n\nPlease:\n1. Connect printer via USB\n2. Use Chrome or Edge browser\n3. Allow USB access when prompted')
-    }
-  }
 
   // Thermal Print Function for Kitchen Bill using WebUSB with fallback
   const handleThermalPrint = async () => {
@@ -700,13 +686,6 @@ ${selectedOrderForBill.order_items?.map((item: any) => {
                 Close
               </button>
               <button
-                onClick={handleConnectPrinter}
-                className="flex-1 px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-xl font-semibold hover:shadow-lg transition-all duration-300 flex items-center justify-center gap-2"
-              >
-                <Printer className="w-4 h-4" />
-                {printerConnected ? 'Printer Connected' : 'Connect Printer'}
-              </button>
-              <button
                 onClick={handleThermalPrint}
                 className="flex-1 px-6 py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-xl font-semibold hover:shadow-lg transition-all duration-300"
               >
@@ -803,28 +782,12 @@ function OrderCard({ order, onStatusChange, onItemStatusChange, getStatusColor, 
           </div>
 
           <div className="flex gap-3">
-            {order.status === 'pending' || order.status === 'confirmed' ? (
-              <button
-                onClick={() => onStatusChange('preparing')}
-                className="flex-1 bg-green-600 text-white py-3 rounded-xl font-bold hover:bg-green-700 transition-colors"
-              >
-                Start Preparing
-              </button>
-            ) : order.status === 'preparing' ? (
-              <button
-                onClick={() => onStatusChange('ready')}
-                className="flex-1 bg-teal-600 text-white py-3 rounded-xl font-bold hover:bg-teal-700 transition-colors"
-              >
-                Mark Ready
-              </button>
-            ) : (
-              <button
-                onClick={() => onStatusChange('served')}
-                className="flex-1 bg-lime-600 text-white py-3 rounded-xl font-bold hover:bg-lime-700 transition-colors"
-              >
-                Mark Served
-              </button>
-            )}
+            <button
+              onClick={() => onStatusChange('ready')}
+              className="flex-1 bg-green-600 text-white py-3 rounded-xl font-bold hover:bg-green-700 transition-colors"
+            >
+              Mark Ready
+            </button>
           </div>
         </div>
       </div>
