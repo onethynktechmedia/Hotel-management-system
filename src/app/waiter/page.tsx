@@ -757,22 +757,22 @@ export default function WaiterPage() {
       // Generate properly formatted plain text bill content for thermal printer
       // 58mm paper width = approximately 32-35 characters per line
       const plainText = `
-<strong class="header">         GALAXY GARDEN </strong><br>
-        Restaurant & Bar<br>
+<strong class="header">GALAXY GARDEN</strong><br>
+Restaurant & Bar<br>
 ================================<br>
-     123, Main Street<br>
-     City, State - 123456<br>
-     Phone: +91 98765 43210<br>
+123, Main Street<br>
+City, State - 123456<br>
+Phone: +91 98765 43210<br>
 ================================<br>
-        BILL / INVOICE<br>
+BILL / INVOICE<br>
 ================================<br>
 <br>
-  Bill No: ${formatOrderId(viewingBill.id)}<br>
-  Date: ${new Date(viewingBill.created_at).toLocaleDateString()}<br>
-  Time: ${new Date(viewingBill.created_at).toLocaleTimeString()}<br>
-  Table: ${viewingBill.tables?.table_number}<br>
-  Waiter: ${viewingBill.users?.name}<br>
-  Customer: ${viewingBill.customer_name || 'Guest'}<br>
+Bill No: ${formatOrderId(viewingBill.id)}<br>
+Date: ${new Date(viewingBill.created_at).toLocaleDateString()}<br>
+Time: ${new Date(viewingBill.created_at).toLocaleTimeString()}<br>
+Table: ${viewingBill.tables?.table_number}<br>
+Waiter: ${viewingBill.users?.name}<br>
+Customer: ${viewingBill.customer_name || 'Guest'}<br>
 --------------------------------<br>
 ITEM             QTY  AMOUNT<br>
 --------------------------------<br>
@@ -781,17 +781,15 @@ ${viewingBill.order_items?.map((item: any) => {
   const qty = item.quantity
   const price = (item.dishes?.price || item.price || 0)
   const total = (price * qty).toFixed(2)
-  // Truncate name to fit within 16 characters
   const itemName = name.length > 16 ? name.substring(0, 15) + '.' : name
-  // Format: Item name (16 chars) | Qty (2 chars) | Amount (8 chars)
   return `${itemName.padEnd(16)} ${qty.toString().padStart(2)}  ${total.padStart(8)}<br>`
 }).join('')}
 --------------------------------<br>
 ================================<br>
 <strong class="grand-total">*** GRAND TOTAL: Rs${viewingBill.total_amount.toFixed(2)} ***</strong><br>
 ================================<br>
-      Thank You for Dining!<br>
-        Visit Us Again<br>
+Thank You for Dining!<br>
+Visit Us Again<br>
 ================================<br>
 <span class="developer">Developed by onethynk techmedia</span><br>
 ================================
