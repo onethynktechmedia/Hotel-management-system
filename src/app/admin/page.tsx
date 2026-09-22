@@ -413,7 +413,7 @@ export default function AdminDashboard() {
 <div class="bill-info"><span class="label">Table:</span> <span class="value">${order.tables?.table_number || 'N/A'}</span></div>
 <div class="bill-info"><span class="label">Waiter:</span> <span class="value">${order.users?.name || 'N/A'}</span></div>
 <div class="bill-info"><span class="label">Customer:</span> <span class="value">${order.customer_name || 'Guest'}</span></div>
-<div class="divider">--------------------------------</div>
+<div class="divider">--------------------------</div>
 <table class="items-table">
   <thead>
     <tr>
@@ -439,8 +439,7 @@ ${orderItems.map((item: any) => {
 </table>
 <div class="divider">--------------------------------</div>
 <div class="total-row"><span class="label">Subtotal:</span> <span class="amount">Rs${order.total_amount.toFixed(2)}</span></div>
-<div class="divider">================================</div>
-<div class="grand-total">*** GRAND TOTAL: Rs${order.total_amount.toFixed(2)} ***</div>
+<div class="grand-total"> GRAND TOTAL: Rs :${order.total_amount.toFixed(2)} </div>
 <div class="divider">================================</div>
 <div class="footer">Thank You for Dining!</div>
 <div class="footer">Visit Us Again</div>
@@ -503,26 +502,30 @@ ${orderItems.map((item: any) => {
                   image-rendering: crisp-edges;
                 }
                 .header {
-                  font-size: 16px;
+                  font-size: 18px;
                   font-weight: 900;
                   margin-bottom: 1mm;
                   text-transform: uppercase;
+                  letter-spacing: 1px;
                 }
                 .subheader {
-                  font-size: 12px;
+                  font-size: 13px;
+                  font-weight: bold;
                   margin-bottom: 1mm;
                 }
                 .divider {
                   font-size: 10px;
+                  font-weight: bold;
                   margin: 1mm 0;
                   letter-spacing: 1px;
                 }
                 .address {
-                  font-size: 10px;
+                  font-size: 11px;
+                  font-weight: bold;
                   margin: 0.5mm 0;
                 }
                 .section-title {
-                  font-size: 12px;
+                  font-size: 13px;
                   font-weight: 900;
                   margin: 1mm 0;
                 }
@@ -533,10 +536,11 @@ ${orderItems.map((item: any) => {
                   display: flex;
                   justify-content: space-between;
                   font-size: 11px;
+                  font-weight: bold;
                   margin: 0.5mm 0;
                 }
                 .label {
-                  font-weight: normal;
+                  font-weight: bold;
                 }
                 .value {
                   font-weight: bold;
@@ -551,10 +555,11 @@ ${orderItems.map((item: any) => {
                   border-bottom: 1px solid black;
                   padding: 1mm 0;
                   font-weight: 900;
-                  font-size: 10px;
+                  font-size: 11px;
                 }
                 .items-table td {
                   padding: 0.5mm 0;
+                  font-weight: bold;
                 }
                 .col-item {
                   text-align: left;
@@ -573,26 +578,29 @@ ${orderItems.map((item: any) => {
                   display: flex;
                   justify-content: space-between;
                   font-size: 11px;
+                  font-weight: bold;
                   margin: 1mm 0;
                 }
                 .amount {
                   font-weight: bold;
                 }
                 .grand-total {
-                  font-size: 14px;
+                  font-size: 16px;
                   font-weight: 900;
                   margin: 2mm 0;
                   text-transform: uppercase;
+                  letter-spacing: 1px;
                 }
                 .footer {
-                  font-size: 11px;
+                  font-size: 12px;
+                  font-weight: bold;
                   margin: 1mm 0;
                 }
                 .developer {
-                  font-size: 8px;
-                  font-weight: normal;
+                  font-size: 9px;
+                  font-weight: bold;
                   margin-top: 2mm;
-                  opacity: 0.7;
+                  opacity: 0.8;
                 }
               </style>
             </head>
@@ -736,26 +744,30 @@ ${(() => {
                   image-rendering: crisp-edges;
                 }
                 .header {
-                  font-size: 16px;
+                  font-size: 18px;
                   font-weight: 900;
                   margin-bottom: 1mm;
                   text-transform: uppercase;
+                  letter-spacing: 1px;
                 }
                 .subheader {
-                  font-size: 12px;
+                  font-size: 13px;
+                  font-weight: bold;
                   margin-bottom: 1mm;
                 }
                 .divider {
                   font-size: 10px;
+                  font-weight: bold;
                   margin: 1mm 0;
                   letter-spacing: 1px;
                 }
                 .address {
-                  font-size: 10px;
+                  font-size: 11px;
+                  font-weight: bold;
                   margin: 0.5mm 0;
                 }
                 .section-title {
-                  font-size: 12px;
+                  font-size: 13px;
                   font-weight: 900;
                   margin: 1mm 0;
                 }
@@ -766,10 +778,11 @@ ${(() => {
                   display: flex;
                   justify-content: space-between;
                   font-size: 11px;
+                  font-weight: bold;
                   margin: 0.5mm 0;
                 }
                 .label {
-                  font-weight: normal;
+                  font-weight: bold;
                 }
                 .value {
                   font-weight: bold;
@@ -784,10 +797,11 @@ ${(() => {
                   border-bottom: 1px solid black;
                   padding: 1mm 0;
                   font-weight: 900;
-                  font-size: 10px;
+                  font-size: 11px;
                 }
                 .items-table td {
                   padding: 0.5mm 0;
+                  font-weight: bold;
                 }
                 .col-item {
                   text-align: left;
@@ -806,26 +820,29 @@ ${(() => {
                   display: flex;
                   justify-content: space-between;
                   font-size: 11px;
+                  font-weight: bold;
                   margin: 1mm 0;
                 }
                 .amount {
                   font-weight: bold;
                 }
                 .grand-total {
-                  font-size: 14px;
+                  font-size: 16px;
                   font-weight: 900;
                   margin: 2mm 0;
                   text-transform: uppercase;
+                  letter-spacing: 1px;
                 }
                 .footer {
-                  font-size: 11px;
+                  font-size: 12px;
+                  font-weight: bold;
                   margin: 1mm 0;
                 }
                 .developer {
-                  font-size: 8px;
-                  font-weight: normal;
+                  font-size: 9px;
+                  font-weight: bold;
                   margin-top: 2mm;
-                  opacity: 0.7;
+                  opacity: 0.8;
                 }
               </style>
             </head>
@@ -1237,26 +1254,30 @@ ${order.order_items?.map((item: any) => {
                   image-rendering: crisp-edges;
                 }
                 .header {
-                  font-size: 16px;
+                  font-size: 18px;
                   font-weight: 900;
                   margin-bottom: 1mm;
                   text-transform: uppercase;
+                  letter-spacing: 1px;
                 }
                 .subheader {
-                  font-size: 12px;
+                  font-size: 13px;
+                  font-weight: bold;
                   margin-bottom: 1mm;
                 }
                 .divider {
                   font-size: 10px;
+                  font-weight: bold;
                   margin: 1mm 0;
                   letter-spacing: 1px;
                 }
                 .address {
-                  font-size: 10px;
+                  font-size: 11px;
+                  font-weight: bold;
                   margin: 0.5mm 0;
                 }
                 .section-title {
-                  font-size: 12px;
+                  font-size: 13px;
                   font-weight: 900;
                   margin: 1mm 0;
                 }
@@ -1267,10 +1288,11 @@ ${order.order_items?.map((item: any) => {
                   display: flex;
                   justify-content: space-between;
                   font-size: 11px;
+                  font-weight: bold;
                   margin: 0.5mm 0;
                 }
                 .label {
-                  font-weight: normal;
+                  font-weight: bold;
                 }
                 .value {
                   font-weight: bold;
@@ -1285,10 +1307,11 @@ ${order.order_items?.map((item: any) => {
                   border-bottom: 1px solid black;
                   padding: 1mm 0;
                   font-weight: 900;
-                  font-size: 10px;
+                  font-size: 11px;
                 }
                 .items-table td {
                   padding: 0.5mm 0;
+                  font-weight: bold;
                 }
                 .col-item {
                   text-align: left;
@@ -1307,26 +1330,29 @@ ${order.order_items?.map((item: any) => {
                   display: flex;
                   justify-content: space-between;
                   font-size: 11px;
+                  font-weight: bold;
                   margin: 1mm 0;
                 }
                 .amount {
                   font-weight: bold;
                 }
                 .grand-total {
-                  font-size: 14px;
+                  font-size: 16px;
                   font-weight: 900;
                   margin: 2mm 0;
                   text-transform: uppercase;
+                  letter-spacing: 1px;
                 }
                 .footer {
-                  font-size: 11px;
+                  font-size: 12px;
+                  font-weight: bold;
                   margin: 1mm 0;
                 }
                 .developer {
-                  font-size: 8px;
-                  font-weight: normal;
+                  font-size: 9px;
+                  font-weight: bold;
                   margin-top: 2mm;
-                  opacity: 0.7;
+                  opacity: 0.8;
                 }
               </style>
             </head>
@@ -1504,26 +1530,30 @@ Visit Us Again<br>
                   image-rendering: crisp-edges;
                 }
                 .header {
-                  font-size: 16px;
+                  font-size: 18px;
                   font-weight: 900;
                   margin-bottom: 1mm;
                   text-transform: uppercase;
+                  letter-spacing: 1px;
                 }
                 .subheader {
-                  font-size: 12px;
+                  font-size: 13px;
+                  font-weight: bold;
                   margin-bottom: 1mm;
                 }
                 .divider {
                   font-size: 10px;
+                  font-weight: bold;
                   margin: 1mm 0;
                   letter-spacing: 1px;
                 }
                 .address {
-                  font-size: 10px;
+                  font-size: 11px;
+                  font-weight: bold;
                   margin: 0.5mm 0;
                 }
                 .section-title {
-                  font-size: 12px;
+                  font-size: 13px;
                   font-weight: 900;
                   margin: 1mm 0;
                 }
@@ -1534,10 +1564,11 @@ Visit Us Again<br>
                   display: flex;
                   justify-content: space-between;
                   font-size: 11px;
+                  font-weight: bold;
                   margin: 0.5mm 0;
                 }
                 .label {
-                  font-weight: normal;
+                  font-weight: bold;
                 }
                 .value {
                   font-weight: bold;
@@ -1552,10 +1583,11 @@ Visit Us Again<br>
                   border-bottom: 1px solid black;
                   padding: 1mm 0;
                   font-weight: 900;
-                  font-size: 10px;
+                  font-size: 11px;
                 }
                 .items-table td {
                   padding: 0.5mm 0;
+                  font-weight: bold;
                 }
                 .col-item {
                   text-align: left;
@@ -1574,26 +1606,29 @@ Visit Us Again<br>
                   display: flex;
                   justify-content: space-between;
                   font-size: 11px;
+                  font-weight: bold;
                   margin: 1mm 0;
                 }
                 .amount {
                   font-weight: bold;
                 }
                 .grand-total {
-                  font-size: 14px;
+                  font-size: 16px;
                   font-weight: 900;
                   margin: 2mm 0;
                   text-transform: uppercase;
+                  letter-spacing: 1px;
                 }
                 .footer {
-                  font-size: 11px;
+                  font-size: 12px;
+                  font-weight: bold;
                   margin: 1mm 0;
                 }
                 .developer {
-                  font-size: 8px;
-                  font-weight: normal;
+                  font-size: 9px;
+                  font-weight: bold;
                   margin-top: 2mm;
-                  opacity: 0.7;
+                  opacity: 0.8;
                 }
               </style>
             </head>
