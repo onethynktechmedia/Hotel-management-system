@@ -81,8 +81,8 @@ export default function OfflineAdminPage() {
       // Generate properly formatted plain text bill content for thermal printer
       // 58mm paper width = approximately 32-35 characters per line
       const plainText = `
-<div class="header">*** GALAXY GARDEN ***</div>
-<div>Restaurant & Bar</div>
+           *** GALAXY GARDEN ***
+           Restaurant & Bar
 ================================
      123, Main Street
      City, State - 123456
@@ -97,7 +97,6 @@ Date: ${new Date(selectedOrderForBilling.created_at).toLocaleDateString()}
 Time: ${new Date(selectedOrderForBilling.created_at).toLocaleTimeString()}
 Table: ${selectedOrderForBilling.tables?.table_number}
 Waiter: ${selectedOrderForBilling.users?.name}
-Status: ${selectedOrderForBilling.status || 'N/A'}
 Customer: ${selectedOrderForBilling.customer_name || 'Guest'}
 --------------------------------
 ITEM             QTY  AMOUNT
@@ -118,13 +117,13 @@ ${(() => {
   const discount = calculateDiscountValue(selectedOrderForBilling.total_amount)
   return discount > 0 ? `Discount:      Rs${discount.toFixed(2).padStart(8)}\n` : ''
 })()}================================
-<div class="grand-total">*** GRAND TOTAL ***</div>
-<div class="grand-total">Rs${calculateFinalAmount(selectedOrderForBilling.total_amount).toFixed(2).padStart(8)}</div>
+      *** GRAND TOTAL ***
+      Rs${calculateFinalAmount(selectedOrderForBilling.total_amount).toFixed(2).padStart(8)}
 ================================
       Thank You for Dining!
         Visit Us Again
 ================================
-<div class="developer">Developed by onethynk techmedia</div>
+Developed by onethynk techmedia
 ================================
 `
       

@@ -397,8 +397,8 @@ export default function AdminDashboard() {
       
       // Generate and print bill directly
       const plainText = `
-<div class="header">*** GALAXY GARDEN ***</div>
-<div>Restaurant & Bar</div>
+           *** GALAXY GARDEN ***
+           Restaurant & Bar
 ================================
      123, Main Street
      City, State - 123456
@@ -413,7 +413,6 @@ Date: ${new Date(order.created_at).toLocaleDateString()}
 Time: ${new Date(order.created_at).toLocaleTimeString()}
 Table: ${order.tables?.table_number || 'N/A'}
 Waiter: ${order.users?.name || 'N/A'}
-Status: ${order.status || 'N/A'}
 Customer: ${order.customer_name || 'Guest'}
 --------------------------------
 ITEM             QTY  AMOUNT
@@ -429,13 +428,13 @@ ${orderItems.map((item: any) => {
 --------------------------------
 Subtotal:      Rs${order.total_amount.toFixed(2).padStart(8)}
 ================================
-<div class="grand-total">*** GRAND TOTAL ***</div>
-<div class="grand-total">Rs${order.total_amount.toFixed(2).padStart(8)}</div>
+      *** GRAND TOTAL ***
+      Rs${order.total_amount.toFixed(2).padStart(8)}
 ================================
       Thank You for Dining!
         Visit Us Again
 ================================
-<div class="developer">Developed by onethynk techmedia</div>
+Developed by onethynk techmedia
 ================================
 `
 
@@ -493,21 +492,6 @@ Subtotal:      Rs${order.total_amount.toFixed(2).padStart(8)}
                   -moz-osx-font-smoothing: grayscale;
                   image-rendering: crisp-edges;
                 }
-                .header {
-                  font-size: 16px;
-                  font-weight: 900;
-                  margin-bottom: 2mm;
-                }
-                .grand-total {
-                  font-size: 16px;
-                  font-weight: 900;
-                  margin: 2mm 0;
-                }
-                .developer {
-                  font-size: 10px;
-                  font-weight: normal;
-                  margin-top: 2mm;
-                }
               </style>
             </head>
             <body>${plainText.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</body>
@@ -541,8 +525,8 @@ Subtotal:      Rs${order.total_amount.toFixed(2).padStart(8)}
       // Generate properly formatted plain text bill content for thermal printer
       // 58mm paper width = approximately 32-35 characters per line
       const plainText = `
-<div class="header">*** GALAXY GARDEN ***</div>
-<div>Restaurant & Bar</div>
+           *** GALAXY GARDEN ***
+           Restaurant & Bar
 ================================
      123, Main Street
      City, State - 123456
@@ -557,7 +541,6 @@ Date: ${new Date(selectedOrderForBilling.created_at).toLocaleDateString()}
 Time: ${new Date(selectedOrderForBilling.created_at).toLocaleTimeString()}
 Table: ${selectedOrderForBilling.tables?.table_number}
 Waiter: ${selectedOrderForBilling.users?.name}
-Status: ${selectedOrderForBilling.status || 'N/A'}
 Customer: ${selectedOrderForBilling.customer_name || 'Guest'}
 --------------------------------
 ITEM             QTY  AMOUNT
@@ -578,13 +561,13 @@ ${(() => {
   const discount = calculateDiscountValue(selectedOrderForBilling.total_amount)
   return discount > 0 ? `Discount:      Rs${discount.toFixed(2).padStart(8)}\n` : ''
 })()}================================
-<div class="grand-total">*** GRAND TOTAL ***</div>
-<div class="grand-total">Rs${calculateFinalAmount(selectedOrderForBilling.total_amount).toFixed(2).padStart(8)}</div>
+      *** GRAND TOTAL ***
+      Rs${calculateFinalAmount(selectedOrderForBilling.total_amount).toFixed(2).padStart(8)}
 ================================
       Thank You for Dining!
         Visit Us Again
 ================================
-<div class="developer">Developed by onethynk techmedia</div>
+Developed by onethynk techmedia
 ================================
 `
       
@@ -641,21 +624,6 @@ ${(() => {
                   -webkit-font-smoothing: antialiased;
                   -moz-osx-font-smoothing: grayscale;
                   image-rendering: crisp-edges;
-                }
-                .header {
-                  font-size: 16px;
-                  font-weight: 900;
-                  margin-bottom: 2mm;
-                }
-                .grand-total {
-                  font-size: 16px;
-                  font-weight: 900;
-                  margin: 2mm 0;
-                }
-                .developer {
-                  font-size: 10px;
-                  font-weight: normal;
-                  margin-top: 2mm;
                 }
               </style>
             </head>
@@ -963,8 +931,8 @@ For technical support, contact: support@everycom.com
   const printOfflineBill = async (order: any) => {
     try {
       const plainText = `
-<div class="header">*** GALAXY GARDEN ***</div>
-<div>Restaurant & Bar</div>
+           *** GALAXY GARDEN ***
+           Restaurant & Bar
 ================================
      123, Main Street
      City, State - 123456
@@ -978,7 +946,6 @@ Bill No: OFF-${order.id}
 Date: ${new Date(order.created_at).toLocaleDateString()}
 Time: ${new Date(order.created_at).toLocaleTimeString()}
 Table: ${tables.find(t => t.id === order.table_id)?.table_number || 'N/A'}
-Status: ${order.status || 'N/A'}
 Customer: ${order.customer_name || 'Guest'}
 --------------------------------
 ITEM             QTY  AMOUNT
@@ -995,13 +962,13 @@ ${order.order_items?.map((item: any) => {
 --------------------------------
 Subtotal:      Rs${order.total_amount.toFixed(2).padStart(8)}
 ================================
-<div class="grand-total">*** GRAND TOTAL ***</div>
-<div class="grand-total">Rs${order.total_amount.toFixed(2).padStart(8)}</div>
+      *** GRAND TOTAL ***
+      Rs${order.total_amount.toFixed(2).padStart(8)}
 ================================
       Thank You for Dining!
         Visit Us Again
 ================================
-<div class="developer">Developed by onethynk techmedia</div>
+Developed by onethynk techmedia
 ================================
 `
 
@@ -1056,21 +1023,6 @@ Subtotal:      Rs${order.total_amount.toFixed(2).padStart(8)}
                   -webkit-font-smoothing: antialiased;
                   -moz-osx-font-smoothing: grayscale;
                   image-rendering: crisp-edges;
-                }
-                .header {
-                  font-size: 16px;
-                  font-weight: 900;
-                  margin-bottom: 2mm;
-                }
-                .grand-total {
-                  font-size: 16px;
-                  font-weight: 900;
-                  margin: 2mm 0;
-                }
-                .developer {
-                  font-size: 10px;
-                  font-weight: normal;
-                  margin-top: 2mm;
                 }
               </style>
             </head>
@@ -1145,8 +1097,8 @@ Subtotal:      Rs${order.total_amount.toFixed(2).padStart(8)}
     console.log('Waiter name:', waiterName)
     
     const plainText = `
-<div class="header">*** GALAXY GARDEN ***</div>
-<div>Restaurant & Bar</div>
+           *** GALAXY GARDEN ***
+           Restaurant & Bar
 ================================
      123, Main Street
      City, State - 123456
@@ -1161,7 +1113,6 @@ Date: ${new Date().toLocaleDateString()}
 Time: ${new Date().toLocaleTimeString()}
 Table: ${tableNumber}
 Waiter: ${waiterName}
-Status: Pending
 Customer: ${customerName || 'Guest'}
 --------------------------------
 ITEM             QTY  AMOUNT
@@ -1186,13 +1137,13 @@ ${(() => {
   }
   return discount > 0 ? `Discount:      Rs${discount.toFixed(2).padStart(8)}\n` : ''
 })()}================================
-<div class="grand-total">*** GRAND TOTAL ***</div>
-<div class="grand-total">Rs${calculateBillTotal().toFixed(2).padStart(8)}</div>
+      *** GRAND TOTAL ***
+      Rs${calculateBillTotal().toFixed(2).padStart(8)}
 ================================
       Thank You for Dining!
         Visit Us Again
 ================================
-<div class="developer">Developed by onethynk techmedia</div>
+Developed by onethynk techmedia
 ================================
 `
 
@@ -1250,21 +1201,6 @@ ${(() => {
                   -webkit-font-smoothing: antialiased;
                   -moz-osx-font-smoothing: grayscale;
                   image-rendering: crisp-edges;
-                }
-                .header {
-                  font-size: 16px;
-                  font-weight: 900;
-                  margin-bottom: 2mm;
-                }
-                .grand-total {
-                  font-size: 16px;
-                  font-weight: 900;
-                  margin: 2mm 0;
-                }
-                .developer {
-                  font-size: 10px;
-                  font-weight: normal;
-                  margin-top: 2mm;
                 }
               </style>
             </head>

@@ -155,21 +155,6 @@ function openBrowserPrint(plainText: string): void {
             -moz-osx-font-smoothing: grayscale;
             image-rendering: crisp-edges;
           }
-          .header {
-            font-size: 16px;
-            font-weight: 900;
-            margin-bottom: 2mm;
-          }
-          .grand-total {
-            font-size: 16px;
-            font-weight: 900;
-            margin: 2mm 0;
-          }
-          .developer {
-            font-size: 10px;
-            font-weight: normal;
-            margin-top: 2mm;
-          }
           @media print {
             body {
               font-size: 13px;

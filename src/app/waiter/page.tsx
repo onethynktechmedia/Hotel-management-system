@@ -757,8 +757,8 @@ export default function WaiterPage() {
       // Generate properly formatted plain text bill content for thermal printer
       // 58mm paper width = approximately 32-35 characters per line
       const plainText = `
-<div class="header">*** GALAXY GARDEN ***</div>
-<div>Restaurant & Bar</div>
+           *** GALAXY GARDEN ***
+           Restaurant & Bar
 ================================
      123, Main Street
      City, State - 123456
@@ -773,7 +773,6 @@ Date: ${new Date(viewingBill.created_at).toLocaleDateString()}
 Time: ${new Date(viewingBill.created_at).toLocaleTimeString()}
 Table: ${viewingBill.tables?.table_number}
 Waiter: ${viewingBill.users?.name}
-Status: ${viewingBill.status || 'N/A'}
 Customer: ${viewingBill.customer_name || 'Guest'}
 --------------------------------
 ITEM             QTY  AMOUNT
@@ -790,13 +789,13 @@ ${viewingBill.order_items?.map((item: any) => {
 }).join('\n')}
 --------------------------------
 ================================
-<div class="grand-total">*** GRAND TOTAL ***</div>
-<div class="grand-total">Rs${viewingBill.total_amount.toFixed(2).padStart(8)}</div>
+      *** GRAND TOTAL ***
+      Rs${viewingBill.total_amount.toFixed(2).padStart(8)}
 ================================
       Thank You for Dining!
         Visit Us Again
 ================================
-<div class="developer">Developed by onethynk techmedia</div>
+Developed by onethynk techmedia
 ================================
 `
       
@@ -859,21 +858,6 @@ ${viewingBill.order_items?.map((item: any) => {
                   -webkit-font-smoothing: antialiased;
                   -moz-osx-font-smoothing: grayscale;
                   image-rendering: crisp-edges;
-                }
-                .header {
-                  font-size: 16px;
-                  font-weight: 900;
-                  margin-bottom: 2mm;
-                }
-                .grand-total {
-                  font-size: 16px;
-                  font-weight: 900;
-                  margin: 2mm 0;
-                }
-                .developer {
-                  font-size: 10px;
-                  font-weight: normal;
-                  margin-top: 2mm;
                 }
                 /* Windows-specific fixes */
                 @media screen and (-ms-high-contrast: active), (-ms-high-contrast: none) {
