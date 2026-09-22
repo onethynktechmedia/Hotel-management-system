@@ -18,18 +18,26 @@ export default function MenuPage() {
     try {
       const response = await fetch('/api/dishes')
       const data = await response.json()
-      setDishes(data)
+      
+      // Check if data is an array before setting
+      if (Array.isArray(data)) {
+        setDishes(data)
+      } else {
+        console.error('Invalid data format:', data)
+        setDishes([])
+      }
     } catch (error) {
       console.error('Error fetching dishes:', error)
+      setDishes([])
     } finally {
       setLoading(false)
     }
   }
 
-  const categories = ['all', ...Array.from(new Set(dishes.map(dish => dish.category)))]
+  const categories = ['all', ...Array.from(new Set(dishes?.map(dish => dish.category) || []))]
   const filteredDishes = selectedCategory === 'all' 
-    ? dishes 
-    : dishes.filter(dish => dish.category === selectedCategory)
+    ? dishes || []
+    : (dishes || []).filter(dish => dish.category === selectedCategory)
 
   const handleImageError = (dishId: string) => {
     setImageErrors(prev => new Set(prev).add(dishId))

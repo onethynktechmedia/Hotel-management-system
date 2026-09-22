@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { supabase } from '@/lib/supabase'
+import supabase from '@/lib/db'
 import { User, Order, Dish, Table, CartItem } from '@/types'
 import { LogOut, ShoppingCart, Plus, Minus, ArrowLeft, Users, Clock, CheckCircle, X } from 'lucide-react'
 

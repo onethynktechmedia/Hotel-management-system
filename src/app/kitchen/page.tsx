@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { supabase } from '@/lib/supabase'
+import supabase from '@/lib/db'
 import { User, Order, OrderItem } from '@/types'
 import { Bell, LogOut, CheckCircle, Clock, ChefHat, AlertCircle, Printer } from 'lucide-react'
 import NotificationSystem from '@/components/NotificationSystem'
@@ -88,8 +88,13 @@ export default function KitchenPage() {
         return isRecent || isActive
       })
       
+      // Remove duplicate orders by ID
+      const uniqueOrders = filteredOrders.filter((order: Order, index: number, self: Order[]) => 
+        index === self.findIndex((o: Order) => o.id === order.id)
+      )
+      
       // Sort orders by created_at (newest first)
-      const sortedOrders = filteredOrders.sort((a: Order, b: Order) => 
+      const sortedOrders = uniqueOrders.sort((a: Order, b: Order) => 
         new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
       )
       setOrders(sortedOrders)
@@ -554,14 +559,6 @@ Developed by onethynk
             <div className="border-2 border-green-300 rounded-xl p-6 bg-white shadow-lg">
               {/* Header */}
               <div className="text-center mb-6 pb-4 border-b-2 border-dashed border-green-300">
-                <h1 className="text-3xl font-bold text-green-700 mb-1">
-                  Galaxy Garden
-                </h1>
-                <p className="text-sm font-semibold text-gray-700 mb-1">Restaurant & Bar</p>
-                <div className="text-xs text-gray-600 space-y-1">
-                  <p>123, Main Street, City, State - 123456</p>
-                  <p>Phone: +91 98765 43210</p>
-                </div>
                 <p className="text-sm font-bold text-green-700 mt-3 border-t border-dashed border-green-300 pt-2">KITCHEN ORDER</p>
               </div>
 

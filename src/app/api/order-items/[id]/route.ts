@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { query } from '@/lib/db'
+import supabase from '@/lib/db'
 
 export async function DELETE(
   request: NextRequest,
@@ -7,7 +7,13 @@ export async function DELETE(
 ) {
   try {
     const params = await context.params
-    await query('DELETE FROM order_items WHERE id = $1', [params.id])
+    
+    const { error } = await supabase
+      .from('order_items')
+      .delete()
+      .eq('id', params.id)
+    
+    if (error) throw error
 
     return NextResponse.json({ success: true })
   } catch (error) {

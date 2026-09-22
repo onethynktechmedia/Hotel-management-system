@@ -266,7 +266,12 @@ export default function AdminDashboard() {
         })
       )
 
-      setOrders(ordersWithItems)
+      // Remove duplicate orders by ID
+      const uniqueOrders = ordersWithItems.filter((order: any, index: number, self: any[]) => 
+        index === self.findIndex((o: any) => o.id === order.id)
+      )
+
+      setOrders(uniqueOrders)
       setDishes(dishesRes || [])
       setTables(tablesRes || [])
       setPayments(paymentsRes.data || paymentsRes || [])
@@ -384,20 +389,71 @@ export default function AdminDashboard() {
 
   const handleGenerateBill = async (order: Order) => {
     try {
-      const itemsRes = await fetch(`/api/orders/${order.id}/items`)
-      const orderItems = await itemsRes.json()
+      console.log('Generating bill for order:', order.id)
+      console.log('Order items:', order.order_items)
+      
+      // Use order_items directly from the order object (already fetched by API)
+      const orderItems = order.order_items || []
+      
+      // Generate and print bill directly
+      const plainText = `
+              GALAXY GARDEN
+         Restaurant & Bar
+================================
+123, Main Street
+City, State - 123456
+Phone: +91 98765 43210
+GSTIN: 29ABCDE1234F1Z5
+================================
+          BILL / INVOICE
+================================
 
-      setSelectedOrderForBilling({
-        ...order,
-        order_items: orderItems || []
+Bill No: ${formatOrderId(order.id)}
+Date: ${new Date(order.created_at).toLocaleDateString()}
+Time: ${new Date(order.created_at).toLocaleTimeString()}
+Table: ${order.tables?.table_number || 'N/A'}
+Waiter: ${order.users?.name || 'N/A'}
+Customer: ${order.customer_name || 'Guest'}
+--------------------------------
+ITEM             QTY  AMOUNT
+--------------------------------
+${orderItems.map((item: any) => {
+  const name = item.dishes?.name || item.dish?.name || 'Unknown'
+  const qty = item.quantity
+  const price = item.dishes?.price || item.dish?.price || item.price || 0
+  const total = (price * qty).toFixed(2)
+  const itemName = name.length > 16 ? name.substring(0, 15) + '.' : name
+  return `${itemName.padEnd(16)} ${qty.toString().padStart(2)}  ${total.padStart(8)}`
+}).join('\n')}
+--------------------------------
+Subtotal:      Rs${order.total_amount.toFixed(2).padStart(8)}
+GRAND TOTAL:   Rs${order.total_amount.toFixed(2).padStart(8)}
+
+================================
+      Thank You for Dining!
+        Visit Us Again
+================================
+Developed by onethynk techmedia
+================================
+`
+
+      console.log('Sending print request...')
+      const response = await fetch('/api/print', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: plainText })
       })
-      // Reset discount fields when opening new bill
-      setDiscountAmount('')
-      setDiscountPercentage('')
-      setDiscountType('amount')
+
+      if (response.ok) {
+        alert('Bill printed successfully!')
+      } else {
+        const errorData = await response.json()
+        console.error('Print error:', errorData)
+        alert('Print failed: ' + (errorData.error || 'Unknown error'))
+      }
     } catch (error) {
-      console.error('Error fetching order items:', error)
-      alert('Failed to generate bill')
+      console.error('Error generating bill:', error)
+      alert('Failed to print bill: ' + (error as Error).message)
     }
   }
 
@@ -451,6 +507,8 @@ ${(() => {
 ================================
       Thank You for Dining!
         Visit Us Again
+================================
+Developed by onethynk techmedia
 ================================
 `
       
@@ -721,7 +779,12 @@ For technical support, contact: support@everycom.com
       const orders = await ordersRes.json()
       const tableOrders = orders.filter((o: any) => o.table_id === tableId && ['pending', 'preparing', 'ready'].includes(o.status))
 
-      setSelectedTableOrders(tableOrders || [])
+      // Remove duplicate orders by ID
+      const uniqueTableOrders = tableOrders.filter((order: any, index: number, self: any[]) => 
+        index === self.findIndex((o: any) => o.id === order.id)
+      )
+
+      setSelectedTableOrders(uniqueTableOrders || [])
       setShowTableOrders(true)
     } catch (error) {
       console.error('Error fetching table orders:', error)
@@ -760,6 +823,7 @@ For technical support, contact: support@everycom.com
       ))
     } else {
       setOfflineCart([...offlineCart, {
+        id: `${dish.id}-${Date.now()}`, // Unique key for cart item
         dish_id: dish.id,
         name: dish.name,
         price: dish.price,
@@ -769,16 +833,16 @@ For technical support, contact: support@everycom.com
     }
   }
 
-  const removeFromCart = (dishId: string) => {
-    setOfflineCart(offlineCart.filter(item => item.dish_id !== dishId))
+  const removeFromCart = (cartItemId: string) => {
+    setOfflineCart(offlineCart.filter(item => item.id !== cartItemId))
   }
 
-  const updateCartQuantity = (dishId: string, quantity: number) => {
+  const updateCartQuantity = (cartItemId: string, quantity: number) => {
     if (quantity <= 0) {
-      removeFromCart(dishId)
+      removeFromCart(cartItemId)
     } else {
       setOfflineCart(offlineCart.map(item => 
-        item.dish_id === dishId 
+        item.id === cartItemId 
           ? { ...item, quantity }
           : item
       ))
@@ -872,6 +936,8 @@ GRAND TOTAL:   Rs${order.total_amount.toFixed(2).padStart(8)}
       Thank You for Dining!
         Visit Us Again
 ================================
+Developed by onethynk techmedia
+================================
 `
 
       const response = await fetch('/api/print', {
@@ -944,6 +1010,8 @@ GRAND TOTAL:   Rs${order.total_amount.toFixed(2).padStart(8)}
 
   const handlePrintBill = async () => {
     console.log('Printing bill - Cart items:', offlineCart)
+    console.log('Selected table:', selectedTable)
+    console.log('Tables available:', tables)
     
     if (offlineCart.length === 0) {
       alert('Cart is empty. Cannot print bill.')
@@ -951,6 +1019,11 @@ GRAND TOTAL:   Rs${order.total_amount.toFixed(2).padStart(8)}
     }
     
     const tableNumber = tables.find(t => t.id === selectedTable)?.table_number || 'N/A'
+    const waiterName = user?.name || 'N/A'
+    
+    console.log('Table number:', tableNumber)
+    console.log('Waiter name:', waiterName)
+    
     const plainText = `
               GALAXY GARDEN
          Restaurant & Bar
@@ -967,6 +1040,7 @@ Bill No: OFF-${Date.now()}
 Date: ${new Date().toLocaleDateString()}
 Time: ${new Date().toLocaleTimeString()}
 Table: ${tableNumber}
+Waiter: ${waiterName}
 Customer: ${customerName || 'Guest'}
 --------------------------------
 ITEM             QTY  AMOUNT
@@ -996,7 +1070,11 @@ ${(() => {
       Thank You for Dining!
         Visit Us Again
 ================================
+Developed by onethynk techmedia
+================================
 `
+
+    console.log('Bill content generated:', plainText)
 
     try {
       console.log('Sending print request to API...')
@@ -1373,7 +1451,7 @@ ${(() => {
                             </span>
                           </td>
                           <td className="hidden md:table-cell px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                            {order.order_items?.length || 0} items
+                            {Array.isArray(order.order_items) ? order.order_items.length : 0} items
                           </td>
                           <td className="hidden md:table-cell px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-900">₹{order.total_amount.toFixed(2)}</td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm">
@@ -1419,7 +1497,7 @@ ${(() => {
                                 </div>
                                 <div className="flex justify-between">
                                   <span className="text-gray-600">Items:</span>
-                                  <span className="font-semibold text-gray-900">{order.order_items?.length || 0} items</span>
+                                  <span className="font-semibold text-gray-900">{Array.isArray(order.order_items) ? order.order_items.length : 0} items</span>
                                 </div>
                                 <div className="flex justify-between">
                                   <span className="text-gray-600">Total:</span>
@@ -1467,10 +1545,10 @@ ${(() => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">
-                  {orders.map((order) => (
+                  {orders.map((order, index) => (
                     <>
                       <tr 
-                        key={order.id} 
+                        key={`${order.id}-${index}`} 
                         className="hover:bg-green-50 transition-colors cursor-pointer md:cursor-default"
                         onClick={() => {
                           if (window.innerWidth < 768) {
@@ -1499,7 +1577,7 @@ ${(() => {
                           </span>
                         </td>
                         <td className="hidden md:table-cell px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {order.order_items?.length || 0} items
+                          {Array.isArray(order.order_items) ? order.order_items.length : 0} items
                         </td>
                         <td className="hidden md:table-cell px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-900">₹{order.total_amount.toFixed(2)}</td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm">
@@ -1545,7 +1623,7 @@ ${(() => {
                               </div>
                               <div className="flex justify-between">
                                 <span className="text-gray-600">Items:</span>
-                                <span className="font-semibold text-gray-900">{order.order_items?.length || 0} items</span>
+                                <span className="font-semibold text-gray-900">{Array.isArray(order.order_items) ? order.order_items.length : 0} items</span>
                               </div>
                               <div className="flex justify-between">
                                 <span className="text-gray-600">Total:</span>
@@ -1951,21 +2029,21 @@ ${(() => {
                     <p className="text-gray-500 text-center py-8">Cart is empty</p>
                   ) : (
                     offlineCart.map((item) => (
-                      <div key={item.dish_id} className="flex items-center justify-between bg-gray-50 rounded-lg p-3">
+                      <div key={item.id} className="flex items-center justify-between bg-gray-50 rounded-lg p-3">
                         <div className="flex-1">
                           <p className="font-semibold text-gray-900 text-sm">{item.name}</p>
                           <p className="text-sm text-green-600">₹{item.price.toFixed(2)}</p>
                         </div>
                         <div className="flex items-center gap-2">
                           <button
-                            onClick={() => updateCartQuantity(item.dish_id, item.quantity - 1)}
+                            onClick={() => updateCartQuantity(item.id, item.quantity - 1)}
                             className="w-8 h-8 rounded-full bg-red-100 text-red-600 hover:bg-red-200 transition-colors"
                           >
                             -
                           </button>
                           <span className="w-8 text-center font-semibold">{item.quantity}</span>
                           <button
-                            onClick={() => updateCartQuantity(item.dish_id, item.quantity + 1)}
+                            onClick={() => updateCartQuantity(item.id, item.quantity + 1)}
                             className="w-8 h-8 rounded-full bg-green-100 text-green-600 hover:bg-green-200 transition-colors"
                           >
                             +
@@ -2000,8 +2078,8 @@ ${(() => {
                 <p className="text-gray-500 text-center py-8">No offline orders pending</p>
               ) : (
                 <div className="space-y-4">
-                  {offlineOrders.map((order) => (
-                    <div key={order.id} className="border border-gray-200 rounded-xl p-4 hover:shadow-md transition-all">
+                  {offlineOrders.map((order, index) => (
+                    <div key={`${order.id}-${index}`} className="border border-gray-200 rounded-xl p-4 hover:shadow-md transition-all">
                       <div className="flex justify-between items-start mb-3">
                         <div>
                           <p className="font-semibold text-gray-900">Order OFF-{order.id}</p>
@@ -2055,7 +2133,13 @@ ${(() => {
               <div className="space-y-2 text-sm">
                 <div className="flex justify-between">
                   <span className="text-gray-600">Table:</span>
-                  <span className="font-semibold">Table {tables.find(t => t.id === selectedTable)?.table_number || 'N/A'}</span>
+                  <span className="font-semibold">
+                    {selectedTable ? `Table ${tables.find(t => t.id === selectedTable)?.table_number || 'N/A'}` : 'No table selected'}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Waiter:</span>
+                  <span className="font-semibold">{user?.name || 'N/A'}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-600">Customer:</span>
@@ -2064,6 +2148,10 @@ ${(() => {
                 <div className="flex justify-between">
                   <span className="text-gray-600">Date:</span>
                   <span className="font-semibold">{new Date().toLocaleDateString()}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Time:</span>
+                  <span className="font-semibold">{new Date().toLocaleTimeString()}</span>
                 </div>
               </div>
             </div>
@@ -2075,7 +2163,7 @@ ${(() => {
                 <p className="text-gray-500 text-center py-4">No items in cart</p>
               ) : (
                 offlineCart.map((item) => (
-                  <div key={item.dish_id} className="flex justify-between items-center py-2 border-b border-gray-100">
+                  <div key={item.id} className="flex justify-between items-center py-2 border-b border-gray-100">
                     <div>
                       <p className="font-semibold text-gray-900">{item.name}</p>
                       <p className="text-sm text-gray-600">Qty: {item.quantity} × ₹{item.price.toFixed(2)}</p>
@@ -2331,8 +2419,8 @@ ${(() => {
               </div>
             ) : (
               <div className="space-y-4">
-                {selectedTableOrders.map((order) => (
-                  <div key={order.id} className="border-2 border-gray-200 rounded-xl overflow-hidden">
+                {selectedTableOrders.map((order, index) => (
+                  <div key={`${order.id}-${index}`} className="border-2 border-gray-200 rounded-xl overflow-hidden">
                     <div className="p-4 bg-gradient-to-r from-green-50 to-emerald-50 flex justify-between items-center">
                       <div>
                         <p className="font-bold text-gray-900">Order #{formatOrderId(order.id)}</p>

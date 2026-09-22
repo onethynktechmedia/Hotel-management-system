@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { query } from '@/lib/db'
+import supabase from '@/lib/db'
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -7,12 +7,16 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     const body = await request.json()
     const { is_read } = body
 
-    const result = await query(
-      'UPDATE notifications SET is_read = $1 WHERE id = $2 RETURNING *',
-      [is_read, id]
-    )
+    const { data: notification, error } = await supabase
+      .from('notifications')
+      .update({ is_read })
+      .eq('id', id)
+      .select()
+      .single()
 
-    return NextResponse.json(result.rows[0])
+    if (error) throw error
+
+    return NextResponse.json(notification)
   } catch (error) {
     return NextResponse.json({ error: 'Failed to update notification' }, { status: 500 })
   }

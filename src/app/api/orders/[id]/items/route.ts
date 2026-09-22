@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { query } from '@/lib/db'
+import supabase from '@/lib/db'
 
 export async function GET(
   request: NextRequest,
@@ -9,26 +9,25 @@ export async function GET(
     const params = await context.params
     console.log('Fetching order items for order:', params.id)
     
-    const result = await query(
-      'SELECT * FROM order_items WHERE order_id = $1 ORDER BY created_at ASC',
-      [params.id]
-    )
+    const { data: items, error } = await supabase
+      .from('order_items')
+      .select('*')
+      .eq('order_id', params.id)
+      .order('created_at', { ascending: false })
 
-    const items = result.rows
+    if (error) throw error
 
     // Fetch dish details for each item
-    const dishIds = new Set<string>()
-    items.forEach((item: any) => {
-      if (item.dish_id) dishIds.add(item.dish_id)
-    })
-
-    let dishesMap: Record<string, any> = {}
-    if (dishIds.size > 0) {
-      const dishesResult = await query(
-        'SELECT * FROM dishes WHERE id = ANY($1)',
-        [Array.from(dishIds)]
-      )
-      dishesResult.rows.forEach((dish: any) => {
+    const dishIds = [...new Set(items?.map((item: any) => item.dish_id) || [])]
+    const dishesMap: Record<string, any> = {}
+    
+    if (dishIds.length > 0) {
+      const { data: dishes } = await supabase
+        .from('dishes')
+        .select('*')
+        .in('id', dishIds)
+      
+      dishes?.forEach((dish: any) => {
         dishesMap[dish.id] = {
           ...dish,
           price: parseFloat(dish.price)
@@ -37,7 +36,7 @@ export async function GET(
     }
 
     // Attach dish data to items and convert prices
-    items.forEach((item: any) => {
+    items?.forEach((item: any) => {
       item.dishes = dishesMap[item.dish_id] || null
       item.dish = dishesMap[item.dish_id] || null
       item.price = parseFloat(item.price)

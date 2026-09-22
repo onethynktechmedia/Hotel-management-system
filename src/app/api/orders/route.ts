@@ -1,84 +1,65 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { query } from '@/lib/db'
+import supabase from '@/lib/db'
 
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
     const status = searchParams.get('status')
 
-    let queryText = `
-      SELECT 
-        o.*,
-        t.* as table_data,
-        u.* as user_data
-      FROM orders o
-      LEFT JOIN tables t ON o.table_id = t.id
-      LEFT JOIN users u ON o.waiter_id = u.id
-      ORDER BY o.created_at DESC
-    `
-    let params: any[] = []
+    let query = supabase
+      .from('orders')
+      .select(`
+        *,
+        tables:table_id (*),
+        users:waiter_id (*)
+      `)
+      .order('created_at', { ascending: false })
 
     if (status) {
       const statuses = status.split(',')
-      queryText = `
-        SELECT 
-          o.*,
-          t.* as table_data,
-          u.* as user_data
-        FROM orders o
-        LEFT JOIN tables t ON o.table_id = t.id
-        LEFT JOIN users u ON o.waiter_id = u.id
-        WHERE o.status = ANY($1)
-        ORDER BY o.created_at DESC
-      `
-      params = [statuses]
+      query = query.in('status', statuses)
     }
 
-    const result = await query(queryText, params)
-    const orders = result.rows
+    const { data: orders, error } = await query
+
+    if (error) throw error
 
     // Fetch order items for each order
-    for (const order of orders) {
-      const itemsResult = await query(
-        'SELECT * FROM order_items WHERE order_id = $1',
-        [order.id]
-      )
-      order.order_items = itemsResult.rows
-    }
+    for (const order of orders || []) {
+      const { data: items } = await supabase
+        .from('order_items')
+        .select('*')
+        .eq('order_id', order.id)
+      
+      order.order_items = items || []
 
-    // Fetch dish details
-    const dishIds = new Set<string>()
-    orders.forEach((order: any) => {
-      order.order_items?.forEach((item: any) => {
-        if (item.dish_id) dishIds.add(item.dish_id)
-      })
-    })
+      // Fetch dish details
+      const dishIds = [...new Set(order.order_items.map((item: any) => item.dish_id))]
+      if (dishIds.length > 0) {
+        const { data: dishes } = await supabase
+          .from('dishes')
+          .select('*')
+          .in('id', dishIds)
+        
+        const dishesMap: Record<string, any> = {}
+        dishes?.forEach((dish: any) => {
+          dishesMap[dish.id] = {
+            ...dish,
+            price: parseFloat(dish.price)
+          }
+        })
 
-    let dishesMap: Record<string, any> = {}
-    if (dishIds.size > 0) {
-      const dishesResult = await query(
-        'SELECT * FROM dishes WHERE id = ANY($1)',
-        [Array.from(dishIds)]
-      )
-      dishesResult.rows.forEach((dish: any) => {
-        dishesMap[dish.id] = {
-          ...dish,
-          price: parseFloat(dish.price)
-        }
-      })
-    }
-
-    // Attach dish data to order items and convert prices
-    orders.forEach((order: any) => {
+        order.order_items.forEach((item: any) => {
+          item.dishes = dishesMap[item.dish_id] || null
+          item.dish = dishesMap[item.dish_id] || null
+          item.price = parseFloat(item.price)
+        })
+      }
+      
       order.total_amount = parseFloat(order.total_amount)
-      order.order_items?.forEach((item: any) => {
-        item.dishes = dishesMap[item.dish_id] || null
-        item.dish = dishesMap[item.dish_id] || null
-        item.price = parseFloat(item.price)
-      })
-    })
+    }
 
-    return NextResponse.json(orders)
+    return NextResponse.json(orders || [])
   } catch (error) {
     console.error('API error:', error)
     return NextResponse.json({ error: 'Failed to fetch orders' }, { status: 500 })
@@ -92,12 +73,21 @@ export async function POST(request: NextRequest) {
 
     console.log('Creating order with:', { table_id, waiter_id, status, total_amount, customer_name, customer_mobile })
 
-    const result = await query(
-      'INSERT INTO orders (table_id, waiter_id, status, total_amount, customer_name, customer_mobile) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
-      [table_id, waiter_id, status, total_amount, customer_name || null, customer_mobile || null]
-    )
+    const { data: order, error } = await supabase
+      .from('orders')
+      .insert({
+        table_id,
+        waiter_id,
+        status,
+        total_amount,
+        customer_name: customer_name || null,
+        customer_mobile: customer_mobile || null
+      })
+      .select()
+      .single()
 
-    const order = result.rows[0]
+    if (error) throw error
+
     order.total_amount = parseFloat(order.total_amount)
     return NextResponse.json(order)
   } catch (error) {
@@ -116,13 +106,13 @@ export async function DELETE(request: NextRequest) {
     }
 
     // Delete notifications first
-    await query('DELETE FROM notifications WHERE order_id = $1', [id])
+    await supabase.from('notifications').delete().eq('order_id', id)
 
     // Delete order items
-    await query('DELETE FROM order_items WHERE order_id = $1', [id])
+    await supabase.from('order_items').delete().eq('order_id', id)
 
     // Delete the order
-    await query('DELETE FROM orders WHERE id = $1', [id])
+    await supabase.from('orders').delete().eq('id', id)
 
     return NextResponse.json({ success: true })
   } catch (error: any) {
@@ -134,14 +124,22 @@ export async function DELETE(request: NextRequest) {
 export async function PATCH(request: NextRequest) {
   try {
     const body = await request.json()
-    const { id, status } = body
+    const { id, status, total_amount } = body
 
-    const result = await query(
-      'UPDATE orders SET status = $1 WHERE id = $2 RETURNING *',
-      [status, id]
-    )
+    const updateData: any = { status }
+    if (total_amount !== undefined) {
+      updateData.total_amount = total_amount
+    }
 
-    const order = result.rows[0]
+    const { data: order, error } = await supabase
+      .from('orders')
+      .update(updateData)
+      .eq('id', id)
+      .select()
+      .single()
+
+    if (error) throw error
+
     order.total_amount = parseFloat(order.total_amount)
     return NextResponse.json(order)
   } catch (error) {

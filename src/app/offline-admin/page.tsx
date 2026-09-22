@@ -122,6 +122,8 @@ ${(() => {
       Thank You for Dining!
         Visit Us Again
 ================================
+Developed by onethynk techmedia
+================================
 `
       
       console.log('Bill content generated')
@@ -184,7 +186,7 @@ ${(() => {
     <div className="min-h-screen bg-gradient-to-br from-green-50 to-emerald-50">
       <header className="bg-white shadow-lg">
         <div className="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
-          <div className="flex items-center gap-3"><Utensils className="w-8 h-8 text-green-600" /><h1 className="text-2xl font-bold text-green-700">Galaxy Garden - OFFLINE</h1></div>
+          <div className="flex items-center gap-3"><Utensils className="w-8 h-8 text-green-600" /><h1 className="text-2xl font-bold text-green-700">Hotel Management - OFFLINE</h1></div>
           <div className="flex items-center gap-4">
             <div className="text-right"><p className="text-sm text-gray-600">{currentDateTime.toLocaleDateString()}</p><p className="text-sm font-semibold text-gray-800">{currentDateTime.toLocaleTimeString()}</p></div>
             <button onClick={handleLogout} className="flex items-center gap-2 px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600"><LogOut className="w-4 h-4" />Logout</button>

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { supabase } from '@/lib/supabase'
+import supabase from '@/lib/db'
 import { User, Order, Dish, Table, CartItem } from '@/types'
 import { LogOut, ShoppingCart, Plus, Minus, ArrowLeft, Users, Clock, CheckCircle, X, Crown, RefreshCw, Printer, RotateCcw } from 'lucide-react'
 
@@ -92,7 +92,13 @@ export default function WaiterPage() {
         const isActive = !['paid', 'completed'].includes(order.status)
         return isRecent || isActive
       })
-      setOrders(filteredOrders)
+      
+      // Remove duplicate orders by ID
+      const uniqueOrders = filteredOrders.filter((order: Order, index: number, self: Order[]) => 
+        index === self.findIndex((o: Order) => o.id === order.id)
+      )
+      
+      setOrders(uniqueOrders)
     } catch (error) {
       console.error('Error fetching data:', error)
     } finally {
@@ -201,17 +207,20 @@ export default function WaiterPage() {
         dish_type: item.dish_type || 'Normal'
       }))
 
-      // We'll need to create an order_items API route, for now use Supabase
-      const { error: itemsError } = await supabase
-        .from('order_items')
-        .insert(orderItems)
+      // Use API to create order items instead of direct Supabase
+      const itemsResponse = await fetch('/api/order-items', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(orderItems)
+      })
 
-      if (itemsError) {
-        console.error('Order items error:', itemsError)
-        throw itemsError
+      if (!itemsResponse.ok) {
+        const errorData = await itemsResponse.json()
+        console.error('Order items API error:', errorData)
+        throw new Error(errorData.error || 'Failed to create order items')
       }
 
-      console.log('Order items created')
+      console.log('Order items created via API')
 
       // Update table status to occupied via API to avoid CORS
       const tableResponse = await fetch('/api/tables', {
@@ -227,18 +236,24 @@ export default function WaiterPage() {
 
       console.log('Table updated to occupied')
 
-      // Create notification for kitchen
-      await supabase
-        .from('notifications')
-        .insert({
+      // Create notification for kitchen via API
+      const notificationResponse = await fetch('/api/notifications', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
           user_id: user?.id,
           order_id: orderData.id,
           type: 'new_order',
           message: `New order for Table ${selectedTable?.table_number}`,
           is_read: false
         })
+      })
 
-      console.log('Notification created')
+      if (!notificationResponse.ok) {
+        console.error('Notification creation failed, but continuing...')
+      } else {
+        console.log('Notification created via API')
+      }
 
       setCurrentStep('success')
       setCart([])
@@ -358,7 +373,11 @@ export default function WaiterPage() {
   }
 
   const getTableOrders = (tableId: string) => {
-    return orders.filter(o => o.table_id === tableId && !['paid', 'completed'].includes(o.status))
+    const tableOrders = orders.filter(o => o.table_id === tableId && !['paid', 'completed'].includes(o.status))
+    // Remove duplicate orders by ID
+    return tableOrders.filter((order: Order, index: number, self: Order[]) => 
+      index === self.findIndex((o: Order) => o.id === order.id)
+    )
   }
 
   const handleViewOrderItems = async (order: Order) => {
@@ -679,7 +698,7 @@ export default function WaiterPage() {
     escpos += '\x1B\x40' // Initialize
     escpos += '\x1B\x61\x01' // Center align
     
-    // Hotel Header - Double height, double width
+    // Header - Double height, double width
     escpos += '\x1D\x21\x11' // Double height, double width
     escpos += 'GGR RESTAURANT\n'
     escpos += '\x1D\x21\x00' // Normal size
@@ -769,12 +788,13 @@ ${viewingBill.order_items?.map((item: any) => {
   return `${itemName.padEnd(16)} ${qty.toString().padStart(2)}  ${total.padStart(8)}`
 }).join('\n')}
 --------------------------------
-Subtotal:      Rs${viewingBill.total_amount.toFixed(2).padStart(8)}
-GRAND TOTAL:   Rs${viewingBill.total_amount.toFixed(2).padStart(8)}
+TOTAL: Rs${viewingBill.total_amount.toFixed(2).padStart(8)}
 
 ================================
       Thank You for Dining!
         Visit Us Again
+================================
+Developed by onethynk techmedia
 ================================
 `
       
@@ -1639,8 +1659,8 @@ GRAND TOTAL:   Rs${viewingBill.total_amount.toFixed(2).padStart(8)}
                           <p className="text-sm text-gray-500">No orders</p>
                         ) : (
                           <div className="space-y-2">
-                            {tableOrders.map((order) => (
-                              <div key={order.id} className="flex justify-between items-center bg-white p-2 rounded-lg">
+                            {tableOrders.map((order, index) => (
+                              <div key={`${order.id}-${index}`} className="flex justify-between items-center bg-white p-2 rounded-lg">
                                 <div>
                                   <span className="font-semibold text-sm">Order #{formatOrderId(order.id)}</span>
                                   <span className="text-xs text-gray-600 ml-2">₹{order.total_amount.toFixed(2)}</span>
@@ -1874,8 +1894,8 @@ GRAND TOTAL:   Rs${viewingBill.total_amount.toFixed(2).padStart(8)}
                 </div>
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {getTableOrders(selectedMasterTable.id).map((order) => (
-                    <div key={order.id} className="bg-white rounded-2xl shadow-lg p-4 sm:p-6 border-2 border-purple-200">
+                  {getTableOrders(selectedMasterTable.id).map((order, index) => (
+                    <div key={`${order.id}-${index}`} className="bg-white rounded-2xl shadow-lg p-4 sm:p-6 border-2 border-purple-200">
                       <div className="flex justify-between items-start mb-3">
                         <div>
                           <h4 className="font-bold text-gray-900">Order #{formatOrderId(order.id)}</h4>
