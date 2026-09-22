@@ -478,9 +478,9 @@ export default function AdminDashboard() {
       console.log('Bill printed successfully via WebUSB')
       alert('Bill printed successfully!')
       
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error generating bill:', error)
-      alert('Failed to print bill. Please ensure printer is connected via USB and you are using Chrome/Edge browser.')
+      alert(`Failed to print bill: ${error.message}. Please ensure printer is connected via USB and you are using Chrome/Edge browser.`)
     }
   }
 
@@ -580,9 +580,9 @@ export default function AdminDashboard() {
       console.log('Bill printed successfully via WebUSB')
       alert('Bill printed successfully!')
       
-    } catch (error) {
+    } catch (error: any) {
       console.error('Printing failed:', error)
-      alert('Failed to print bill. Please ensure printer is connected via USB and you are using Chrome/Edge browser.')
+      alert(`Failed to print bill: ${error.message}. Please ensure printer is connected via USB and you are using Chrome/Edge browser.`)
     }
   }
 

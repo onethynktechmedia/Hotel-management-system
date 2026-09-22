@@ -31,9 +31,19 @@ export class WebUSBPrinter {
       await this.device.claimInterface(0)
 
       console.log('USB printer connected successfully')
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to connect to USB printer:', error)
-      throw error
+      
+      // Provide specific error messages
+      if (error.name === 'NotFoundError') {
+        throw new Error('Printer not found. Please ensure the printer is connected via USB and powered on.')
+      } else if (error.name === 'SecurityError') {
+        throw new Error('Permission denied. Please allow USB device access when prompted.')
+      } else if (error.name === 'NotAllowedError') {
+        throw new Error('User cancelled the device selection. Please try again and select the printer.')
+      } else {
+        throw new Error(`Connection failed: ${error.message || 'Unknown error'}`)
+      }
     }
   }
 
