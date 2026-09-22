@@ -605,18 +605,10 @@ ${orderItems.map((item: any) => {
                 }
               </style>
             </head>
-            <body>${plainText}</body>
+            <body onload="window.print(); window.close();">${plainText}</body>
           </html>
         `)
         printWindow.document.close()
-        printWindow.focus()
-        
-        setTimeout(() => {
-          printWindow.print()
-          setTimeout(() => {
-            printWindow.close()
-          }, 1000)
-        }, 750)
       } else {
         alert('Please allow popups for printing')
       }
@@ -847,18 +839,10 @@ ${(() => {
                 }
               </style>
             </head>
-            <body>${plainText}</body>
+            <body onload="window.print(); window.close();">${plainText}</body>
           </html>
         `)
         printWindow.document.close()
-        printWindow.focus()
-        
-        setTimeout(() => {
-          printWindow.print()
-          setTimeout(() => {
-            printWindow.close()
-          }, 1000)
-        }, 750)
       } else {
         alert('Please allow popups for printing')
       }
@@ -1357,18 +1341,10 @@ ${order.order_items?.map((item: any) => {
                 }
               </style>
             </head>
-            <body>${plainText}</body>
+            <body onload="window.print(); window.close();">${plainText}</body>
           </html>
         `)
         printWindow.document.close()
-        printWindow.focus()
-        
-        setTimeout(() => {
-          printWindow.print()
-          setTimeout(() => {
-            printWindow.close()
-          }, 1000)
-        }, 750)
       } else {
         alert('Please allow popups for printing')
       }
@@ -1633,18 +1609,10 @@ Visit Us Again<br>
                 }
               </style>
             </head>
-            <body>${plainText}</body>
+            <body onload="window.print(); window.close();">${plainText}</body>
           </html>
         `)
         printWindow.document.close()
-        printWindow.focus()
-        
-        setTimeout(() => {
-          printWindow.print()
-          setTimeout(() => {
-            printWindow.close()
-          }, 1000)
-        }, 750)
       } else {
         alert('Please allow popups for printing')
       }

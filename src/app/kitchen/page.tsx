@@ -159,7 +159,7 @@ ${selectedOrderForBill.order_items?.map((item: any) => {
       
       console.log('Bill content generated')
       
-      // Use browser print directly
+      // Use browser print directly with auto-print
       const printWindow = window.open('', '_blank')
       if (printWindow) {
         printWindow.document.write(`
@@ -278,23 +278,13 @@ ${selectedOrderForBill.order_items?.map((item: any) => {
                 }
               </style>
             </head>
-            <body>${plainText}</body>
+            <body onload="window.print(); window.close();">${plainText}</body>
           </html>
         `)
         printWindow.document.close()
-        printWindow.focus()
-        
-        setTimeout(() => {
-          printWindow.print()
-          setTimeout(() => {
-            printWindow.close()
-          }, 1000)
-        }, 750)
       } else {
         alert('Please allow popups for printing')
       }
-      
-      alert('Kitchen order sent to printer successfully!')
       
     } catch (error) {
       console.error('Error printing kitchen order:', error)
