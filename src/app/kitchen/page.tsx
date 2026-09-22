@@ -134,14 +134,14 @@ export default function KitchenPage() {
       // Generate HTML table-based content for proper alignment
       const plainText = `
 <div class="header">TABLE ${selectedOrderForBill.tables?.table_number}</div>
-<div class="divider">================================</div>
+<div class="divider">=============================</div>
 <div class="section-title">KITCHEN ORDER</div>
-<div class="divider">--------------------------------</div>
+<div class="divider">--------------------------</div>
 <div class="bill-info"><span class="label">Order:</span> <span class="value">${formatOrderId(selectedOrderForBill.id)}</span></div>
 <div class="bill-info"><span class="label">Date:</span> <span class="value">${new Date(selectedOrderForBill.created_at).toLocaleDateString()}</span></div>
 <div class="bill-info"><span class="label">Time:</span> <span class="value">${new Date(selectedOrderForBill.created_at).toLocaleTimeString()}</span></div>
 <div class="bill-info"><span class="label">Waiter:</span> <span class="value">${selectedOrderForBill.users?.name}</span></div>
-<div class="divider">--------------------------------</div>
+<div class="divider">--------------------------</div>
 <table class="items-table">
   <thead>
     <tr>
@@ -164,11 +164,11 @@ ${selectedOrderForBill.order_items?.map((item: any) => {
 }).join('')}
   </tbody>
 </table>
-<div class="divider">--------------------------------</div>
+<div class="divider">--------------------------</div>
 <div class="bill-info"><span class="label">Status:</span> <span class="value">${selectedOrderForBill.status.toUpperCase()}</span></div>
-<div class="divider">================================</div>
+<div class="divider">=============================</div>
 <div class="developer">Developed by onethynk</div>
-<div class="divider">================================</div>
+<div class="divider">=============================</div>
 `
       
       console.log('Bill content generated')
