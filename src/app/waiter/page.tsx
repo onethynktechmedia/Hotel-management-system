@@ -757,15 +757,15 @@ export default function WaiterPage() {
       // Generate properly formatted plain text bill content for thermal printer
       // 58mm paper width = approximately 32-35 characters per line
       const plainText = `
-              GALAXY GARDEN
-         Restaurant & Bar
+<div class="header">*** GALAXY GARDEN ***</div>
+<div>Restaurant & Bar</div>
 ================================
-123, Main Street
-City, State - 123456
-Phone: +91 98765 43210
-GSTIN: 29ABCDE1234F1Z5
+     123, Main Street
+     City, State - 123456
+     Phone: +91 98765 43210
 ================================
-          BILL / INVOICE
+
+        BILL / INVOICE
 ================================
 
 Bill No: ${formatOrderId(viewingBill.id)}
@@ -773,6 +773,7 @@ Date: ${new Date(viewingBill.created_at).toLocaleDateString()}
 Time: ${new Date(viewingBill.created_at).toLocaleTimeString()}
 Table: ${viewingBill.tables?.table_number}
 Waiter: ${viewingBill.users?.name}
+Status: ${viewingBill.status || 'N/A'}
 Customer: ${viewingBill.customer_name || 'Guest'}
 --------------------------------
 ITEM             QTY  AMOUNT
@@ -788,13 +789,14 @@ ${viewingBill.order_items?.map((item: any) => {
   return `${itemName.padEnd(16)} ${qty.toString().padStart(2)}  ${total.padStart(8)}`
 }).join('\n')}
 --------------------------------
-TOTAL: Rs${viewingBill.total_amount.toFixed(2).padStart(8)}
-
+================================
+<div class="grand-total">*** GRAND TOTAL ***</div>
+<div class="grand-total">Rs${viewingBill.total_amount.toFixed(2).padStart(8)}</div>
 ================================
       Thank You for Dining!
         Visit Us Again
 ================================
-Developed by onethynk techmedia
+<div class="developer">Developed by onethynk techmedia</div>
 ================================
 `
       
@@ -857,6 +859,21 @@ Developed by onethynk techmedia
                   -webkit-font-smoothing: antialiased;
                   -moz-osx-font-smoothing: grayscale;
                   image-rendering: crisp-edges;
+                }
+                .header {
+                  font-size: 16px;
+                  font-weight: 900;
+                  margin-bottom: 2mm;
+                }
+                .grand-total {
+                  font-size: 16px;
+                  font-weight: 900;
+                  margin: 2mm 0;
+                }
+                .developer {
+                  font-size: 10px;
+                  font-weight: normal;
+                  margin-top: 2mm;
                 }
                 /* Windows-specific fixes */
                 @media screen and (-ms-high-contrast: active), (-ms-high-contrast: none) {
