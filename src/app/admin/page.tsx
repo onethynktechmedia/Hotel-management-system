@@ -437,9 +437,10 @@ ${orderItems.map((item: any) => {
 }).join('')}
   </tbody>
 </table>
-<div class="divider">--------------------------------</div>
+<div class="divider">------------------------- </div>
 <div class="total-row"><span class="label">Subtotal:</span> <span class="amount">Rs${order.total_amount.toFixed(2)}</span></div>
-<div class="grand-total"> GRAND TOTAL: Rs :${order.total_amount.toFixed(2)} </div>
+<div class="grand-total"> GRAND TOTAL: </div>
+<div class ="rs">Rs ${order.total_amount.toFixed(2)} </div>
 <div class="divider">================================</div>
 <div class="footer">Thank You for Dining!</div>
 <div class="footer">Visit Us Again</div>
