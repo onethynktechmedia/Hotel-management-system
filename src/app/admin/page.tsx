@@ -1387,33 +1387,32 @@ Developed by onethynk techmedia
               <div className="bg-white border border-gray-200 rounded-2xl p-4 sm:p-6 text-center shadow-md hover:shadow-lg transition-all duration-300">
                 <div className="flex items-center justify-center mb-3">
                   <Users className="w-6 h-6 sm:w-7 sm:h-7 text-green-600 mr-2" />
-                  <span className="text-2xl sm:text-3xl font-bold text-gray-800">{stats.totalOrders}</span>
+                  <span className="text-2xl sm:text-3xl font-bold text-gray-800">{orders.length}</span>
                 </div>
                 <p className="text-xs sm:text-sm font-bold text-gray-600">Total Orders</p>
               </div>
               <div className="bg-white border border-gray-200 rounded-2xl p-4 sm:p-6 text-center shadow-md hover:shadow-lg transition-all duration-300">
                 <div className="flex items-center justify-center mb-3">
                   <Utensils className="w-6 h-6 sm:w-7 sm:h-7 text-orange-500 mr-2" />
-                  <span className="text-2xl sm:text-3xl font-bold text-gray-800">{stats.activeOrders}</span>
+                  <span className="text-2xl sm:text-3xl font-bold text-gray-800">{orders.filter(o => o.status === 'pending' || o.status === 'preparing').length}</span>
                 </div>
                 <p className="text-xs sm:text-sm font-bold text-gray-600">Active Orders</p>
               </div>
               <div className="bg-white border border-gray-200 rounded-2xl p-4 sm:p-6 text-center shadow-md hover:shadow-lg transition-all duration-300">
                 <div className="flex items-center justify-center mb-3">
                   <span className="text-green-600 font-bold text-xl sm:text-2xl mr-2">₹</span>
-                  <span className="text-2xl sm:text-3xl font-bold text-gray-800">{stats.totalRevenue.toFixed(0)}</span>
+                  <span className="text-2xl sm:text-3xl font-bold text-gray-800">{orders.reduce((sum, o) => sum + (o.total_amount || 0), 0).toFixed(0)}</span>
                 </div>
                 <p className="text-xs sm:text-sm font-bold text-gray-600">Total Revenue</p>
               </div>
               <div className="bg-white border border-gray-200 rounded-2xl p-4 sm:p-6 text-center shadow-md hover:shadow-lg transition-all duration-300">
                 <div className="flex items-center justify-center mb-3">
-                  <UserIcon className="w-6 h-6 sm:w-7 sm:h-7 text-blue-500 mr-2" />
-                  <span className="text-2xl sm:text-3xl font-bold text-gray-800">{stats.totalCustomers}</span>
+                  <Users className="w-6 h-6 sm:w-7 sm:h-7 text-blue-600 mr-2" />
+                  <span className="text-2xl sm:text-3xl font-bold text-gray-800">{tables.filter(t => t.is_occupied).length}</span>
                 </div>
-                <p className="text-xs sm:text-sm font-bold text-gray-600">Total Customers</p>
+                <p className="text-xs sm:text-sm font-bold text-gray-600">Occupied Tables</p>
               </div>
             </div>
-
             {/* Revenue Insights - Recent Orders */}
             <div className="bg-white/95 backdrop-blur-sm rounded-2xl shadow-xl overflow-hidden animate-fade-in">
               <div className="p-6 border-b border-gray-200 bg-gradient-to-r from-green-50 to-emerald-50">
