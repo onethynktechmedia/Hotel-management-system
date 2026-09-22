@@ -167,7 +167,7 @@ function openBrowserPrint(plainText: string): void {
             display: block;
           }
           .developer {
-            font-size: 10px;
+            font-size: 8px;
             font-weight: normal;
             margin-top: 2mm;
             display: block;

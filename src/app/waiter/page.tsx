@@ -788,8 +788,7 @@ ${viewingBill.order_items?.map((item: any) => {
 }).join('')}
 --------------------------------<br>
 ================================<br>
-<strong class="grand-total">      *** GRAND TOTAL ***</strong><br>
-<strong class="grand-total">      Rs${viewingBill.total_amount.toFixed(2).padStart(8)}</strong><br>
+<strong class="grand-total">*** GRAND TOTAL: Rs${viewingBill.total_amount.toFixed(2)} ***</strong><br>
 ================================<br>
       Thank You for Dining!<br>
         Visit Us Again<br>
@@ -870,7 +869,7 @@ ${viewingBill.order_items?.map((item: any) => {
                   display: block;
                 }
                 .developer {
-                  font-size: 10px;
+                  font-size: 8px;
                   font-weight: normal;
                   margin-top: 2mm;
                   display: block;

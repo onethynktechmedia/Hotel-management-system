@@ -397,14 +397,14 @@ export default function AdminDashboard() {
       
       // Generate and print bill directly
       const plainText = `
-<strong class="header">         GALAXY GARDEN </strong><br>
-        Restaurant & Bar<br>
+<strong class="header">           GALAXY GARDEN </strong><br>
+          Restaurant & Bar<br>
 ================================<br>
-     123, Main Street<br>
-     City, State - 123456<br>
-     Phone: +91 98765 43210<br>
+       123, Main Street<br>
+       City, State - 123456<br>
+       Phone: +91 98765 43210<br>
 ================================<br>
-        BILL / INVOICE<br>
+          BILL / INVOICE<br>
 ================================<br>
 <br>
   Bill No: ${formatOrderId(order.id)}<br>
@@ -427,8 +427,7 @@ ${orderItems.map((item: any) => {
 --------------------------------<br>
 Subtotal:      Rs${order.total_amount.toFixed(2).padStart(8)}<br>
 ================================<br>
-<strong class="grand-total">      *** GRAND TOTAL ***</strong><br>
-<strong class="grand-total">      Rs${order.total_amount.toFixed(2).padStart(8)}</strong><br>
+<strong class="grand-total">*** GRAND TOTAL: Rs${order.total_amount.toFixed(2)} ***</strong><br>
 ================================<br>
       Thank You for Dining!<br>
         Visit Us Again<br>
@@ -503,7 +502,7 @@ Subtotal:      Rs${order.total_amount.toFixed(2).padStart(8)}<br>
                   display: block;
                 }
                 .developer {
-                  font-size: 10px;
+                  font-size: 8px;
                   font-weight: normal;
                   margin-top: 2mm;
                   display: block;
@@ -576,8 +575,7 @@ ${(() => {
   const discount = calculateDiscountValue(selectedOrderForBilling.total_amount)
   return discount > 0 ? `Discount:      Rs${discount.toFixed(2).padStart(8)}<br>` : ''
 })()}================================<br>
-<strong class="grand-total">      *** GRAND TOTAL ***</strong><br>
-<strong class="grand-total">      Rs${calculateFinalAmount(selectedOrderForBilling.total_amount).toFixed(2).padStart(8)}</strong><br>
+<strong class="grand-total">*** GRAND TOTAL: Rs${calculateFinalAmount(selectedOrderForBilling.total_amount).toFixed(2)} ***</strong><br>
 ================================<br>
       Thank You for Dining!<br>
         Visit Us Again<br>
@@ -652,7 +650,7 @@ ${(() => {
                   display: block;
                 }
                 .developer {
-                  font-size: 10px;
+                  font-size: 8px;
                   font-weight: normal;
                   margin-top: 2mm;
                   display: block;
@@ -993,8 +991,7 @@ ${order.order_items?.map((item: any) => {
 --------------------------------<br>
 Subtotal:      Rs${order.total_amount.toFixed(2).padStart(8)}<br>
 ================================<br>
-<strong class="grand-total">      *** GRAND TOTAL ***</strong><br>
-<strong class="grand-total">      Rs${order.total_amount.toFixed(2).padStart(8)}</strong><br>
+<strong class="grand-total">*** GRAND TOTAL: Rs${order.total_amount.toFixed(2)} ***</strong><br>
 ================================<br>
       Thank You for Dining!<br>
         Visit Us Again<br>
@@ -1067,7 +1064,7 @@ Subtotal:      Rs${order.total_amount.toFixed(2).padStart(8)}<br>
                   display: block;
                 }
                 .developer {
-                  font-size: 10px;
+                  font-size: 8px;
                   font-weight: normal;
                   margin-top: 2mm;
                   display: block;
@@ -1184,8 +1181,7 @@ ${(() => {
   }
   return discount > 0 ? `Discount:      Rs${discount.toFixed(2).padStart(8)}<br>` : ''
 })()}================================<br>
-<strong class="grand-total">      *** GRAND TOTAL ***</strong><br>
-<strong class="grand-total">      Rs${calculateBillTotal().toFixed(2).padStart(8)}</strong><br>
+<strong class="grand-total">*** GRAND TOTAL: Rs${calculateBillTotal().toFixed(2)} ***</strong><br>
 ================================<br>
       Thank You for Dining!<br>
         Visit Us Again<br>
@@ -1261,7 +1257,7 @@ ${(() => {
                   display: block;
                 }
                 .developer {
-                  font-size: 10px;
+                  font-size: 8px;
                   font-weight: normal;
                   margin-top: 2mm;
                   display: block;

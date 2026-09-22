@@ -116,8 +116,7 @@ ${(() => {
   const discount = calculateDiscountValue(selectedOrderForBilling.total_amount)
   return discount > 0 ? `Discount:      Rs${discount.toFixed(2).padStart(8)}<br>` : ''
 })()}================================<br>
-<strong class="grand-total">      *** GRAND TOTAL ***</strong><br>
-<strong class="grand-total">      Rs${calculateFinalAmount(selectedOrderForBilling.total_amount).toFixed(2).padStart(8)}</strong><br>
+<strong class="grand-total">*** GRAND TOTAL: Rs${calculateFinalAmount(selectedOrderForBilling.total_amount).toFixed(2)} ***</strong><br>
 ================================<br>
       Thank You for Dining!<br>
         Visit Us Again<br>
