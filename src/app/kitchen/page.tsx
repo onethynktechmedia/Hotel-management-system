@@ -131,108 +131,183 @@ export default function KitchenPage() {
     try {
       console.log('Starting thermal print for kitchen order...')
       
-      // Generate ESC/POS formatted content
-      let escposContent = ''
-      
-      // Initialize printer
-      escposContent += '\x1B\x40' // Initialize
-      
-      // Center alignment
-      escposContent += '\x1B\x61\x01'
-      
-      // Table Number - Large and Bold
-      escposContent += '\x1B\x21\x30' // Double width and height
-      escposContent += `TABLE ${selectedOrderForBill.tables?.table_number}\n`
-      escposContent += '\x1B\x21\x00' // Normal
-      escposContent += '================================\n\n'
-      
-      // Kitchen Order - Small and Centered
-      escposContent += '\x1B\x21\x01' // Small font
-      escposContent += 'KITCHEN ORDER\n'
-      escposContent += '\x1B\x21\x00' // Normal
-      escposContent += '--------------------------------\n\n'
-      
-      // Order Info - Small size and centered
-      escposContent += '\x1B\x21\x01' // Small font
-      escposContent += `Order: ${formatOrderId(selectedOrderForBill.id)}\n`
-      escposContent += `Date: ${new Date(selectedOrderForBill.created_at).toLocaleDateString()}\n`
-      escposContent += `Time: ${new Date(selectedOrderForBill.created_at).toLocaleTimeString()}\n`
-      escposContent += `Waiter: ${selectedOrderForBill.users?.name}\n`
-      escposContent += '\x1B\x21\x00' // Normal
-      escposContent += '--------------------------------\n\n'
-      
-      // Items Header
-      escposContent += '\x1B\x21\x09' // Bold
-      escposContent += '  ITEM                  QTY  TYPE\n'
-      escposContent += '-----------------------------------\n'
-      escposContent += '\x1B\x21\x00' // Normal font for items
-      
-      // Items
-      selectedOrderForBill.order_items?.forEach((item: any) => {
-        const name = item.dishes?.name || 'Unknown'
-        const qty = item.quantity
-        const dishType = item.dish_type || '-'
-        const itemName = name.length > 14 ? name.substring(0, 13) + '.' : name
-        escposContent += `${itemName.padEnd(14)} ${qty.toString().padStart(2)} ${dishType.padEnd(4)}\n`
-      })
-      escposContent += '\x1B\x21\x00' // Ensure normal text
-      
-      escposContent += '--------------------------------\n'
-      
-      // Status - Small and centered
-      escposContent += '\x1B\x21\x01' // Small font
-      escposContent += `Status: ${selectedOrderForBill.status.toUpperCase()}\n`
-      escposContent += '\x1B\x21\x00' // Normal
-      
-      escposContent += '\n\n'
-      
-      // Footer - Centered
-      escposContent += '\x1b\x61\x01' // Center align
-      escposContent += '================================\n'
-      escposContent += '\x1B\x4D\x01' // Font B (condensed/smaller)
-      escposContent += 'Developed by onethynk\n'
-      escposContent += '\x1B\x4D\x00' // Font A (normal)
-      escposContent += '================================\n'
-      escposContent += '\n \n'
-      
-      // Cut paper
-      escposContent += '\x1D\x56\x00' // Partial cut
-      
-      // Generate plain text version for fallback
+      // Generate HTML table-based content for proper alignment
       const plainText = `
-      TABLE ${selectedOrderForBill.tables?.table_number}
-================================
-
-        KITCHEN ORDER
---------------------------------
-
-Order: ${formatOrderId(selectedOrderForBill.id)}
-Date: ${new Date(selectedOrderForBill.created_at).toLocaleDateString()}
-Time: ${new Date(selectedOrderForBill.created_at).toLocaleTimeString()}
-Waiter: ${selectedOrderForBill.users?.name}
---------------------------------
-
-ITEM                  QTY  TYPE
------------------------------------
+<div class="header">TABLE ${selectedOrderForBill.tables?.table_number}</div>
+<div class="divider">================================</div>
+<div class="section-title">KITCHEN ORDER</div>
+<div class="divider">--------------------------------</div>
+<div class="bill-info"><span class="label">Order:</span> <span class="value">${formatOrderId(selectedOrderForBill.id)}</span></div>
+<div class="bill-info"><span class="label">Date:</span> <span class="value">${new Date(selectedOrderForBill.created_at).toLocaleDateString()}</span></div>
+<div class="bill-info"><span class="label">Time:</span> <span class="value">${new Date(selectedOrderForBill.created_at).toLocaleTimeString()}</span></div>
+<div class="bill-info"><span class="label">Waiter:</span> <span class="value">${selectedOrderForBill.users?.name}</span></div>
+<div class="divider">--------------------------------</div>
+<table class="items-table">
+  <thead>
+    <tr>
+      <th class="col-item">ITEM</th>
+      <th class="col-qty">QTY</th>
+      <th class="col-type">TYPE</th>
+    </tr>
+  </thead>
+  <tbody>
 ${selectedOrderForBill.order_items?.map((item: any) => {
   const name = item.dishes?.name || 'Unknown'
   const qty = item.quantity
   const dishType = item.dish_type || '-'
-  const itemName = name.length > 14 ? name.substring(0, 13) + '.' : name
-  return `${itemName.padEnd(14)} ${qty.toString().padStart(2)} ${dishType.padEnd(4)}`
-}).join('\n')}
---------------------------------
-Status: ${selectedOrderForBill.status.toUpperCase()}
-
-================================
-Developed by onethynk
-================================
+  const displayName = name.length > 18 ? name.substring(0, 17) + '.' : name
+  return `    <tr>
+      <td class="col-item">${displayName}</td>
+      <td class="col-qty">${qty}</td>
+      <td class="col-type">${dishType}</td>
+    </tr>`
+}).join('')}
+  </tbody>
+</table>
+<div class="divider">--------------------------------</div>
+<div class="bill-info"><span class="label">Status:</span> <span class="value">${selectedOrderForBill.status.toUpperCase()}</span></div>
+<div class="divider">================================</div>
+<div class="developer">Developed by onethynk</div>
+<div class="divider">================================</div>
 `
       
       console.log('Bill content generated')
       
-      // Use WebUSB with browser print fallback
-      await printWithFallback(escposContent, plainText)
+      // Use browser print directly
+      const printWindow = window.open('', '_blank')
+      if (printWindow) {
+        printWindow.document.write(`
+          <!DOCTYPE html>
+          <html>
+            <head>
+              <title>Kitchen Order Print</title>
+              <meta charset="UTF-8">
+              <style>
+                @page {
+                  size: 58mm auto;
+                  margin: 0;
+                }
+                @media print {
+                  @page {
+                    size: 58mm auto;
+                    margin: 0;
+                  }
+                  body {
+                    margin: 0;
+                    padding: 2mm;
+                    width: 58mm;
+                    -webkit-print-color-adjust: exact;
+                    print-color-adjust: exact;
+                  }
+                  * {
+                    -webkit-print-color-adjust: exact;
+                    print-color-adjust: exact;
+                  }
+                }
+                * {
+                  box-sizing: border-box;
+                }
+                body {
+                  font-family: 'Courier New', 'Consolas', 'Lucida Console', monospace;
+                  font-size: 12px;
+                  font-weight: bold;
+                  line-height: 1.3;
+                  margin: 0;
+                  padding: 2mm;
+                  text-align: center;
+                  width: 54mm;
+                  max-width: 54mm;
+                  overflow: hidden;
+                  background: white;
+                  color: black;
+                  -webkit-font-smoothing: antialiased;
+                  -moz-osx-font-smoothing: grayscale;
+                  image-rendering: crisp-edges;
+                }
+                .header {
+                  font-size: 18px;
+                  font-weight: 900;
+                  margin-bottom: 1mm;
+                  text-transform: uppercase;
+                  letter-spacing: 1px;
+                }
+                .divider {
+                  font-size: 10px;
+                  font-weight: bold;
+                  margin: 1mm 0;
+                  letter-spacing: 1px;
+                }
+                .section-title {
+                  font-size: 13px;
+                  font-weight: 900;
+                  margin: 1mm 0;
+                }
+                .bill-info {
+                  display: flex;
+                  justify-content: space-between;
+                  font-size: 11px;
+                  font-weight: bold;
+                  margin: 0.5mm 0;
+                }
+                .label {
+                  font-weight: bold;
+                }
+                .value {
+                  font-weight: bold;
+                }
+                .items-table {
+                  width: 100%;
+                  border-collapse: collapse;
+                  margin: 1mm 0;
+                  font-size: 11px;
+                }
+                .items-table th {
+                  border-bottom: 1px solid black;
+                  padding: 1mm 0;
+                  font-weight: 900;
+                  font-size: 11px;
+                }
+                .items-table td {
+                  padding: 0.5mm 0;
+                  font-weight: bold;
+                }
+                .col-item {
+                  text-align: left;
+                  width: 50%;
+                  padding-right: 2mm;
+                }
+                .col-qty {
+                  text-align: center;
+                  width: 20%;
+                }
+                .col-type {
+                  text-align: center;
+                  width: 30%;
+                }
+                .developer {
+                  font-size: 9px;
+                  font-weight: bold;
+                  margin-top: 2mm;
+                  opacity: 0.8;
+                }
+              </style>
+            </head>
+            <body>${plainText}</body>
+          </html>
+        `)
+        printWindow.document.close()
+        printWindow.focus()
+        
+        setTimeout(() => {
+          printWindow.print()
+          setTimeout(() => {
+            printWindow.close()
+          }, 1000)
+        }, 750)
+      } else {
+        alert('Please allow popups for printing')
+      }
+      
       alert('Kitchen order sent to printer successfully!')
       
     } catch (error) {
