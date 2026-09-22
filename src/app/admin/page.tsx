@@ -438,18 +438,75 @@ Developed by onethynk techmedia
 `
 
       console.log('Sending print request...')
-      const response = await fetch('/api/print', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content: plainText })
-      })
-
-      if (response.ok) {
-        alert('Bill printed successfully!')
+      
+      // Use browser print directly (works on all platforms including Vercel)
+      const printWindow = window.open('', '_blank')
+      if (printWindow) {
+        printWindow.document.write(`
+          <!DOCTYPE html>
+          <html>
+            <head>
+              <title>Bill Print</title>
+              <meta charset="UTF-8">
+              <style>
+                @page {
+                  size: 58mm auto;
+                  margin: 0;
+                }
+                @media print {
+                  @page {
+                    size: 58mm auto;
+                    margin: 0;
+                  }
+                  body {
+                    margin: 0;
+                    padding: 2mm;
+                    width: 58mm;
+                    -webkit-print-color-adjust: exact;
+                    print-color-adjust: exact;
+                  }
+                  * {
+                    -webkit-print-color-adjust: exact;
+                    print-color-adjust: exact;
+                  }
+                }
+                * {
+                  box-sizing: border-box;
+                }
+                body {
+                  font-family: 'Courier New', 'Consolas', 'Lucida Console', monospace;
+                  font-size: 14px;
+                  font-weight: bold;
+                  line-height: 1.4;
+                  white-space: pre;
+                  margin: 0;
+                  padding: 2mm;
+                  text-align: center;
+                  width: 54mm;
+                  max-width: 54mm;
+                  overflow: hidden;
+                  background: white;
+                  color: black;
+                  -webkit-font-smoothing: antialiased;
+                  -moz-osx-font-smoothing: grayscale;
+                  image-rendering: crisp-edges;
+                }
+              </style>
+            </head>
+            <body>${plainText.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</body>
+          </html>
+        `)
+        printWindow.document.close()
+        printWindow.focus()
+        
+        setTimeout(() => {
+          printWindow.print()
+          setTimeout(() => {
+            printWindow.close()
+          }, 1000)
+        }, 750)
       } else {
-        const errorData = await response.json()
-        console.error('Print error:', errorData)
-        alert('Print failed: ' + (errorData.error || 'Unknown error'))
+        alert('Please allow popups for printing')
       }
     } catch (error) {
       console.error('Error generating bill:', error)
@@ -514,102 +571,74 @@ Developed by onethynk techmedia
       
       console.log('Bill content generated')
       
-      // Use server-side CUPS printing (works offline)
-      const response = await fetch('/api/print', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content: plainText })
-      })
-
-      const result = await response.json()
-
-      if (response.ok) {
-        alert('Bill sent to printer successfully!')
-      } else {
-        // Fallback to browser print if server printing fails
-        console.log('Server printing failed, using browser print fallback')
-        
-        // Create a new window for printing with better cross-platform support
-        const printWindow = window.open('', '_blank')
-        if (printWindow) {
-          printWindow.document.write(`
-            <!DOCTYPE html>
-            <html>
-              <head>
-                <title>Bill Print</title>
-                <meta charset="UTF-8">
-                <style>
+      // Use browser print directly (works on all platforms including Vercel)
+      const printWindow = window.open('', '_blank')
+      if (printWindow) {
+        printWindow.document.write(`
+          <!DOCTYPE html>
+          <html>
+            <head>
+              <title>Bill Print</title>
+              <meta charset="UTF-8">
+              <style>
+                @page {
+                  size: 58mm auto;
+                  margin: 0;
+                }
+                @media print {
                   @page {
                     size: 58mm auto;
                     margin: 0;
                   }
-                  @media print {
-                    @page {
-                      size: 58mm auto;
-                      margin: 0;
-                    }
-                    @page :left {
-                      margin: 0;
-                    }
-                    @page :right {
-                      margin: 0;
-                    }
-                    body {
-                      margin: 0;
-                      padding: 2mm;
-                      width: 58mm;
-                      -webkit-print-color-adjust: exact;
-                      print-color-adjust: exact;
-                    }
-                    * {
-                      -webkit-print-color-adjust: exact;
-                      print-color-adjust: exact;
-                    }
-                  }
-                  * {
-                    box-sizing: border-box;
-                  }
                   body {
-                    font-family: 'Courier New', 'Consolas', 'Lucida Console', monospace;
-                    font-size: 12px;
-                    line-height: 1.3;
-                    white-space: pre;
                     margin: 0;
                     padding: 2mm;
-                    text-align: center;
-                    width: 54mm;
-                    max-width: 54mm;
-                    overflow: hidden;
-                    background: white;
-                    color: black;
-                    font-weight: normal;
+                    width: 58mm;
+                    -webkit-print-color-adjust: exact;
+                    print-color-adjust: exact;
                   }
-                  /* Windows-specific fixes */
-                  @media screen and (-ms-high-contrast: active), (-ms-high-contrast: none) {
-                    body {
-                      font-size: 11px;
-                      line-height: 1.2;
-                    }
+                  * {
+                    -webkit-print-color-adjust: exact;
+                    print-color-adjust: exact;
                   }
-                </style>
-              </head>
-              <body>${plainText.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</body>
-            </html>
-          `)
-          printWindow.document.close()
-          printWindow.focus()
-          
-          // Wait for content to load before printing
+                }
+                * {
+                  box-sizing: border-box;
+                }
+                body {
+                  font-family: 'Courier New', 'Consolas', 'Lucida Console', monospace;
+                  font-size: 14px;
+                  font-weight: bold;
+                  line-height: 1.4;
+                  white-space: pre;
+                  margin: 0;
+                  padding: 2mm;
+                  text-align: center;
+                  width: 54mm;
+                  max-width: 54mm;
+                  overflow: hidden;
+                  background: white;
+                  color: black;
+                  -webkit-font-smoothing: antialiased;
+                  -moz-osx-font-smoothing: grayscale;
+                  image-rendering: crisp-edges;
+                }
+              </style>
+            </head>
+            <body>${plainText.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</body>
+          </html>
+        `)
+        printWindow.document.close()
+        printWindow.focus()
+        
+        setTimeout(() => {
+          printWindow.print()
           setTimeout(() => {
-            printWindow.print()
-            // Close window after print dialog closes
-            setTimeout(() => {
-              printWindow.close()
-            }, 1000)
-          }, 750)
-        } else {
-          alert('Please allow popups for printing')
-        }
+            printWindow.close()
+          }, 1000)
+        }, 750)
+      } else {
+        alert('Please allow popups for printing')
       }
       
     } catch (error) {
@@ -940,34 +969,74 @@ Developed by onethynk techmedia
 ================================
 `
 
-      const response = await fetch('/api/print', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content: plainText })
-      })
-
-      if (response.ok) {
-        alert('Bill sent to printer successfully!')
-      } else {
-        // Fallback to browser print
-        const printWindow = window.open('', '_blank')
-        if (printWindow) {
-          printWindow.document.write(`
-            <!DOCTYPE html>
-            <html>
-              <head>
-                <title>Bill Print</title>
-                <style>
-                  @page { size: 58mm auto; margin: 0; }
-                  body { font-family: 'Courier New', monospace; font-size: 12px; white-space: pre; margin: 0; padding: 2mm; width: 54mm; }
-                </style>
-              </head>
-              <body>${plainText.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</body>
-            </html>
-          `)
-          printWindow.document.close()
+      // Use browser print directly (works on all platforms including Vercel)
+      const printWindow = window.open('', '_blank')
+      if (printWindow) {
+        printWindow.document.write(`
+          <!DOCTYPE html>
+          <html>
+            <head>
+              <title>Bill Print</title>
+              <meta charset="UTF-8">
+              <style>
+                @page {
+                  size: 58mm auto;
+                  margin: 0;
+                }
+                @media print {
+                  @page {
+                    size: 58mm auto;
+                    margin: 0;
+                  }
+                  body {
+                    margin: 0;
+                    padding: 2mm;
+                    width: 58mm;
+                    -webkit-print-color-adjust: exact;
+                    print-color-adjust: exact;
+                  }
+                  * {
+                    -webkit-print-color-adjust: exact;
+                    print-color-adjust: exact;
+                  }
+                }
+                * {
+                  box-sizing: border-box;
+                }
+                body {
+                  font-family: 'Courier New', 'Consolas', 'Lucida Console', monospace;
+                  font-size: 14px;
+                  font-weight: bold;
+                  line-height: 1.4;
+                  white-space: pre;
+                  margin: 0;
+                  padding: 2mm;
+                  text-align: center;
+                  width: 54mm;
+                  max-width: 54mm;
+                  overflow: hidden;
+                  background: white;
+                  color: black;
+                  -webkit-font-smoothing: antialiased;
+                  -moz-osx-font-smoothing: grayscale;
+                  image-rendering: crisp-edges;
+                }
+              </style>
+            </head>
+            <body>${plainText.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</body>
+          </html>
+        `)
+        printWindow.document.close()
+        printWindow.focus()
+        
+        setTimeout(() => {
           printWindow.print()
-        }
+          setTimeout(() => {
+            printWindow.close()
+          }, 1000)
+        }, 750)
+      } else {
+        alert('Please allow popups for printing')
       }
     } catch (error) {
       alert('Printing failed: ' + (error as Error).message)
@@ -1077,54 +1146,7 @@ Developed by onethynk techmedia
     console.log('Bill content generated:', plainText)
 
     try {
-      console.log('Sending print request to API...')
-      const response = await fetch('/api/print', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content: plainText })
-      })
-
-      console.log('Print API response:', response.status)
-      
-      if (response.ok) {
-        alert('Bill sent to printer successfully!')
-        // Create offline order after printing
-        await createOfflineOrder()
-        setShowBillPreview(false)
-        setBillDiscountAmount('')
-        setBillDiscountPercentage('')
-      } else {
-        const errorData = await response.json()
-        console.error('Print API error:', errorData)
-        alert('Server printing failed: ' + (errorData.error || 'Unknown error'))
-        // Fallback to browser print
-        const printWindow = window.open('', '_blank')
-        if (printWindow) {
-          printWindow.document.write(`
-            <!DOCTYPE html>
-            <html>
-              <head>
-                <title>Bill Print</title>
-                <style>
-                  @page { size: 58mm auto; margin: 0; }
-                  body { font-family: 'Courier New', monospace; font-size: 12px; white-space: pre; margin: 0; padding: 2mm; width: 54mm; }
-                </style>
-              </head>
-              <body>${plainText.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</body>
-            </html>
-          `)
-          printWindow.document.close()
-          printWindow.print()
-          await createOfflineOrder()
-          setShowBillPreview(false)
-          setBillDiscountAmount('')
-          setBillDiscountPercentage('')
-        }
-      }
-    } catch (error) {
-      console.error('Printing error:', error)
-      alert('Printing failed: ' + (error as Error).message + '\n\nFalling back to browser print...')
-      // Fallback to browser print
+      // Use browser print directly (works on all platforms including Vercel)
       const printWindow = window.open('', '_blank')
       if (printWindow) {
         printWindow.document.write(`
@@ -1132,29 +1154,71 @@ Developed by onethynk techmedia
           <html>
             <head>
               <title>Bill Print</title>
+              <meta charset="UTF-8">
               <style>
-                @page { size: 58mm auto; margin: 0; }
-                body { font-family: 'Courier New', monospace; font-size: 12px; white-space: pre; margin: 0; padding: 2mm; width: 54mm; }
+                @page {
+                  size: 58mm auto;
+                  margin: 0;
+                }
+                @media print {
+                  @page {
+                    size: 58mm auto;
+                    margin: 0;
+                  }
+                  body {
+                    margin: 0;
+                    padding: 2mm;
+                    width: 58mm;
+                    -webkit-print-color-adjust: exact;
+                    print-color-adjust: exact;
+                  }
+                  * {
+                    -webkit-print-color-adjust: exact;
+                    print-color-adjust: exact;
+                  }
+                }
+                * {
+                  box-sizing: border-box;
+                }
+                body {
+                  font-family: 'Courier New', 'Consolas', 'Lucida Console', monospace;
+                  font-size: 14px;
+                  font-weight: bold;
+                  line-height: 1.4;
+                  white-space: pre;
+                  margin: 0;
+                  padding: 2mm;
+                  text-align: center;
+                  width: 54mm;
+                  max-width: 54mm;
+                  overflow: hidden;
+                  background: white;
+                  color: black;
+                  -webkit-font-smoothing: antialiased;
+                  -moz-osx-font-smoothing: grayscale;
+                  image-rendering: crisp-edges;
+                }
               </style>
             </head>
             <body>${plainText.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</body>
           </html>
         `)
         printWindow.document.close()
-        printWindow.print()
-        await createOfflineOrder()
-        setShowBillPreview(false)
-        setBillDiscountAmount('')
-        setBillDiscountPercentage('')
+        printWindow.focus()
+        
+        setTimeout(() => {
+          printWindow.print()
+          setTimeout(() => {
+            printWindow.close()
+          }, 1000)
+        }, 750)
+      } else {
+        alert('Please allow popups for printing')
       }
+    } catch (error) {
+      console.error('Printing error:', error)
+      alert('Printing failed: ' + (error as Error).message)
     }
-  }
-
-  const stats = {
-    totalOrders: orders.length,
-    activeOrders: orders.filter(o => !['completed', 'paid'].includes(o.status)).length,
-    totalRevenue: orders.filter(o => ['paid', 'completed'].includes(o.status)).reduce((sum, o) => sum + (o.total_amount || 0), 0),
-    totalCustomers: new Set(orders.map(o => o.waiter_id)).size
   }
 
   if (loading) {

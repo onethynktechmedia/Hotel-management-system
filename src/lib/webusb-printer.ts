@@ -139,8 +139,9 @@ function openBrowserPrint(plainText: string): void {
           }
           body {
             font-family: 'Courier New', 'Consolas', 'Lucida Console', monospace;
-            font-size: 12px;
-            line-height: 1.3;
+            font-size: 14px;
+            font-weight: bold;
+            line-height: 1.4;
             white-space: pre;
             margin: 0;
             padding: 2mm;
@@ -150,25 +151,27 @@ function openBrowserPrint(plainText: string): void {
             overflow: hidden;
             background: white;
             color: black;
-            font-weight: normal;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+            image-rendering: crisp-edges;
           }
           @media print {
             body {
-              font-size: 11px;
-              line-height: 1.2;
+              font-size: 13px;
+              line-height: 1.3;
             }
           }
           @media (max-width: 768px) {
             body {
-              font-size: 10px;
-              line-height: 1.2;
+              font-size: 12px;
+              line-height: 1.3;
             }
           }
           /* Windows-specific fixes */
           @media screen and (-ms-high-contrast: active), (-ms-high-contrast: none) {
             body {
-              font-size: 11px;
-              line-height: 1.2;
+              font-size: 13px;
+              line-height: 1.3;
             }
           }
         </style>
