@@ -142,7 +142,6 @@ function openBrowserPrint(plainText: string): void {
             font-size: 14px;
             font-weight: bold;
             line-height: 1.4;
-            white-space: pre;
             margin: 0;
             padding: 2mm;
             text-align: center;
@@ -154,6 +153,24 @@ function openBrowserPrint(plainText: string): void {
             -webkit-font-smoothing: antialiased;
             -moz-osx-font-smoothing: grayscale;
             image-rendering: crisp-edges;
+          }
+          .header {
+            font-size: 18px;
+            font-weight: 900;
+            margin-bottom: 2mm;
+            display: block;
+          }
+          .grand-total {
+            font-size: 18px;
+            font-weight: 900;
+            margin: 2mm 0;
+            display: block;
+          }
+          .developer {
+            font-size: 10px;
+            font-weight: normal;
+            margin-top: 2mm;
+            display: block;
           }
           @media print {
             body {

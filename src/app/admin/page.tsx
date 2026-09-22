@@ -397,44 +397,43 @@ export default function AdminDashboard() {
       
       // Generate and print bill directly
       const plainText = `
-           *** GALAXY GARDEN ***
-           Restaurant & Bar
-================================
-     123, Main Street
-     City, State - 123456
-     Phone: +91 98765 43210
-================================
-
-        BILL / INVOICE
-================================
-
-Bill No: ${formatOrderId(order.id)}
-Date: ${new Date(order.created_at).toLocaleDateString()}
-Time: ${new Date(order.created_at).toLocaleTimeString()}
-Table: ${order.tables?.table_number || 'N/A'}
-Waiter: ${order.users?.name || 'N/A'}
-Customer: ${order.customer_name || 'Guest'}
---------------------------------
-ITEM             QTY  AMOUNT
---------------------------------
+<strong class="header">         GALAXY GARDEN </strong><br>
+        Restaurant & Bar<br>
+================================<br>
+     123, Main Street<br>
+     City, State - 123456<br>
+     Phone: +91 98765 43210<br>
+================================<br>
+        BILL / INVOICE<br>
+================================<br>
+<br>
+  Bill No: ${formatOrderId(order.id)}<br>
+  Date: ${new Date(order.created_at).toLocaleDateString()}<br>
+  Time: ${new Date(order.created_at).toLocaleTimeString()}<br>
+  Table: ${order.tables?.table_number || 'N/A'}<br>
+  Waiter: ${order.users?.name || 'N/A'}<br>
+  Customer: ${order.customer_name || 'Guest'}<br>
+--------------------------------<br>
+ITEM             QTY  AMOUNT<br>
+--------------------------------<br>
 ${orderItems.map((item: any) => {
   const name = item.dishes?.name || item.dish?.name || 'Unknown'
   const qty = item.quantity
   const price = item.dishes?.price || item.dish?.price || item.price || 0
   const total = (price * qty).toFixed(2)
   const itemName = name.length > 16 ? name.substring(0, 15) + '.' : name
-  return `${itemName.padEnd(16)} ${qty.toString().padStart(2)}  ${total.padStart(8)}`
-}).join('\n')}
---------------------------------
-Subtotal:      Rs${order.total_amount.toFixed(2).padStart(8)}
-================================
-      *** GRAND TOTAL ***
-      Rs${order.total_amount.toFixed(2).padStart(8)}
-================================
-      Thank You for Dining!
-        Visit Us Again
-================================
-Developed by onethynk techmedia
+  return `${itemName.padEnd(16)} ${qty.toString().padStart(2)}  ${total.padStart(8)}<br>`
+}).join('')}
+--------------------------------<br>
+Subtotal:      Rs${order.total_amount.toFixed(2).padStart(8)}<br>
+================================<br>
+<strong class="grand-total">      *** GRAND TOTAL ***</strong><br>
+<strong class="grand-total">      Rs${order.total_amount.toFixed(2).padStart(8)}</strong><br>
+================================<br>
+      Thank You for Dining!<br>
+        Visit Us Again<br>
+================================<br>
+<span class="developer">Developed by onethynk techmedia</span><br>
 ================================
 `
 
@@ -479,7 +478,6 @@ Developed by onethynk techmedia
                   font-size: 14px;
                   font-weight: bold;
                   line-height: 1.4;
-                  white-space: pre;
                   margin: 0;
                   padding: 2mm;
                   text-align: center;
@@ -492,9 +490,27 @@ Developed by onethynk techmedia
                   -moz-osx-font-smoothing: grayscale;
                   image-rendering: crisp-edges;
                 }
+                .header {
+                  font-size: 18px;
+                  font-weight: 900;
+                  margin-bottom: 2mm;
+                  display: block;
+                }
+                .grand-total {
+                  font-size: 18px;
+                  font-weight: 900;
+                  margin: 2mm 0;
+                  display: block;
+                }
+                .developer {
+                  font-size: 10px;
+                  font-weight: normal;
+                  margin-top: 2mm;
+                  display: block;
+                }
               </style>
             </head>
-            <body>${plainText.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</body>
+            <body>${plainText}</body>
           </html>
         `)
         printWindow.document.close()
@@ -525,26 +541,25 @@ Developed by onethynk techmedia
       // Generate properly formatted plain text bill content for thermal printer
       // 58mm paper width = approximately 32-35 characters per line
       const plainText = `
-           *** GALAXY GARDEN ***
-           Restaurant & Bar
-================================
-     123, Main Street
-     City, State - 123456
-     Phone: +91 98765 43210
-================================
-
-        BILL / INVOICE
-================================
-
-Bill No: ${formatOrderId(selectedOrderForBilling.id)}
-Date: ${new Date(selectedOrderForBilling.created_at).toLocaleDateString()}
-Time: ${new Date(selectedOrderForBilling.created_at).toLocaleTimeString()}
-Table: ${selectedOrderForBilling.tables?.table_number}
-Waiter: ${selectedOrderForBilling.users?.name}
-Customer: ${selectedOrderForBilling.customer_name || 'Guest'}
---------------------------------
-ITEM             QTY  AMOUNT
---------------------------------
+<strong class="header">         GALAXY GARDEN </strong><br>
+        Restaurant & Bar<br>
+================================<br>
+     123, Main Street<br>
+     City, State - 123456<br>
+     Phone: +91 98765 43210<br>
+================================<br>
+        BILL / INVOICE<br>
+================================<br>
+<br>
+  Bill No: ${formatOrderId(selectedOrderForBilling.id)}<br>
+  Date: ${new Date(selectedOrderForBilling.created_at).toLocaleDateString()}<br>
+  Time: ${new Date(selectedOrderForBilling.created_at).toLocaleTimeString()}<br>
+  Table: ${selectedOrderForBilling.tables?.table_number}<br>
+  Waiter: ${selectedOrderForBilling.users?.name}<br>
+  Customer: ${selectedOrderForBilling.customer_name || 'Guest'}<br>
+--------------------------------<br>
+ITEM             QTY  AMOUNT<br>
+--------------------------------<br>
 ${selectedOrderForBilling.order_items?.map((item: any) => {
   const name = item.dishes?.name || 'Unknown'
   const qty = item.quantity
@@ -553,21 +568,21 @@ ${selectedOrderForBilling.order_items?.map((item: any) => {
   // Truncate name to fit within 16 characters
   const itemName = name.length > 16 ? name.substring(0, 15) + '.' : name
   // Format: Item name (16 chars) | Qty (2 chars) | Amount (8 chars)
-  return `${itemName.padEnd(16)} ${qty.toString().padStart(2)}  ${total.padStart(8)}`
-}).join('\n')}
---------------------------------
-Subtotal:      Rs${selectedOrderForBilling.total_amount.toFixed(2).padStart(8)}
+  return `${itemName.padEnd(16)} ${qty.toString().padStart(2)}  ${total.padStart(8)}<br>`
+}).join('')}
+--------------------------------<br>
+Subtotal:      Rs${selectedOrderForBilling.total_amount.toFixed(2).padStart(8)}<br>
 ${(() => {
   const discount = calculateDiscountValue(selectedOrderForBilling.total_amount)
-  return discount > 0 ? `Discount:      Rs${discount.toFixed(2).padStart(8)}\n` : ''
-})()}================================
-      *** GRAND TOTAL ***
-      Rs${calculateFinalAmount(selectedOrderForBilling.total_amount).toFixed(2).padStart(8)}
-================================
-      Thank You for Dining!
-        Visit Us Again
-================================
-Developed by onethynk techmedia
+  return discount > 0 ? `Discount:      Rs${discount.toFixed(2).padStart(8)}<br>` : ''
+})()}================================<br>
+<strong class="grand-total">      *** GRAND TOTAL ***</strong><br>
+<strong class="grand-total">      Rs${calculateFinalAmount(selectedOrderForBilling.total_amount).toFixed(2).padStart(8)}</strong><br>
+================================<br>
+      Thank You for Dining!<br>
+        Visit Us Again<br>
+================================<br>
+<span class="developer">Developed by onethynk techmedia</span><br>
 ================================
 `
       
@@ -612,7 +627,6 @@ Developed by onethynk techmedia
                   font-size: 14px;
                   font-weight: bold;
                   line-height: 1.4;
-                  white-space: pre;
                   margin: 0;
                   padding: 2mm;
                   text-align: center;
@@ -625,9 +639,27 @@ Developed by onethynk techmedia
                   -moz-osx-font-smoothing: grayscale;
                   image-rendering: crisp-edges;
                 }
+                .header {
+                  font-size: 18px;
+                  font-weight: 900;
+                  margin-bottom: 2mm;
+                  display: block;
+                }
+                .grand-total {
+                  font-size: 18px;
+                  font-weight: 900;
+                  margin: 2mm 0;
+                  display: block;
+                }
+                .developer {
+                  font-size: 10px;
+                  font-weight: normal;
+                  margin-top: 2mm;
+                  display: block;
+                }
               </style>
             </head>
-            <body>${plainText.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</body>
+            <body>${plainText}</body>
           </html>
         `)
         printWindow.document.close()
@@ -931,25 +963,24 @@ For technical support, contact: support@everycom.com
   const printOfflineBill = async (order: any) => {
     try {
       const plainText = `
-           *** GALAXY GARDEN ***
-           Restaurant & Bar
-================================
-     123, Main Street
-     City, State - 123456
-     Phone: +91 98765 43210
-================================
-
-        BILL / INVOICE
-================================
-
-Bill No: OFF-${order.id}
-Date: ${new Date(order.created_at).toLocaleDateString()}
-Time: ${new Date(order.created_at).toLocaleTimeString()}
-Table: ${tables.find(t => t.id === order.table_id)?.table_number || 'N/A'}
-Customer: ${order.customer_name || 'Guest'}
---------------------------------
-ITEM             QTY  AMOUNT
---------------------------------
+<strong class="header">         GALAXY GARDEN </strong><br>
+        Restaurant & Bar<br>
+================================<br>
+     123, Main Street<br>
+     City, State - 123456<br>
+     Phone: +91 98765 43210<br>
+================================<br>
+        BILL / INVOICE<br>
+================================<br>
+<br>
+  Bill No: OFF-${order.id}<br>
+  Date: ${new Date(order.created_at).toLocaleDateString()}<br>
+  Time: ${new Date(order.created_at).toLocaleTimeString()}<br>
+  Table: ${tables.find(t => t.id === order.table_id)?.table_number || 'N/A'}<br>
+  Customer: ${order.customer_name || 'Guest'}<br>
+--------------------------------<br>
+ITEM             QTY  AMOUNT<br>
+--------------------------------<br>
 ${order.order_items?.map((item: any) => {
   const dish = dishes.find(d => d.id === item.dish_id)
   const name = dish?.name || 'Unknown'
@@ -957,18 +988,18 @@ ${order.order_items?.map((item: any) => {
   const price = item.price
   const total = (price * qty).toFixed(2)
   const itemName = name.length > 16 ? name.substring(0, 15) + '.' : name
-  return `${itemName.padEnd(16)} ${qty.toString().padStart(2)}  ${total.padStart(8)}`
-}).join('\n')}
---------------------------------
-Subtotal:      Rs${order.total_amount.toFixed(2).padStart(8)}
-================================
-      *** GRAND TOTAL ***
-      Rs${order.total_amount.toFixed(2).padStart(8)}
-================================
-      Thank You for Dining!
-        Visit Us Again
-================================
-Developed by onethynk techmedia
+  return `${itemName.padEnd(16)} ${qty.toString().padStart(2)}  ${total.padStart(8)}<br>`
+}).join('')}
+--------------------------------<br>
+Subtotal:      Rs${order.total_amount.toFixed(2).padStart(8)}<br>
+================================<br>
+<strong class="grand-total">      *** GRAND TOTAL ***</strong><br>
+<strong class="grand-total">      Rs${order.total_amount.toFixed(2).padStart(8)}</strong><br>
+================================<br>
+      Thank You for Dining!<br>
+        Visit Us Again<br>
+================================<br>
+<span class="developer">Developed by onethynk techmedia</span><br>
 ================================
 `
 
@@ -1011,7 +1042,6 @@ Developed by onethynk techmedia
                   font-size: 14px;
                   font-weight: bold;
                   line-height: 1.4;
-                  white-space: pre;
                   margin: 0;
                   padding: 2mm;
                   text-align: center;
@@ -1024,9 +1054,27 @@ Developed by onethynk techmedia
                   -moz-osx-font-smoothing: grayscale;
                   image-rendering: crisp-edges;
                 }
+                .header {
+                  font-size: 18px;
+                  font-weight: 900;
+                  margin-bottom: 2mm;
+                  display: block;
+                }
+                .grand-total {
+                  font-size: 18px;
+                  font-weight: 900;
+                  margin: 2mm 0;
+                  display: block;
+                }
+                .developer {
+                  font-size: 10px;
+                  font-weight: normal;
+                  margin-top: 2mm;
+                  display: block;
+                }
               </style>
             </head>
-            <body>${plainText.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</body>
+            <body>${plainText}</body>
           </html>
         `)
         printWindow.document.close()
@@ -1097,36 +1145,35 @@ Developed by onethynk techmedia
     console.log('Waiter name:', waiterName)
     
     const plainText = `
-           *** GALAXY GARDEN ***
-           Restaurant & Bar
-================================
-     123, Main Street
-     City, State - 123456
-     Phone: +91 98765 43210
-================================
-
-        BILL / INVOICE
-================================
-
-Bill No: OFF-${Date.now()}
-Date: ${new Date().toLocaleDateString()}
-Time: ${new Date().toLocaleTimeString()}
-Table: ${tableNumber}
-Waiter: ${waiterName}
-Customer: ${customerName || 'Guest'}
---------------------------------
-ITEM             QTY  AMOUNT
---------------------------------
+<strong class="header">         GALAXY GARDEN </strong><br>
+        Restaurant & Bar<br>
+================================<br>
+     123, Main Street<br>
+     City, State - 123456<br>
+     Phone: +91 98765 43210<br>
+================================<br>
+        BILL / INVOICE<br>
+================================<br>
+<br>
+  Bill No: OFF-${Date.now()}<br>
+  Date: ${new Date().toLocaleDateString()}<br>
+  Time: ${new Date().toLocaleTimeString()}<br>
+  Table: ${tableNumber}<br>
+  Waiter: ${waiterName}<br>
+  Customer: ${customerName || 'Guest'}<br>
+--------------------------------<br>
+ITEM             QTY  AMOUNT<br>
+--------------------------------<br>
 ${offlineCart.map((item) => {
   const name = item.name
   const qty = item.quantity
   const price = item.price
   const total = (price * qty).toFixed(2)
   const itemName = name.length > 16 ? name.substring(0, 15) + '.' : name
-  return `${itemName.padEnd(16)} ${qty.toString().padStart(2)}  ${total.padStart(8)}`
-}).join('\n')}
---------------------------------
-Subtotal:      Rs${getCartTotal().toFixed(2).padStart(8)}
+  return `${itemName.padEnd(16)} ${qty.toString().padStart(2)}  ${total.padStart(8)}<br>`
+}).join('')}
+--------------------------------<br>
+Subtotal:      Rs${getCartTotal().toFixed(2).padStart(8)}<br>
 ${(() => {
   const subtotal = getCartTotal()
   let discount = 0
@@ -1135,15 +1182,15 @@ ${(() => {
   } else if (billDiscountType === 'percentage' && billDiscountPercentage) {
     discount = (parseFloat(billDiscountPercentage) / 100) * subtotal
   }
-  return discount > 0 ? `Discount:      Rs${discount.toFixed(2).padStart(8)}\n` : ''
-})()}================================
-      *** GRAND TOTAL ***
-      Rs${calculateBillTotal().toFixed(2).padStart(8)}
-================================
-      Thank You for Dining!
-        Visit Us Again
-================================
-Developed by onethynk techmedia
+  return discount > 0 ? `Discount:      Rs${discount.toFixed(2).padStart(8)}<br>` : ''
+})()}================================<br>
+<strong class="grand-total">      *** GRAND TOTAL ***</strong><br>
+<strong class="grand-total">      Rs${calculateBillTotal().toFixed(2).padStart(8)}</strong><br>
+================================<br>
+      Thank You for Dining!<br>
+        Visit Us Again<br>
+================================<br>
+<span class="developer">Developed by onethynk techmedia</span><br>
 ================================
 `
 
@@ -1189,7 +1236,6 @@ Developed by onethynk techmedia
                   font-size: 14px;
                   font-weight: bold;
                   line-height: 1.4;
-                  white-space: pre;
                   margin: 0;
                   padding: 2mm;
                   text-align: center;
@@ -1202,9 +1248,27 @@ Developed by onethynk techmedia
                   -moz-osx-font-smoothing: grayscale;
                   image-rendering: crisp-edges;
                 }
+                .header {
+                  font-size: 18px;
+                  font-weight: 900;
+                  margin-bottom: 2mm;
+                  display: block;
+                }
+                .grand-total {
+                  font-size: 18px;
+                  font-weight: 900;
+                  margin: 2mm 0;
+                  display: block;
+                }
+                .developer {
+                  font-size: 10px;
+                  font-weight: normal;
+                  margin-top: 2mm;
+                  display: block;
+                }
               </style>
             </head>
-            <body>${plainText.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</body>
+            <body>${plainText}</body>
           </html>
         `)
         printWindow.document.close()

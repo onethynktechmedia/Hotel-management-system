@@ -81,26 +81,25 @@ export default function OfflineAdminPage() {
       // Generate properly formatted plain text bill content for thermal printer
       // 58mm paper width = approximately 32-35 characters per line
       const plainText = `
-           *** GALAXY GARDEN ***
-           Restaurant & Bar
-================================
-     123, Main Street
-     City, State - 123456
-     Phone: +91 98765 43210
-================================
-
-        BILL / INVOICE
-================================
-
-Bill No: ${formatOrderId(selectedOrderForBilling.id)}
-Date: ${new Date(selectedOrderForBilling.created_at).toLocaleDateString()}
-Time: ${new Date(selectedOrderForBilling.created_at).toLocaleTimeString()}
-Table: ${selectedOrderForBilling.tables?.table_number}
-Waiter: ${selectedOrderForBilling.users?.name}
-Customer: ${selectedOrderForBilling.customer_name || 'Guest'}
---------------------------------
-ITEM             QTY  AMOUNT
---------------------------------
+<strong class="header">         GALAXY GARDEN </strong><br>
+        Restaurant & Bar<br>
+================================<br>
+     123, Main Street<br>
+     City, State - 123456<br>
+     Phone: +91 98765 43210<br>
+================================<br>
+        BILL / INVOICE<br>
+================================<br>
+<br>
+  Bill No: ${formatOrderId(selectedOrderForBilling.id)}<br>
+  Date: ${new Date(selectedOrderForBilling.created_at).toLocaleDateString()}<br>
+  Time: ${new Date(selectedOrderForBilling.created_at).toLocaleTimeString()}<br>
+  Table: ${selectedOrderForBilling.tables?.table_number}<br>
+  Waiter: ${selectedOrderForBilling.users?.name}<br>
+  Customer: ${selectedOrderForBilling.customer_name || 'Guest'}<br>
+--------------------------------<br>
+ITEM             QTY  AMOUNT<br>
+--------------------------------<br>
 ${selectedOrderForBilling.order_items?.map((item: any) => {
   const name = item.dishes?.name || 'Unknown'
   const qty = item.quantity
@@ -109,21 +108,21 @@ ${selectedOrderForBilling.order_items?.map((item: any) => {
   // Truncate name to fit within 16 characters
   const itemName = name.length > 16 ? name.substring(0, 15) + '.' : name
   // Format: Item name (16 chars) | Qty (2 chars) | Amount (8 chars)
-  return `${itemName.padEnd(16)} ${qty.toString().padStart(2)}  ${total.padStart(8)}`
-}).join('\n')}
---------------------------------
-Subtotal:      Rs${selectedOrderForBilling.total_amount.toFixed(2).padStart(8)}
+  return `${itemName.padEnd(16)} ${qty.toString().padStart(2)}  ${total.padStart(8)}<br>`
+}).join('')}
+--------------------------------<br>
+Subtotal:      Rs${selectedOrderForBilling.total_amount.toFixed(2).padStart(8)}<br>
 ${(() => {
   const discount = calculateDiscountValue(selectedOrderForBilling.total_amount)
-  return discount > 0 ? `Discount:      Rs${discount.toFixed(2).padStart(8)}\n` : ''
-})()}================================
-      *** GRAND TOTAL ***
-      Rs${calculateFinalAmount(selectedOrderForBilling.total_amount).toFixed(2).padStart(8)}
-================================
-      Thank You for Dining!
-        Visit Us Again
-================================
-Developed by onethynk techmedia
+  return discount > 0 ? `Discount:      Rs${discount.toFixed(2).padStart(8)}<br>` : ''
+})()}================================<br>
+<strong class="grand-total">      *** GRAND TOTAL ***</strong><br>
+<strong class="grand-total">      Rs${calculateFinalAmount(selectedOrderForBilling.total_amount).toFixed(2).padStart(8)}</strong><br>
+================================<br>
+      Thank You for Dining!<br>
+        Visit Us Again<br>
+================================<br>
+<span class="developer">Developed by onethynk techmedia</span><br>
 ================================
 `
       
