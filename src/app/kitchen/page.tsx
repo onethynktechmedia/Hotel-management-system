@@ -254,9 +254,9 @@ export default function KitchenPage() {
     switch (status) {
       case 'pending':
       case 'confirmed':
-        return 'bg-yellow-100 text-yellow-800 border-yellow-300'
+        return 'bg-green-100 text-green-800 border-green-300'
       case 'preparing':
-        return 'bg-orange-100 text-orange-800 border-orange-300'
+        return 'bg-green-100 text-green-800 border-green-300'
       case 'ready':
         return 'bg-green-100 text-green-800 border-green-300'
       case 'served':
@@ -343,7 +343,7 @@ export default function KitchenPage() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Stats Bar - All Order Statuses */}
         <div className="mb-8 grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div className="bg-yellow-500 rounded-2xl p-6 shadow-lg text-white">
+          <div className="bg-green-600 rounded-2xl p-6 shadow-lg text-white">
             <div className="flex items-center gap-3">
               <Clock className="w-10 h-10" />
               <div>
@@ -352,7 +352,7 @@ export default function KitchenPage() {
               </div>
             </div>
           </div>
-          <div className="bg-orange-500 rounded-2xl p-6 shadow-lg text-white">
+          <div className="bg-green-600 rounded-2xl p-6 shadow-lg text-white">
             <div className="flex items-center gap-3">
               <ChefHat className="w-10 h-10" />
               <div>
@@ -533,7 +533,7 @@ function OrderCard({ order, servedOrderId, onStatusChange, onItemStatusChange, g
   const timeDisplay = timeElapsed < 1 ? 'Just now' : timeElapsed < 60 ? `${timeElapsed}m ago` : `${Math.floor(timeElapsed / 60)}h ago`
   
   return (
-    <div className={`bg-white rounded-2xl shadow-lg overflow-hidden border-2 hover:shadow-xl transition-all duration-300 ${isServed ? 'animate-pulse bg-green-100 border-green-500' : order.status === 'pending' || order.status === 'confirmed' ? 'border-yellow-400' : 'border-gray-200'}`}>
+    <div className={`bg-white rounded-2xl shadow-lg overflow-hidden border-2 hover:shadow-xl transition-all duration-300 ${isServed ? 'animate-pulse bg-green-100 border-green-500' : 'border-gray-200'}`}>
       <div className={`p-5 border-b-2 ${getStatusColor(order.status)}`}>
         <div className="flex justify-between items-start">
           <div className="flex-1 min-w-0">
@@ -575,11 +575,7 @@ function OrderCard({ order, servedOrderId, onStatusChange, onItemStatusChange, g
                 </div>
               </div>
               <div className="flex flex-col items-end gap-2 shrink-0">
-                <span className={`px-2 py-0.5 rounded-full text-xs font-bold whitespace-nowrap ${
-                  item.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-                  item.status === 'preparing' ? 'bg-orange-100 text-orange-800' :
-                  'bg-green-100 text-green-800'
-                }`}>
+                <span className={`px-2 py-0.5 rounded-full text-xs font-bold whitespace-nowrap bg-green-100 text-green-800`}>
                   {item.status}
                 </span>
                 <button
@@ -588,11 +584,7 @@ function OrderCard({ order, servedOrderId, onStatusChange, onItemStatusChange, g
                                      item.status === 'preparing' ? 'ready' : 'ready'
                     onItemStatusChange(item.id, nextStatus)
                   }}
-                  className={`text-xs text-white px-3 py-1.5 rounded-lg font-semibold transition-colors whitespace-nowrap ${
-                    item.status === 'pending' ? 'bg-yellow-600 hover:bg-yellow-700' :
-                    item.status === 'preparing' ? 'bg-orange-600 hover:bg-orange-700' :
-                    'bg-green-600 hover:bg-green-800'
-                  }`}
+                  className="text-xs bg-green-600 text-white px-3 py-1.5 rounded-lg font-semibold hover:bg-green-800 transition-colors whitespace-nowrap"
                 >
                   {item.status === 'pending' ? 'Start' : item.status === 'preparing' ? 'Complete' : 'Done'}
                 </button>
