@@ -4,9 +4,9 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import supabase from '@/lib/db'
 import { User, Order, Dish, Table, CartItem } from '@/types'
-import { LogOut, ShoppingCart, Plus, Minus, ArrowLeft, Users, Clock, CheckCircle, X, Crown, RefreshCw, Printer, RotateCcw } from 'lucide-react'
+import { LogOut, ShoppingCart, Plus, Minus, ArrowLeft, Users, Clock, CheckCircle, X, Crown, RefreshCw, Printer, RotateCcw, History } from 'lucide-react'
 
-type Step = 'tables' | 'dishes' | 'cart' | 'success' | 'master' | 'alter-table' | 'master-station-detail' | 'repeat-order' | 'bill-preview'
+type Step = 'tables' | 'order-options' | 'dishes' | 'cart' | 'success' | 'master' | 'alter-table' | 'master-station-detail' | 'repeat-order' | 'bill-preview' | 'previous-orders'
 
 // Utility function to format order ID as GGR-XXX
 const formatOrderId = (orderId: string) => {
@@ -45,6 +45,8 @@ export default function WaiterPage() {
   const [billOrderItems, setBillOrderItems] = useState<any[]>([])
   const [customerName, setCustomerName] = useState('')
   const [customerMobile, setCustomerMobile] = useState('')
+  const [tableOrders, setTableOrders] = useState<Order[]>([])
+  const [selectedItemsToRepeat, setSelectedItemsToRepeat] = useState<any[]>([])
 
   const dishTypes = ['Normal', 'Medium', 'Spicy', 'Extra Spicy']
 
@@ -106,7 +108,9 @@ export default function WaiterPage() {
     }
   }
 
-  const handleTableSelect = (table: Table) => {
+  const handleTableSelect = async (table: Table) => {
+    setSelectedTable(table)
+    
     if (table.is_occupied) {
       // Find the active order for this table
       const tableOrder = orders.find(o => o.table_id === table.id && !['paid', 'completed'].includes(o.status))
@@ -117,14 +121,159 @@ export default function WaiterPage() {
       }
       return
     }
-    setSelectedTable(table)
     setCurrentStep('dishes')
   }
 
   const handleBackToTables = () => {
     setSelectedTable(null)
     setCart([])
+    setTableOrders([])
+    setCustomerName('')
+    setCustomerMobile('')
+    setSelectedItemsToRepeat([])
     setCurrentStep('tables')
+  }
+
+  const handleNewOrder = () => {
+    setCart([])
+    setCustomerName('')
+    setCustomerMobile('')
+    setCurrentStep('dishes')
+  }
+
+  const handleViewPreviousOrders = () => {
+    setSelectedItemsToRepeat([])
+    setCurrentStep('previous-orders')
+  }
+
+  const toggleItemSelection = (item: any) => {
+    setSelectedItemsToRepeat(prev => {
+      const exists = prev.find(i => i.id === item.id)
+      if (exists) {
+        return prev.filter(i => i.id !== item.id)
+      } else {
+        return [...prev, item]
+      }
+    })
+  }
+
+  const handleRepeatOrder = async (order: Order) => {
+    // Only use selected items - must select at least one
+    const itemsToUse = selectedItemsToRepeat
+    
+    if (itemsToUse.length === 0) {
+      alert('Please select at least one item to repeat')
+      return
+    }
+    
+    const cartItems: CartItem[] = itemsToUse.map(item => ({
+      dish_id: item.dish_id,
+      name: item.dishes?.name || 'Unknown',
+      price: item.price,
+      quantity: item.quantity,
+      image_url: item.dishes?.image_url || null,
+      dish_type: item.dish_type || 'Normal'
+    }))
+    
+    // Submit the repeated order immediately
+    setSubmitting(true)
+    try {
+      console.log('Submitting repeated order for table:', selectedTable?.id)
+      console.log('Cart items:', cartItems)
+
+      // Create order via API
+      const orderResponse = await fetch('/api/orders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          table_id: selectedTable?.id,
+          waiter_id: user?.id,
+          status: 'pending',
+          total_amount: cartItems.reduce((sum, item) => sum + (item.price * item.quantity), 0),
+          customer_name: customerName || null,
+          customer_mobile: customerMobile || null
+        })
+      })
+
+      if (!orderResponse.ok) {
+        throw new Error('Failed to create order')
+      }
+
+      const orderData = await orderResponse.json()
+      console.log('Order created:', orderData)
+
+      // Create order items via API
+      const orderItems = cartItems.map(item => ({
+        order_id: orderData.id,
+        dish_id: item.dish_id,
+        quantity: item.quantity,
+        price: item.price,
+        status: 'pending',
+        dish_type: item.dish_type || 'Normal'
+      }))
+
+      const itemsResponse = await fetch('/api/order-items', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(orderItems)
+      })
+
+      if (!itemsResponse.ok) {
+        const errorData = await itemsResponse.json()
+        console.error('Order items API error:', errorData)
+        throw new Error(errorData.error || 'Failed to create order items')
+      }
+
+      console.log('Order items created via API')
+
+      // Update table status to occupied via API
+      const tableResponse = await fetch('/api/tables', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: selectedTable?.id, is_occupied: true })
+      })
+
+      if (!tableResponse.ok) {
+        console.error('Table update failed')
+        throw new Error('Failed to update table status')
+      }
+
+      console.log('Table updated to occupied')
+
+      // Create notification for kitchen via API
+      const notificationResponse = await fetch('/api/notifications', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          user_id: user?.id,
+          order_id: orderData.id,
+          type: 'new_order',
+          message: `Repeated order for Table ${selectedTable?.table_number}`,
+          is_read: false
+        })
+      })
+
+      if (!notificationResponse.ok) {
+        console.error('Notification creation failed, but continuing...')
+      } else {
+        console.log('Notification created via API')
+      }
+
+      setCurrentStep('success')
+      setCart([])
+      setSelectedItemsToRepeat([])
+      setSelectedTable(null)
+      setCustomerName('')
+      setCustomerMobile('')
+      
+      // Refresh data
+      fetchData()
+    } catch (error) {
+      console.error('Error submitting repeated order:', error)
+      alert('Failed to submit repeated order. Please try again.')
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   const addToCart = (dish: Dish, dishType: string = 'Normal') => {
@@ -572,10 +721,31 @@ export default function WaiterPage() {
     }
   }
 
-  const handleStartRepeatOrder = (order: Order) => {
+  const handleStartRepeatOrder = async (order: Order) => {
+    setSelectedTable(order.tables || null)
     setRepeatingOrder(order)
-    setRepeatOrderCart([])
-    setCurrentStep('repeat-order')
+    
+    // Fetch orders for this table
+    try {
+      const { data: tableOrdersData } = await supabase
+        .from('orders')
+        .select(`
+          *,
+          order_items (
+            *,
+            dishes (*)
+          )
+        `)
+        .eq('table_id', order.table_id)
+        .in('status', ['pending', 'preparing', 'ready', 'served'])
+        .order('created_at', { ascending: false })
+      
+      setTableOrders(tableOrdersData || [])
+      setCurrentStep('order-options')
+    } catch (error) {
+      console.error('Error fetching table orders:', error)
+      alert('Failed to fetch table orders')
+    }
   }
 
   const handleAddToRepeatOrderCart = (dish: Dish) => {
@@ -1174,18 +1344,141 @@ Visit Us Again<br>
               <div className="mt-8 sm:mt-12">
                 <h3 className="text-xl sm:text-2xl font-bold text-gray-900 mb-4">My Active Orders</h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {orders.filter(o => o.waiter_id === user?.id && !['paid', 'completed'].includes(o.status)).map((order) => (
-                    <div
-                      key={order.id}
-                      onClick={() => handleViewBill(order)}
-                      className="bg-white rounded-2xl shadow-lg p-4 sm:p-6 border-2 border-green-200 hover:border-green-400 hover:shadow-xl transition-all duration-300 text-left cursor-pointer"
-                    >
-                      <div className="flex justify-between items-start mb-4">
-                        <div>
-                          <h4 className="text-base sm:text-lg font-bold text-gray-900">Table {order.tables?.table_number}</h4>
-                          <p className="text-xs sm:text-sm text-gray-600">{new Date(order.created_at).toLocaleString()}</p>
+                  {(() => {
+                    // Group orders by table
+                    const tableGroups = orders
+                      .filter(o => o.waiter_id === user?.id && !['paid', 'completed'].includes(o.status))
+                      .reduce((acc, order) => {
+                        const tableId = order.table_id
+                        if (!acc[tableId]) {
+                          acc[tableId] = {
+                            table: order.tables,
+                            orders: []
+                          }
+                        }
+                        acc[tableId].orders.push(order)
+                        return acc
+                      }, {} as any)
+                    
+                    return Object.values(tableGroups).map((group: any) => (
+                      <div
+                        key={group.table?.id}
+                        className="bg-white rounded-2xl shadow-lg p-4 sm:p-6 border-2 border-green-200 hover:border-green-400 hover:shadow-xl transition-all duration-300 text-left cursor-pointer"
+                      >
+                        <div className="flex justify-between items-start mb-4">
+                          <div>
+                            <h4 className="text-base sm:text-lg font-bold text-gray-900">Table {group.table?.table_number}</h4>
+                            <p className="text-xs sm:text-sm text-gray-600">{group.orders.length} active order{group.orders.length > 1 ? 's' : ''}</p>
+                          </div>
+                          <span className="px-2 sm:px-3 py-1 rounded-full text-xs font-bold bg-green-100 text-green-800">
+                            Active
+                          </span>
                         </div>
-                        <span className={`px-2 sm:px-3 py-1 rounded-full text-xs font-bold ${
+                        <p className="text-base sm:text-lg font-bold text-gray-900 mb-3">
+                          ₹{group.orders.reduce((sum: number, o: Order) => sum + o.total_amount, 0).toFixed(2)}
+                        </p>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleViewBill(group.orders[0])
+                            }}
+                            className="flex-1 flex items-center justify-center gap-2 bg-green-500 text-white px-4 py-2 rounded-xl font-semibold hover:bg-green-600 transition-all duration-300 text-sm"
+                          >
+                            View Details
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleStartRepeatOrder(group.orders[0])
+                            }}
+                            className="flex-1 flex items-center justify-center gap-2 bg-orange-500 text-white px-4 py-2 rounded-xl font-semibold hover:bg-orange-600 transition-all duration-300 text-sm"
+                          >
+                            <RotateCcw className="w-4 h-4" />
+                            Repeat
+                          </button>
+                        </div>
+                      </div>
+                    ))
+                  })()}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Order Options Step */}
+        {currentStep === 'order-options' && selectedTable && (
+          <div className="max-w-4xl mx-auto">
+            {/* Back Button */}
+            <button
+              onClick={() => {
+                setRepeatingOrder(null)
+                setSelectedTable(null)
+                setSelectedItemsToRepeat([])
+                setCurrentStep('tables')
+              }}
+              className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors mb-6"
+            >
+              <ArrowLeft className="w-5 h-5" />
+              <span className="font-semibold">Back to Tables</span>
+            </button>
+
+            <div className="mb-8">
+              <h2 className="text-3xl font-bold text-gray-900 mb-2">
+                Table {selectedTable.table_number} - Order Options
+              </h2>
+              <p className="text-gray-600">Choose how you want to proceed with this table</p>
+            </div>
+
+            {/* Order Options Buttons */}
+            <div className="grid grid-cols-2 gap-4 mb-6">
+              <button
+                onClick={handleNewOrder}
+                className="bg-white rounded-xl shadow-lg p-6 border-2 border-green-500 hover:border-green-600 hover:shadow-xl transition-all duration-300"
+              >
+                <div className="flex flex-col items-center gap-3">
+                  <div className="bg-green-100 w-12 h-12 rounded-xl flex items-center justify-center">
+                    <Plus className="w-6 h-6 text-green-600" />
+                  </div>
+                  <div className="text-center">
+                    <h3 className="text-lg font-bold text-gray-900">New Order</h3>
+                  </div>
+                </div>
+              </button>
+
+              <button
+                onClick={handleViewPreviousOrders}
+                className="bg-white rounded-xl shadow-lg p-6 border-2 border-orange-500 hover:border-orange-600 hover:shadow-xl transition-all duration-300"
+              >
+                <div className="flex flex-col items-center gap-3">
+                  <div className="bg-orange-100 w-12 h-12 rounded-xl flex items-center justify-center">
+                    <History className="w-6 h-6 text-orange-600" />
+                  </div>
+                  <div className="text-center">
+                    <h3 className="text-lg font-bold text-gray-900">Previous Orders</h3>
+                  </div>
+                </div>
+              </button>
+            </div>
+
+            {/* Current Active Orders */}
+            {tableOrders.length > 0 && (
+              <div className="bg-white rounded-2xl shadow-xl p-6 border-2 border-purple-200">
+                <h3 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
+                  <Clock className="w-5 h-5 text-purple-600" />
+                  Current Orders ({tableOrders.length})
+                </h3>
+                <div className="space-y-3">
+                  {tableOrders.map((order) => (
+                    <div key={order.id} className="flex items-center justify-between p-4 bg-purple-50 rounded-xl hover:bg-purple-100 transition-colors cursor-pointer" onClick={() => handleViewBill(order)}>
+                      <div>
+                        <p className="font-bold text-gray-900">{formatOrderId(order.id)}</p>
+                        <p className="text-sm text-gray-600">{new Date(order.created_at).toLocaleString()}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-bold text-purple-600">₹{order.total_amount.toFixed(2)}</p>
+                        <span className={`px-2 py-1 rounded-full text-xs font-bold ${
                           order.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
                           order.status === 'preparing' ? 'bg-blue-100 text-blue-800' :
                           order.status === 'ready' ? 'bg-green-100 text-green-800' :
@@ -1194,34 +1487,151 @@ Visit Us Again<br>
                           {order.status}
                         </span>
                       </div>
-                      <p className="text-base sm:text-lg font-bold text-gray-900 mb-3">
-                        ₹{order.total_amount.toFixed(2)}
-                      </p>
-                      <div className="flex gap-2">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            handleStartRepeatOrder(order)
-                          }}
-                          className="flex-1 flex items-center justify-center gap-2 bg-orange-500 text-white px-4 py-2 rounded-xl font-semibold hover:bg-orange-600 transition-all duration-300 text-sm"
-                        >
-                          <RotateCcw className="w-4 h-4" />
-                          Repeat Order
-                        </button>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            handleStartAlterTable(order)
-                          }}
-                          className="flex-1 flex items-center justify-center gap-2 bg-blue-500 text-white px-4 py-2 rounded-xl font-semibold hover:bg-blue-600 transition-all duration-300 text-sm"
-                        >
-                          <RefreshCw className="w-4 h-4" />
-                          Change Table
-                        </button>
-                      </div>
                     </div>
                   ))}
                 </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Previous Orders Step */}
+        {currentStep === 'previous-orders' && selectedTable && (
+          <div className="max-w-4xl mx-auto">
+            <div className="mb-8">
+              <h2 className="text-3xl font-bold text-gray-900 mb-2">
+                Previous Orders - Table {selectedTable.table_number}
+              </h2>
+              <p className="text-gray-600">Select an order to repeat or view details</p>
+            </div>
+
+            {tableOrders.length === 0 ? (
+              <div className="bg-white rounded-2xl shadow-xl p-12 text-center">
+                <History className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                <h3 className="text-xl font-bold text-gray-900 mb-2">No Previous Orders</h3>
+                <p className="text-gray-600 mb-6">This table doesn't have any active orders yet.</p>
+                <button
+                  onClick={handleNewOrder}
+                  className="flex items-center gap-2 bg-gradient-to-r from-orange-600 to-amber-600 text-white px-6 py-3 rounded-xl font-semibold hover:shadow-lg transition-all duration-300 mx-auto"
+                >
+                  <Plus className="w-5 h-5" />
+                  Start New Order
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {tableOrders.map((order) => (
+                  <div key={order.id} className="bg-white rounded-2xl shadow-xl overflow-hidden border-2 border-orange-200 hover:border-orange-400 transition-all duration-300">
+                    <div className="p-6 bg-gradient-to-r from-orange-50 to-amber-50">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <h3 className="text-xl font-bold text-gray-900 mb-1">{formatOrderId(order.id)}</h3>
+                          <p className="text-sm text-gray-600">{new Date(order.created_at).toLocaleString()}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-2xl font-bold bg-gradient-to-r from-orange-600 to-amber-600 bg-clip-text text-transparent">
+                            ₹{order.total_amount.toFixed(2)}
+                          </p>
+                          <span className={`px-3 py-1 rounded-full text-xs font-bold ${
+                            order.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                            order.status === 'preparing' ? 'bg-blue-100 text-blue-800' :
+                            order.status === 'ready' ? 'bg-green-100 text-green-800' :
+                            'bg-gray-100 text-gray-800'
+                          }`}>
+                            {order.status}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="p-6">
+                      <div className="flex justify-between items-center mb-3">
+                        <h4 className="font-bold text-gray-900">Order Items:</h4>
+                        <button
+                          onClick={() => {
+                            const orderItemsIds = order.order_items?.map(i => i.id) || []
+                            const allSelected = orderItemsIds.every(id => selectedItemsToRepeat.find(i => i.id === id))
+                            if (allSelected) {
+                              setSelectedItemsToRepeat(prev => prev.filter(i => !orderItemsIds.includes(i.id)))
+                            } else {
+                              setSelectedItemsToRepeat(prev => {
+                                const newItems = order.order_items?.filter(item => !prev.find(i => i.id === item.id)) || []
+                                return [...prev, ...newItems]
+                              })
+                            }
+                          }}
+                          className="text-sm text-green-600 font-semibold hover:text-green-700"
+                        >
+                          {order.order_items?.every(item => selectedItemsToRepeat.find(i => i.id === item.id)) ? 'Deselect All' : 'Select All'}
+                        </button>
+                      </div>
+                      <div className="space-y-2">
+                        {order.order_items?.map((item) => (
+                          <div 
+                            key={item.id} 
+                            className={`flex items-center justify-between p-3 rounded-xl cursor-pointer transition-colors ${
+                              selectedItemsToRepeat.find(i => i.id === item.id) 
+                                ? 'bg-green-100 border-2 border-green-500' 
+                                : 'bg-gray-50'
+                            }`}
+                            onClick={() => toggleItemSelection(item)}
+                          >
+                            <div className="flex items-center gap-3">
+                              <div className={`w-5 h-5 rounded border-2 flex items-center justify-center ${
+                                selectedItemsToRepeat.find(i => i.id === item.id)
+                                  ? 'bg-green-500 border-green-500'
+                                  : 'border-gray-300'
+                              }`}>
+                                {selectedItemsToRepeat.find(i => i.id === item.id) && (
+                                  <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                  </svg>
+                                )}
+                              </div>
+                              {item.dishes?.image_url && (
+                                <img
+                                  src={item.dishes.image_url}
+                                  alt={item.dishes.name}
+                                  className="w-12 h-12 object-cover rounded-lg"
+                                />
+                              )}
+                              <div>
+                                <p className="font-semibold text-gray-900">{item.dishes?.name || 'Unknown'}</p>
+                                <p className="text-sm text-gray-600">₹{item.price.toFixed(2)} each</p>
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <p className="font-bold text-gray-900">x{item.quantity}</p>
+                              <p className="text-sm text-orange-600 font-semibold">₹{(item.price * item.quantity).toFixed(2)}</p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {selectedItemsToRepeat.length > 0 && (
+                      <div className="p-4 bg-green-50 border-t-2 border-green-200">
+                        <p className="font-semibold text-gray-900">{selectedItemsToRepeat.length} items selected</p>
+                      </div>
+                    )}
+
+                    <div className="p-6 bg-gradient-to-r from-orange-50 to-amber-50 flex gap-4">
+                      <button
+                        onClick={() => handleRepeatOrder(order)}
+                        className="flex-1 flex items-center justify-center gap-2 bg-gradient-to-r from-orange-600 to-amber-600 text-white px-6 py-3 rounded-xl font-semibold hover:shadow-lg transition-all duration-300"
+                      >
+                        <RefreshCw className="w-5 h-5" />
+                        Repeat Order
+                      </button>
+                      <button
+                        onClick={() => setCurrentStep('order-options')}
+                        className="px-6 py-3 border-2 border-gray-300 text-gray-700 rounded-xl font-semibold hover:bg-gray-50 transition-all duration-300"
+                      >
+                        Back
+                      </button>
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
           </div>
@@ -1263,6 +1673,20 @@ Visit Us Again<br>
                   {category === 'all' ? 'All' : category}
                 </button>
               ))}
+            </div>
+
+            {/* Customer Name Input */}
+            <div className="bg-white rounded-2xl shadow-lg p-4 mb-4">
+              <label className="block text-sm font-semibold text-gray-700 mb-2">
+                Customer Name (Optional)
+              </label>
+              <input
+                type="text"
+                value={customerName}
+                onChange={(e) => setCustomerName(e.target.value)}
+                placeholder="Enter customer name"
+                className="w-full px-4 py-2 border-2 border-gray-200 rounded-xl focus:border-green-500 focus:outline-none transition-colors"
+              />
             </div>
 
             {/* Dishes List */}

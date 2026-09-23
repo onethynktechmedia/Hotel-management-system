@@ -28,6 +28,7 @@ export default function KitchenPage() {
   const [selectedFilter, setSelectedFilter] = useState<string>('ready')
   const [selectedOrderForBill, setSelectedOrderForBill] = useState<Order | null>(null)
   const [servedOrderId, setServedOrderId] = useState<string | null>(null)
+  const [selectedOrderDetails, setSelectedOrderDetails] = useState<Order | null>(null)
 
   useEffect(() => {
     const userData = localStorage.getItem('user')
@@ -190,21 +191,10 @@ export default function KitchenPage() {
       await printer.disconnect()
       
       console.log('Kitchen order printed successfully via WebUSB')
-      alert('Kitchen order printed successfully!')
       
     } catch (error: any) {
       console.error('Error printing kitchen order:', error)
-      
-      // Provide specific error messages
-      if (error.name === 'NotFoundError') {
-        alert('Printer not found. Please ensure the printer is connected via USB and powered on.')
-      } else if (error.name === 'SecurityError') {
-        alert('Permission denied. Please allow USB device access when prompted.')
-      } else if (error.name === 'NotAllowedError') {
-        alert('User cancelled the device selection. Please try again and select the printer.')
-      } else {
-        alert(`Failed to print kitchen order: ${error.message || 'Unknown error'}. Please ensure printer is connected via USB and you are using Chrome/Edge browser.`)
-      }
+      // Silently log error without alert
     }
   }
 
@@ -408,6 +398,7 @@ export default function KitchenPage() {
                   onItemStatusChange={updateItemStatus}
                   getStatusColor={getStatusColor}
                   onViewBill={setSelectedOrderForBill}
+                  onViewDetails={setSelectedOrderDetails}
                 />
               ))}
             </div>
@@ -524,17 +515,118 @@ export default function KitchenPage() {
           </div>
         </div>
       )}
+
+      {/* Order Details Modal */}
+      {selectedOrderDetails && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 animate-slide-in">
+          <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-2xl font-bold text-green-700">
+                Order Details - Table {selectedOrderDetails.tables?.table_number}
+              </h2>
+              <button
+                onClick={() => setSelectedOrderDetails(null)}
+                className="text-gray-500 hover:text-gray-700 transition-colors"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div className="bg-gray-50 rounded-xl p-4">
+                <p className="text-sm text-gray-600">Order #: {formatOrderId(selectedOrderDetails.id)}</p>
+                <p className="text-sm text-gray-600">Status: <span className="font-bold">{selectedOrderDetails.status.toUpperCase()}</span></p>
+                <p className="text-sm text-gray-600">Time: {new Date(selectedOrderDetails.created_at).toLocaleString()}</p>
+                <p className="text-sm text-gray-600">Waiter: {selectedOrderDetails.users?.name}</p>
+              </div>
+
+              <div>
+                <h3 className="font-bold text-gray-900 mb-3">Items</h3>
+                <div className="space-y-2">
+                  {selectedOrderDetails.order_items?.map((item: OrderItem) => (
+                    <div key={item.id} className="flex justify-between items-center bg-gray-50 rounded-lg p-3">
+                      <div>
+                        <p className="font-semibold">{item.dishes?.name || item.dish?.name}</p>
+                        <p className="text-sm text-gray-600">Qty: {item.quantity} × ₹{item.price}</p>
+                      </div>
+                      <span className="font-bold text-green-600">₹{(item.price * item.quantity).toFixed(2)}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="border-t border-gray-200 pt-4">
+                <div className="flex justify-between items-center">
+                  <span className="text-lg font-bold text-gray-900">Total:</span>
+                  <span className="text-2xl font-bold text-green-600">₹{selectedOrderDetails.total_amount.toFixed(2)}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Order Details Modal */}
+      {selectedOrderDetails && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 animate-slide-in">
+          <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-2xl font-bold text-green-700">
+                Order Details - Table {selectedOrderDetails.tables?.table_number}
+              </h2>
+              <button
+                onClick={() => setSelectedOrderDetails(null)}
+                className="text-gray-500 hover:text-gray-700 transition-colors"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div className="bg-gray-50 rounded-xl p-4">
+                <p className="text-sm text-gray-600">Order #: {formatOrderId(selectedOrderDetails.id)}</p>
+                <p className="text-sm text-gray-600">Status: <span className="font-bold">{selectedOrderDetails.status.toUpperCase()}</span></p>
+                <p className="text-sm text-gray-600">Time: {new Date(selectedOrderDetails.created_at).toLocaleString()}</p>
+                <p className="text-sm text-gray-600">Waiter: {selectedOrderDetails.users?.name}</p>
+              </div>
+
+              <div>
+                <h3 className="font-bold text-gray-900 mb-3">Items</h3>
+                <div className="space-y-2">
+                  {selectedOrderDetails.order_items?.map((item: OrderItem) => (
+                    <div key={item.id} className="flex justify-between items-center bg-gray-50 rounded-lg p-3">
+                      <div>
+                        <p className="font-semibold">{item.dishes?.name || item.dish?.name}</p>
+                        <p className="text-sm text-gray-600">Qty: {item.quantity} × ₹{item.price}</p>
+                      </div>
+                      <span className="font-bold text-green-600">₹{(item.price * item.quantity).toFixed(2)}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="border-t border-gray-200 pt-4">
+                <div className="flex justify-between items-center">
+                  <span className="text-lg font-bold text-gray-900">Total:</span>
+                  <span className="text-2xl font-bold text-green-600">₹{selectedOrderDetails.total_amount.toFixed(2)}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
 
-function OrderCard({ order, servedOrderId, onStatusChange, onItemStatusChange, getStatusColor, onViewBill }: {
+function OrderCard({ order, servedOrderId, onStatusChange, onItemStatusChange, getStatusColor, onViewBill, onViewDetails }: {
   order: Order
   servedOrderId: string | null
   onStatusChange: (status: string) => void
   onItemStatusChange: (itemId: string, status: string) => void
   getStatusColor: (status: string) => string
   onViewBill: (order: Order) => void
+  onViewDetails: (order: Order) => void
 }) {
   const isServed = servedOrderId === order.id
   
@@ -543,7 +635,10 @@ function OrderCard({ order, servedOrderId, onStatusChange, onItemStatusChange, g
   const timeDisplay = timeElapsed < 1 ? 'Just now' : timeElapsed < 60 ? `${timeElapsed}m ago` : `${Math.floor(timeElapsed / 60)}h ago`
   
   return (
-    <div className={`bg-white rounded-2xl shadow-lg overflow-hidden border-2 hover:shadow-xl transition-all duration-300 ${isServed ? 'animate-pulse bg-green-100 border-green-500' : 'border-gray-200'}`}>
+    <div 
+      onClick={() => (order.status === 'served' || order.status === 'ready') && onViewDetails(order)}
+      className={`bg-white rounded-2xl shadow-lg overflow-hidden border-2 hover:shadow-xl transition-all duration-300 cursor-pointer ${isServed ? 'animate-pulse bg-green-100 border-green-500' : order.status === 'served' || order.status === 'ready' ? 'hover:border-green-400' : 'border-gray-200'}`}
+    >
       <div className={`p-5 border-b-2 ${getStatusColor(order.status)}`}>
         <div className="flex justify-between items-start">
           <div className="flex-1 min-w-0">
@@ -614,12 +709,20 @@ function OrderCard({ order, servedOrderId, onStatusChange, onItemStatusChange, g
           </div>
 
           <div className="flex gap-3">
+            {(order.status === 'pending' || order.status === 'confirmed' || order.status === 'preparing') && (
+              <button
+                onClick={() => onStatusChange('ready')}
+                className="flex-1 bg-green-600 text-white py-3 rounded-xl font-bold hover:bg-green-800 transition-colors"
+              >
+                Completed
+              </button>
+            )}
             {order.status === 'ready' && (
               <button
                 onClick={() => onStatusChange('served')}
                 className="flex-1 bg-green-600 text-white py-3 rounded-xl font-bold hover:bg-green-800 transition-colors"
               >
-                Mark Served
+                Served
               </button>
             )}
           </div>

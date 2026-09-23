@@ -28,7 +28,7 @@ export default function AdminDashboard() {
   const [payments, setPayments] = useState<Payment[]>([])
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [showNotifications, setShowNotifications] = useState(false)
-  const [activeTab, setActiveTab] = useState<'overview' | 'orders' | 'dishes' | 'tables' | 'waiters' | 'reports' | 'offline-orders'>('overview')
+  const [activeTab, setActiveTab] = useState<'overview' | 'orders' | 'dishes' | 'tables' | 'waiters' | 'reports' | 'offline-billing' | 'online-billing'>('overview')
   const [loading, setLoading] = useState(true)
   const [showDishModal, setShowDishModal] = useState(false)
   const [editingDish, setEditingDish] = useState<Dish | null>(null)
@@ -77,12 +77,15 @@ export default function AdminDashboard() {
   const [offlineOrders, setOfflineOrders] = useState<any[]>([])
   const [selectedTable, setSelectedTable] = useState<string>('')
   const [customerName, setCustomerName] = useState('')
+  const [customerMobile, setCustomerMobile] = useState('')
   const [isOnline, setIsOnline] = useState(true)
   const [menuSearchTerm, setMenuSearchTerm] = useState('')
   const [showBillPreview, setShowBillPreview] = useState(false)
   const [billDiscountAmount, setBillDiscountAmount] = useState('')
   const [billDiscountPercentage, setBillDiscountPercentage] = useState('')
   const [billDiscountType, setBillDiscountType] = useState<'amount' | 'percentage'>('amount')
+  const [showCartModal, setShowCartModal] = useState(false)
+  const [addedDishIds, setAddedDishIds] = useState<Set<string>>(new Set())
 
   useEffect(() => {
     const userData = localStorage.getItem('user')
@@ -480,11 +483,10 @@ export default function AdminDashboard() {
       await printer.disconnect()
       
       console.log('Bill printed successfully via WebUSB')
-      alert('Bill printed successfully!')
       
     } catch (error: any) {
       console.error('Error generating bill:', error)
-      alert(`Failed to print bill: ${error.message}. Please ensure printer is connected via USB and you are using Chrome/Edge browser.`)
+      // Silently log error without alert
     }
   }
 
@@ -583,11 +585,10 @@ export default function AdminDashboard() {
       await printer.disconnect()
       
       console.log('Bill printed successfully via WebUSB')
-      alert('Bill printed successfully!')
       
     } catch (error: any) {
       console.error('Printing failed:', error)
-      alert(`Failed to print bill: ${error.message}. Please ensure printer is connected via USB and you are using Chrome/Edge browser.`)
+      // Silently log error without alert
     }
   }
 
@@ -811,6 +812,7 @@ For technical support, contact: support@everycom.com
     // Play sound and trigger animation
     playNotificationSound('cart')
     setCartAnimation(true)
+    setAddedDishIds(prev => new Set(prev).add(dish.id))
     setTimeout(() => setCartAnimation(false), 500)
   }
 
@@ -891,6 +893,7 @@ For technical support, contact: support@everycom.com
       table_id: selectedTable,
       waiter_id: user?.id,
       customer_name: customerName || 'Guest',
+      customer_mobile: customerMobile || '',
       total_amount: getCartTotal(),
       status: 'pending',
       created_at: new Date().toISOString(),
@@ -912,6 +915,8 @@ For technical support, contact: support@everycom.com
     setOfflineCart([])
     setSelectedTable('')
     setCustomerName('')
+    setCustomerMobile('')
+    setAddedDishIds(new Set())
     
     // Play sound and trigger animation
     playNotificationSound('order')
@@ -2161,7 +2166,7 @@ Visit Us Again<br>
           <Reports orders={orders} payments={payments} dishes={dishes} />
         )}
 
-        {activeTab === 'offline-orders' && (
+        {activeTab === 'offline-billing' && (
           <>
             <div className="mb-6 animate-fade-in">
               <div className="flex items-center justify-between mb-4">
@@ -2219,7 +2224,11 @@ Visit Us Again<br>
                       <div
                         key={dish.id}
                         onClick={() => addToCart(dish)}
-                        className="flex items-center gap-4 bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-200 rounded-xl p-3 cursor-pointer hover:shadow-lg hover:scale-[1.02] transition-all duration-300"
+                        className={`flex items-center gap-4 border-2 rounded-xl p-3 cursor-pointer hover:shadow-lg hover:scale-[1.02] transition-all duration-300 ${
+                          addedDishIds.has(dish.id) 
+                            ? 'bg-green-100 border-green-500' 
+                            : 'bg-gradient-to-r from-green-50 to-emerald-50 border-green-200'
+                        }`}
                       >
                         {/* Show image only when online */}
                         {isOnline && dish.image_url && (
@@ -2287,50 +2296,16 @@ Visit Us Again<br>
                   />
                 </div>
 
-                {/* Cart Items */}
-                <div className="space-y-3 max-h-[300px] overflow-y-auto mb-4">
-                  {offlineCart.length === 0 ? (
-                    <p className="text-gray-500 text-center py-8">Cart is empty</p>
-                  ) : (
-                    offlineCart.map((item) => (
-                      <div key={item.id} className={`flex items-center justify-between bg-gray-50 rounded-lg p-3 transition-all duration-300 ${cartAnimation ? 'animate-bounce' : ''}`}>
-                        <div className="flex-1">
-                          <p className="font-semibold text-gray-900 text-sm">{item.name}</p>
-                          <p className="text-sm text-green-600">₹{item.price.toFixed(2)}</p>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => updateCartQuantity(item.id, item.quantity - 1)}
-                            className="w-8 h-8 rounded-full bg-red-100 text-red-600 hover:bg-red-200 transition-colors"
-                          >
-                            -
-                          </button>
-                          <span className="w-8 text-center font-semibold">{item.quantity}</span>
-                          <button
-                            onClick={() => updateCartQuantity(item.id, item.quantity + 1)}
-                            className="w-8 h-8 rounded-full bg-green-100 text-green-600 hover:bg-green-200 transition-colors"
-                          >
-                            +
-                          </button>
-                        </div>
-                      </div>
-                    ))
-                  )}
-                </div>
-
-                {/* Total and Create Bill */}
-                <div className="border-t border-gray-200 pt-4">
-                  <div className="flex justify-between items-center mb-4">
-                    <span className="text-lg font-semibold text-gray-900">Total:</span>
-                    <span className="text-2xl font-bold text-green-600">₹{getCartTotal().toFixed(2)}</span>
-                  </div>
-                  <button
-                    onClick={handleCreateBill}
-                    disabled={offlineCart.length === 0 || !selectedTable}
-                    className="w-full bg-gradient-to-r from-green-600 to-emerald-600 text-white px-6 py-3 rounded-xl font-semibold hover:shadow-lg transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    Create Bill
-                  </button>
+                {/* Customer Mobile */}
+                <div className="mb-4">
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Mobile Number (Optional)</label>
+                  <input
+                    type="tel"
+                    value={customerMobile}
+                    onChange={(e) => setCustomerMobile(e.target.value)}
+                    placeholder="Enter mobile number"
+                    className="w-full px-4 py-2 border-2 border-gray-200 rounded-xl focus:border-green-500 focus:outline-none"
+                  />
                 </div>
               </div>
             </div>
@@ -2381,8 +2356,420 @@ Visit Us Again<br>
             </div>
           </>
         )}
+
+        {activeTab === 'online-billing' && (
+          <div className="relative h-[calc(100vh-200px)] overflow-hidden bg-gradient-to-br from-slate-50 via-purple-50 to-indigo-50">
+            {/* Animated background gradient orbs */}
+            <div className="absolute inset-0 overflow-hidden">
+              <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-purple-200/40 rounded-full blur-[100px] animate-pulse" style={{ animationDuration: '8s' }}></div>
+              <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-indigo-200/40 rounded-full blur-[100px] animate-pulse" style={{ animationDelay: '2s', animationDuration: '8s' }}></div>
+              <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-blue-200/30 rounded-full blur-[120px] animate-pulse" style={{ animationDelay: '4s', animationDuration: '10s' }}></div>
+            </div>
+
+            {/* Subtle grid pattern */}
+            <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PHBhdHRlcm4gaWQ9ImdyaWQiIHdpZHRoPSI2MCIgaGVpZ2h0PSI2MCIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHBhdGggZD0iTSAwIDMwIEwgNjAgMzAgTSAzMCAwIEwgMzAgNjAiIGZpbGw9Im5vbmUiIHN0cm9rZT0icmdiYSg5OSwgMTAyLCAyNDEsIDAuMDUpIiBzdHJva2Utd2lkdGg9IjEiLz48L3BhdHRlcm4+PC9kZWZzPjxyZWN0IHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiIGZpbGw9InVybCgjZ3JpZCkiLz48L3N2Zz4=')] opacity-60"></div>
+
+            {/* Floating particles */}
+            <div className="absolute inset-0 overflow-hidden pointer-events-none">
+              {[...Array(20)].map((_, i) => (
+                <div
+                  key={i}
+                  className="absolute w-1 h-1 bg-purple-400/40 rounded-full animate-float"
+                  style={{
+                    left: `${Math.random() * 100}%`,
+                    top: `${Math.random() * 100}%`,
+                    animationDelay: `${Math.random() * 8}s`,
+                    animationDuration: `${10 + Math.random() * 8}s`
+                  }}
+                ></div>
+              ))}
+            </div>
+
+            <div className="relative z-10 flex flex-col items-center justify-center h-full px-4 py-6">
+              {/* Premium badge */}
+              <div className="mb-6 animate-fade-in-down" style={{ animationDelay: '0s' }}>
+                <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-gradient-to-r from-purple-100 to-indigo-100 border border-purple-300 rounded-full">
+                  <div className="w-1.5 h-1.5 bg-purple-500 rounded-full animate-pulse" style={{ animationDuration: '2s' }}></div>
+                  <span className="text-purple-700 text-xs font-semibold tracking-wider uppercase">Coming Soon</span>
+                </div>
+              </div>
+
+              {/* Main animated icon with glow */}
+              <div className="relative mb-6 animate-scale-in" style={{ animationDelay: '0.5s' }}>
+                <div className="absolute inset-0 bg-gradient-to-r from-purple-400 to-indigo-400 rounded-3xl blur-2xl opacity-60 animate-pulse" style={{ animationDuration: '4s' }}></div>
+                <div className="relative w-20 h-20 bg-gradient-to-br from-purple-500 via-indigo-500 to-purple-600 rounded-3xl flex items-center justify-center shadow-xl border border-white/20">
+                  <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                  </svg>
+                </div>
+                {/* Decorative rings */}
+                <div className="absolute -inset-3 border border-purple-300/30 rounded-3xl animate-spin-slow"></div>
+                <div className="absolute -inset-6 border border-indigo-300/20 rounded-3xl animate-spin-slow" style={{ animationDirection: 'reverse' }}></div>
+              </div>
+
+              {/* Animated title with letter-by-letter effect */}
+              <div className="text-center mb-4">
+                <h2 className="text-3xl md:text-5xl lg:text-6xl font-black text-gray-800 mb-3 tracking-tight" style={{ textShadow: '0 2px 20px rgba(168, 85, 247, 0.15)' }}>
+                  <span className="inline-block animate-letter-drop" style={{ animationDelay: '1s' }}>C</span>
+                  <span className="inline-block animate-letter-drop" style={{ animationDelay: '1.2s' }}>O</span>
+                  <span className="inline-block animate-letter-drop" style={{ animationDelay: '1.4s' }}>M</span>
+                  <span className="inline-block animate-letter-drop" style={{ animationDelay: '1.6s' }}>I</span>
+                  <span className="inline-block animate-letter-drop" style={{ animationDelay: '1.8s' }}>N</span>
+                  <span className="inline-block animate-letter-drop" style={{ animationDelay: '2s' }}>G</span>
+                  <span className="inline-block animate-letter-drop bg-gradient-to-r from-purple-600 to-indigo-600 bg-clip-text text-transparent" style={{ animationDelay: '2.2s' }}> &nbsp;</span>
+                  <span className="inline-block animate-letter-drop" style={{ animationDelay: '2.4s' }}>S</span>
+                  <span className="inline-block animate-letter-drop" style={{ animationDelay: '2.6s' }}>O</span>
+                  <span className="inline-block animate-letter-drop" style={{ animationDelay: '2.8s' }}>O</span>
+                  <span className="inline-block animate-letter-drop" style={{ animationDelay: '3s' }}>N</span>
+                </h2>
+                <div className="flex items-center justify-center gap-3 animate-fade-in-up" style={{ animationDelay: '3.2s' }}>
+                  <div className="h-px w-12 bg-gradient-to-r from-transparent to-purple-400"></div>
+                  <p className="text-base md:text-lg font-semibold text-purple-700 tracking-wide">
+                    Online orders
+                  </p>
+                  <div className="h-px w-12 bg-gradient-to-l from-transparent to-purple-400"></div>
+                </div>
+              </div>
+
+              {/* Feature cards with premium design */}
+              <div className="max-w-2xl mx-auto space-y-3 w-full">
+                <div className="group bg-white/80 backdrop-blur-xl border border-purple-200 rounded-2xl p-4 transform hover:scale-[1.02] hover:border-purple-400 transition-all duration-500 shadow-lg hover:shadow-xl animate-slide-in-left" style={{ animationDelay: '3.6s' }}>
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-indigo-500 rounded-2xl flex items-center justify-center shadow-md group-hover:shadow-lg transition-shadow duration-300">
+                      <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                      </svg>
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-base font-bold text-gray-800 mb-0.5">Digital Payment Integration</p>
+                      <p className="text-gray-600 text-xs">UPI, Card, and Wallet support</p>
+                    </div>
+                    <div className="w-6 h-6 rounded-full bg-purple-100 flex items-center justify-center">
+                      <svg className="w-3 h-3 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="group bg-white/80 backdrop-blur-xl border border-purple-200 rounded-2xl p-4 transform hover:scale-[1.02] hover:border-purple-400 transition-all duration-500 shadow-lg hover:shadow-xl animate-slide-in-right" style={{ animationDelay: '4s' }}>
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-indigo-500 rounded-2xl flex items-center justify-center shadow-md group-hover:shadow-lg transition-shadow duration-300">
+                      <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-base font-bold text-gray-800 mb-0.5">Instant Invoice Generation</p>
+                      <p className="text-gray-600 text-xs">Generate and send invoices instantly</p>
+                    </div>
+                    <div className="w-6 h-6 rounded-full bg-purple-100 flex items-center justify-center">
+                      <svg className="w-3 h-3 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="group bg-white/80 backdrop-blur-xl border border-purple-200 rounded-2xl p-4 transform hover:scale-[1.02] hover:border-purple-400 transition-all duration-500 shadow-lg hover:shadow-xl animate-slide-in-left" style={{ animationDelay: '4.4s' }}>
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-indigo-500 rounded-2xl flex items-center justify-center shadow-md group-hover:shadow-lg transition-shadow duration-300">
+                      <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                      </svg>
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-base font-bold text-gray-800 mb-0.5">Customer Portal</p>
+                      <p className="text-gray-600 text-xs">Self-service billing for customers</p>
+                    </div>
+                    <div className="w-6 h-6 rounded-full bg-purple-100 flex items-center justify-center">
+                      <svg className="w-3 h-3 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Bottom message with animated indicator */}
+              <div className="mt-6 text-center animate-fade-in-up" style={{ animationDelay: '4.8s' }}>
+                <p className="text-gray-600 text-xs font-medium mb-3">
+                  We're crafting something extraordinary for you
+                </p>
+                <div className="flex items-center justify-center gap-2">
+                  <div className="w-1.5 h-1.5 bg-purple-500 rounded-full animate-bounce" style={{ animationDelay: '0s', animationDuration: '1.5s' }}></div>
+                  <div className="w-1.5 h-1.5 bg-purple-500 rounded-full animate-bounce" style={{ animationDelay: '0.2s', animationDuration: '1.5s' }}></div>
+                  <div className="w-1.5 h-1.5 bg-purple-500 rounded-full animate-bounce" style={{ animationDelay: '0.4s', animationDuration: '1.5s' }}></div>
+                </div>
+              </div>
+            </div>
+
+            {/* Custom animations */}
+            <style jsx>{`
+              @keyframes letter-drop {
+                0% {
+                  opacity: 0;
+                  transform: translateY(-60px) scale(2.5);
+                  filter: blur(10px);
+                }
+                40% {
+                  opacity: 1;
+                  transform: translateY(0) scale(1.3);
+                  filter: blur(0);
+                }
+                60% {
+                  transform: translateY(-5px) scale(1.1);
+                }
+                100% {
+                  opacity: 1;
+                  transform: translateY(0) scale(1);
+                  filter: blur(0);
+                }
+              }
+
+              @keyframes fade-in-down {
+                0% {
+                  opacity: 0;
+                  transform: translateY(-30px);
+                }
+                100% {
+                  opacity: 1;
+                  transform: translateY(0);
+                }
+              }
+
+              @keyframes fade-in-up {
+                0% {
+                  opacity: 0;
+                  transform: translateY(30px);
+                }
+                100% {
+                  opacity: 1;
+                  transform: translateY(0);
+                }
+              }
+
+              @keyframes scale-in {
+                0% {
+                  opacity: 0;
+                  transform: scale(0.5);
+                }
+                50% {
+                  transform: scale(1.1);
+                }
+                100% {
+                  opacity: 1;
+                  transform: scale(1);
+                }
+              }
+
+              @keyframes slide-in-left {
+                0% {
+                  opacity: 0;
+                  transform: translateX(-60px);
+                }
+                100% {
+                  opacity: 1;
+                  transform: translateX(0);
+                }
+              }
+
+              @keyframes slide-in-right {
+                0% {
+                  opacity: 0;
+                  transform: translateX(60px);
+                }
+                100% {
+                  opacity: 1;
+                  transform: translateX(0);
+                }
+              }
+
+              @keyframes spin-slow {
+                0% {
+                  transform: rotate(0deg);
+                }
+                100% {
+                  transform: rotate(360deg);
+                }
+              }
+
+              @keyframes float {
+                0%, 100% {
+                  transform: translateY(0) translateX(0);
+                  opacity: 0.3;
+                }
+                50% {
+                  transform: translateY(-20px) translateX(10px);
+                  opacity: 0.6;
+                }
+              }
+
+              .animate-letter-drop {
+                animation: letter-drop 1.2s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+                opacity: 0;
+              }
+
+              .animate-fade-in-down {
+                animation: fade-in-down 1.2s ease-out forwards;
+                opacity: 0;
+              }
+
+              .animate-fade-in-up {
+                animation: fade-in-up 1.2s ease-out forwards;
+                opacity: 0;
+              }
+
+              .animate-scale-in {
+                animation: scale-in 1.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+                opacity: 0;
+              }
+
+              .animate-slide-in-left {
+                animation: slide-in-left 1.2s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+                opacity: 0;
+              }
+
+              .animate-slide-in-right {
+                animation: slide-in-right 1.2s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+                opacity: 0;
+              }
+
+              .animate-spin-slow {
+                animation: spin-slow 30s linear infinite;
+              }
+
+              .animate-float {
+                animation: float 12s ease-in-out infinite;
+              }
+            `}</style>
+          </div>
+        )}
       </main>
       </div>
+
+      {/* Floating Cart Button */}
+      {activeTab === 'offline-billing' && offlineCart.length > 0 && (
+        <button
+          onClick={() => setShowCartModal(true)}
+          className="fixed bottom-8 right-8 bg-green-600 hover:bg-green-800 text-white px-6 py-4 rounded-2xl shadow-2xl flex items-center gap-3 transition-all duration-300 z-40"
+        >
+          <div className="relative">
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
+            </svg>
+            <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs w-5 h-5 rounded-full flex items-center justify-center font-bold">
+              {offlineCart.length}
+            </span>
+          </div>
+          <span className="font-semibold">₹{getCartTotal().toFixed(2)}</span>
+        </button>
+      )}
+
+      {/* Cart Modal */}
+      {showCartModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 animate-slide-in">
+          <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-2xl font-bold text-green-700">Cart</h2>
+              <button
+                onClick={() => setShowCartModal(false)}
+                className="text-gray-500 hover:text-gray-700 transition-colors"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Cart Items */}
+            <div className="space-y-3 max-h-[300px] overflow-y-auto mb-4">
+              {offlineCart.length === 0 ? (
+                <p className="text-gray-500 text-center py-8">Cart is empty</p>
+              ) : (
+                offlineCart.map((item) => (
+                  <div key={item.id} className={`flex items-center justify-between bg-gray-50 rounded-lg p-3 transition-all duration-300 ${cartAnimation ? 'animate-bounce' : ''}`}>
+                    <div className="flex-1">
+                      <p className="font-semibold text-gray-900 text-sm">{item.name}</p>
+                      <p className="text-sm text-green-600">₹{item.price.toFixed(2)}</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => updateCartQuantity(item.id, item.quantity - 1)}
+                        className="w-8 h-8 rounded-full bg-red-100 text-red-600 hover:bg-red-200 transition-colors"
+                      >
+                        -
+                      </button>
+                      <span className="w-8 text-center font-semibold">{item.quantity}</span>
+                      <button
+                        onClick={() => updateCartQuantity(item.id, item.quantity + 1)}
+                        className="w-8 h-8 rounded-full bg-green-100 text-green-600 hover:bg-green-200 transition-colors"
+                      >
+                        +
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            {/* Customer Details */}
+            <div className="space-y-3 mb-4">
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Table Number</label>
+                <select
+                  value={selectedTable}
+                  onChange={(e) => setSelectedTable(e.target.value)}
+                  className="w-full px-4 py-2 border-2 border-gray-200 rounded-xl focus:border-green-500 focus:outline-none"
+                >
+                  <option value="">Select Table</option>
+                  {tables.map((table) => (
+                    <option key={table.id} value={table.id}>
+                      Table {table.table_number}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Customer Name</label>
+                <input
+                  type="text"
+                  value={customerName}
+                  onChange={(e) => setCustomerName(e.target.value)}
+                  placeholder="Enter customer name"
+                  className="w-full px-4 py-2 border-2 border-gray-200 rounded-xl focus:border-green-500 focus:outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Mobile Number</label>
+                <input
+                  type="tel"
+                  value={customerMobile}
+                  onChange={(e) => setCustomerMobile(e.target.value)}
+                  placeholder="Enter mobile number"
+                  className="w-full px-4 py-2 border-2 border-gray-200 rounded-xl focus:border-green-500 focus:outline-none"
+                />
+              </div>
+            </div>
+
+            {/* Total and Create Bill */}
+            <div className="border-t border-gray-200 pt-4">
+              <div className="flex justify-between items-center mb-4">
+                <span className="text-lg font-semibold text-gray-900">Total:</span>
+                <span className="text-2xl font-bold text-green-600">₹{getCartTotal().toFixed(2)}</span>
+              </div>
+              <button
+                onClick={() => {
+                  setShowCartModal(false)
+                  handleCreateBill()
+                }}
+                disabled={offlineCart.length === 0 || !selectedTable}
+                className="w-full bg-green-600 text-white px-6 py-3 rounded-xl font-semibold hover:bg-green-800 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Create Bill
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Bill Preview Modal */}
       {showBillPreview && (
@@ -2576,14 +2963,32 @@ Visit Us Again<br>
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Image URL (optional)</label>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Image (optional, max 1MB)</label>
                 <input
-                  type="text"
-                  value={dishForm.image_url}
-                  onChange={(e) => setDishForm({ ...dishForm, image_url: e.target.value })}
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0]
+                    if (file) {
+                      if (file.size > 1024 * 1024) {
+                        alert('Image size must be less than 1MB')
+                        e.target.value = ''
+                        return
+                      }
+                      const reader = new FileReader()
+                      reader.onloadend = () => {
+                        setDishForm({ ...dishForm, image_url: reader.result as string })
+                      }
+                      reader.readAsDataURL(file)
+                    }
+                  }}
                   className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-green-500 focus:outline-none transition-colors placeholder-gray-400"
-                  placeholder="Enter image URL"
                 />
+                {dishForm.image_url && (
+                  <div className="mt-2">
+                    <img src={dishForm.image_url} alt="Preview" className="w-20 h-20 object-cover rounded-lg" />
+                  </div>
+                )}
               </div>
               <div className="flex items-center gap-2">
                 <input

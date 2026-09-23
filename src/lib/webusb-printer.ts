@@ -12,14 +12,24 @@ export class WebUSBPrinter {
         throw new Error('WebUSB is not supported. Please use Chrome/Edge on desktop or use browser print.')
       }
 
-      // Request USB device access
-      const device = await (navigator as any).usb.requestDevice({
-        filters: [
-          { vendorId: this.vendorId, productId: this.productId }
-        ]
-      })
+      // First, try to get already authorized devices (no prompt)
+      const devices = await (navigator as any).usb.getDevices()
+      const existingDevice = devices.find((d: any) => 
+        d.vendorId === this.vendorId && d.productId === this.productId
+      )
 
-      this.device = device
+      if (existingDevice) {
+        // Use existing authorized device
+        this.device = existingDevice
+      } else {
+        // Request USB device access (only if no authorized device found)
+        const device = await (navigator as any).usb.requestDevice({
+          filters: [
+            { vendorId: this.vendorId, productId: this.productId }
+          ]
+        })
+        this.device = device
+      }
 
       // Open the device
       await this.device.open()
