@@ -27,6 +27,7 @@ export default function KitchenPage() {
   const [notifications, setNotifications] = useState<any[]>([])
   const [selectedFilter, setSelectedFilter] = useState<string>('ready')
   const [selectedOrderForBill, setSelectedOrderForBill] = useState<Order | null>(null)
+  const [servedOrderId, setServedOrderId] = useState<string | null>(null)
 
   useEffect(() => {
     const userData = localStorage.getItem('user')
@@ -201,6 +202,14 @@ export default function KitchenPage() {
     try {
       console.log('Updating order:', orderId, 'to status:', newStatus)
       
+      // Play notification sound
+      playNotificationSound(newStatus)
+      
+      // Set served order for animation
+      if (newStatus === 'served') {
+        setServedOrderId(orderId)
+      }
+      
       const response = await fetch('/api/orders', {
         method: 'PATCH',
         headers: {
@@ -215,6 +224,11 @@ export default function KitchenPage() {
 
       console.log('Order updated successfully')
       fetchOrders()
+      
+      // Clear served order after animation
+      if (newStatus === 'served') {
+        setTimeout(() => setServedOrderId(null), 2000)
+      }
     } catch (error) {
       console.error('Error updating order:', error)
       alert('Failed to update order status. Check console for details.')
@@ -241,15 +255,46 @@ export default function KitchenPage() {
       case 'pending':
         return 'bg-green-100 text-green-800 border-green-300'
       case 'confirmed':
-        return 'bg-emerald-100 text-emerald-800 border-emerald-300'
+        return 'bg-green-100 text-green-800 border-green-300'
       case 'preparing':
-        return 'bg-teal-100 text-teal-800 border-teal-300'
+        return 'bg-green-100 text-green-800 border-green-300'
       case 'ready':
-        return 'bg-lime-100 text-lime-800 border-lime-300'
+        return 'bg-green-100 text-green-800 border-green-300'
       case 'served':
-        return 'bg-green-200 text-green-900 border-green-400'
+        return 'bg-green-800 text-white border-green-900'
       default:
         return 'bg-gray-100 text-gray-800 border-gray-300'
+    }
+  }
+
+  // Notification sound function
+  const playNotificationSound = (status: string) => {
+    try {
+      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)()
+      const oscillator = audioContext.createOscillator()
+      const gainNode = audioContext.createGain()
+      
+      oscillator.connect(gainNode)
+      gainNode.connect(audioContext.destination)
+      
+      if (status === 'served') {
+        // Success sound - higher pitch
+        oscillator.frequency.setValueAtTime(880, audioContext.currentTime)
+        oscillator.frequency.setValueAtTime(1100, audioContext.currentTime + 0.1)
+        gainNode.gain.setValueAtTime(0.3, audioContext.currentTime)
+        gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3)
+        oscillator.start(audioContext.currentTime)
+        oscillator.stop(audioContext.currentTime + 0.3)
+      } else {
+        // Default notification sound
+        oscillator.frequency.setValueAtTime(440, audioContext.currentTime)
+        gainNode.gain.setValueAtTime(0.2, audioContext.currentTime)
+        gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.2)
+        oscillator.start(audioContext.currentTime)
+        oscillator.stop(audioContext.currentTime + 0.2)
+      }
+    } catch (error) {
+      console.error('Error playing notification sound:', error)
     }
   }
 
@@ -261,12 +306,12 @@ export default function KitchenPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-green-50 to-emerald-50">
-      <nav className="bg-white/95 backdrop-blur-sm shadow-lg sticky top-0 z-50">
+    <div className="min-h-screen bg-green-50">
+      <nav className="bg-white shadow-lg sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-16">
             <div className="flex items-center">
-              <h1 className="text-xl font-bold bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">
+              <h1 className="text-xl font-bold text-green-700">
                  Kitchen Display
               </h1>
             </div>
@@ -287,7 +332,7 @@ export default function KitchenPage() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Stats Bar - Ready Orders Only */}
         <div className="mb-8">
-          <div className="bg-gradient-to-r from-green-500 to-emerald-500 rounded-2xl p-6 shadow-lg text-white">
+          <div className="bg-green-600 rounded-2xl p-6 shadow-lg text-white">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-4">
                 <CheckCircle className="w-12 h-12" />
@@ -298,7 +343,7 @@ export default function KitchenPage() {
               </div>
               <button
                 onClick={fetchOrders}
-                className="bg-white/20 hover:bg-white/30 px-6 py-3 rounded-xl font-semibold transition-all duration-300"
+                className="bg-green-700 hover:bg-green-800 px-6 py-3 rounded-xl font-semibold transition-all duration-300"
               >
                 Refresh
               </button>
@@ -318,6 +363,7 @@ export default function KitchenPage() {
                 <OrderCard
                   key={order.id}
                   order={order}
+                  servedOrderId={servedOrderId}
                   onStatusChange={(status) => updateOrderStatus(order.id, status)}
                   onItemStatusChange={updateItemStatus}
                   getStatusColor={getStatusColor}
@@ -432,15 +478,18 @@ export default function KitchenPage() {
   )
 }
 
-function OrderCard({ order, onStatusChange, onItemStatusChange, getStatusColor, onViewBill }: {
+function OrderCard({ order, servedOrderId, onStatusChange, onItemStatusChange, getStatusColor, onViewBill }: {
   order: Order
+  servedOrderId: string | null
   onStatusChange: (status: string) => void
   onItemStatusChange: (itemId: string, status: string) => void
   getStatusColor: (status: string) => string
   onViewBill: (order: Order) => void
 }) {
+  const isServed = servedOrderId === order.id
+  
   return (
-    <div className="bg-white rounded-2xl shadow-lg overflow-hidden border border-gray-200 hover:shadow-xl transition-all duration-300">
+    <div className={`bg-white rounded-2xl shadow-lg overflow-hidden border border-gray-200 hover:shadow-xl transition-all duration-300 ${isServed ? 'animate-pulse bg-green-100' : ''}`}>
       <div className={`p-5 border-b-2 ${getStatusColor(order.status)}`}>
         <div className="flex justify-between items-start">
           <div className="flex-1 min-w-0">
@@ -482,11 +531,7 @@ function OrderCard({ order, onStatusChange, onItemStatusChange, getStatusColor, 
                 </div>
               </div>
               <div className="flex flex-col items-end gap-2 shrink-0">
-                <span className={`px-2 py-0.5 rounded-full text-xs font-bold whitespace-nowrap ${
-                  item.status === 'ready' ? 'bg-lime-100 text-lime-800' :
-                  item.status === 'preparing' ? 'bg-teal-100 text-teal-800' :
-                  'bg-green-100 text-green-800'
-                }`}>
+                <span className={`px-2 py-0.5 rounded-full text-xs font-bold whitespace-nowrap bg-green-100 text-green-800`}>
                   {item.status}
                 </span>
                 <button
@@ -495,7 +540,7 @@ function OrderCard({ order, onStatusChange, onItemStatusChange, getStatusColor, 
                                      item.status === 'preparing' ? 'ready' : 'ready'
                     onItemStatusChange(item.id, nextStatus)
                   }}
-                  className="text-xs bg-green-600 text-white px-3 py-1.5 rounded-lg font-semibold hover:bg-green-700 transition-colors whitespace-nowrap"
+                  className="text-xs bg-green-600 text-white px-3 py-1.5 rounded-lg font-semibold hover:bg-green-800 transition-colors whitespace-nowrap"
                 >
                   {item.status === 'pending' ? 'Start' : item.status === 'preparing' ? 'Complete' : 'Done'}
                 </button>
@@ -517,7 +562,7 @@ function OrderCard({ order, onStatusChange, onItemStatusChange, getStatusColor, 
           <div className="flex gap-3">
             <button
               onClick={() => onStatusChange('served')}
-              className="flex-1 bg-green-600 text-white py-3 rounded-xl font-bold hover:bg-green-700 transition-colors"
+              className="flex-1 bg-green-600 text-white py-3 rounded-xl font-bold hover:bg-green-800 transition-colors"
             >
               Mark Served
             </button>

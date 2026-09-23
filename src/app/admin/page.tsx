@@ -69,6 +69,8 @@ export default function AdminDashboard() {
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [currentDateTime, setCurrentDateTime] = useState(new Date())
   const [showProfileMenu, setShowProfileMenu] = useState(false)
+  const [cartAnimation, setCartAnimation] = useState(false)
+  const [orderAnimation, setOrderAnimation] = useState<string | null>(null)
   
   // Offline Orders State
   const [offlineCart, setOfflineCart] = useState<any[]>([])
@@ -669,6 +671,10 @@ For technical support, contact: support@everycom.com
 
       setSelectedOrderForBilling(null)
       fetchData()
+      
+      // Play success sound
+      playNotificationSound('success')
+      
       alert('Order marked as paid and table released!')
     } catch (error) {
       console.error('Error marking order as paid:', error)
@@ -802,6 +808,10 @@ For technical support, contact: support@everycom.com
         image_url: dish.image_url
       }])
     }
+    // Play sound and trigger animation
+    playNotificationSound('cart')
+    setCartAnimation(true)
+    setTimeout(() => setCartAnimation(false), 500)
   }
 
   const removeFromCart = (cartItemId: string) => {
@@ -822,6 +832,48 @@ For technical support, contact: support@everycom.com
 
   const getCartTotal = () => {
     return offlineCart.reduce((sum, item) => sum + (item.price * item.quantity), 0)
+  }
+
+  // Notification sound function
+  const playNotificationSound = (type: 'cart' | 'order' | 'success') => {
+    try {
+      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)()
+      const oscillator = audioContext.createOscillator()
+      const gainNode = audioContext.createGain()
+      
+      oscillator.connect(gainNode)
+      gainNode.connect(audioContext.destination)
+      
+      if (type === 'cart') {
+        // Cart add sound - pleasant ding
+        oscillator.frequency.setValueAtTime(523.25, audioContext.currentTime) // C5
+        oscillator.frequency.setValueAtTime(659.25, audioContext.currentTime + 0.1) // E5
+        gainNode.gain.setValueAtTime(0.2, audioContext.currentTime)
+        gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3)
+        oscillator.start(audioContext.currentTime)
+        oscillator.stop(audioContext.currentTime + 0.3)
+      } else if (type === 'order') {
+        // Order created sound - ascending
+        oscillator.frequency.setValueAtTime(440, audioContext.currentTime)
+        oscillator.frequency.setValueAtTime(554, audioContext.currentTime + 0.1)
+        oscillator.frequency.setValueAtTime(659, audioContext.currentTime + 0.2)
+        gainNode.gain.setValueAtTime(0.25, audioContext.currentTime)
+        gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.4)
+        oscillator.start(audioContext.currentTime)
+        oscillator.stop(audioContext.currentTime + 0.4)
+      } else if (type === 'success') {
+        // Success sound - major chord
+        oscillator.frequency.setValueAtTime(523.25, audioContext.currentTime)
+        oscillator.frequency.setValueAtTime(659.25, audioContext.currentTime + 0.15)
+        oscillator.frequency.setValueAtTime(783.99, audioContext.currentTime + 0.3)
+        gainNode.gain.setValueAtTime(0.3, audioContext.currentTime)
+        gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5)
+        oscillator.start(audioContext.currentTime)
+        oscillator.stop(audioContext.currentTime + 0.5)
+      }
+    } catch (error) {
+      console.error('Error playing notification sound:', error)
+    }
   }
 
   const createOfflineOrder = async () => {
@@ -860,6 +912,12 @@ For technical support, contact: support@everycom.com
     setOfflineCart([])
     setSelectedTable('')
     setCustomerName('')
+    
+    // Play sound and trigger animation
+    playNotificationSound('order')
+    setOrderAnimation(offlineOrder.id)
+    setTimeout(() => setOrderAnimation(null), 2000)
+    
     alert('Offline order created successfully!')
 
     // If online, try to sync immediately
@@ -2235,7 +2293,7 @@ Visit Us Again<br>
                     <p className="text-gray-500 text-center py-8">Cart is empty</p>
                   ) : (
                     offlineCart.map((item) => (
-                      <div key={item.id} className="flex items-center justify-between bg-gray-50 rounded-lg p-3">
+                      <div key={item.id} className={`flex items-center justify-between bg-gray-50 rounded-lg p-3 transition-all duration-300 ${cartAnimation ? 'animate-bounce' : ''}`}>
                         <div className="flex-1">
                           <p className="font-semibold text-gray-900 text-sm">{item.name}</p>
                           <p className="text-sm text-green-600">₹{item.price.toFixed(2)}</p>
@@ -2285,7 +2343,7 @@ Visit Us Again<br>
               ) : (
                 <div className="space-y-4">
                   {offlineOrders.map((order, index) => (
-                    <div key={`${order.id}-${index}`} className="border border-gray-200 rounded-xl p-4 hover:shadow-md transition-all">
+                    <div key={`${order.id}-${index}`} className={`border border-gray-200 rounded-xl p-4 hover:shadow-md transition-all ${orderAnimation === order.id ? 'animate-pulse bg-green-100' : ''}`}>
                       <div className="flex justify-between items-start mb-3">
                         <div>
                           <p className="font-semibold text-gray-900">Order OFF-{order.id}</p>
