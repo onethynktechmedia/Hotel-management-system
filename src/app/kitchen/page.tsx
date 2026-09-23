@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import supabase from '@/lib/db'
 import { User, Order, OrderItem } from '@/types'
-import { Bell, LogOut, CheckCircle, ChefHat } from 'lucide-react'
+import { Bell, LogOut, CheckCircle, ChefHat, Clock } from 'lucide-react'
 import NotificationSystem from '@/components/NotificationSystem'
 import { WebUSBPrinter } from '@/lib/webusb-printer'
 
@@ -253,11 +253,10 @@ export default function KitchenPage() {
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'pending':
-        return 'bg-green-100 text-green-800 border-green-300'
       case 'confirmed':
-        return 'bg-green-100 text-green-800 border-green-300'
+        return 'bg-yellow-100 text-yellow-800 border-yellow-300'
       case 'preparing':
-        return 'bg-green-100 text-green-800 border-green-300'
+        return 'bg-orange-100 text-orange-800 border-orange-300'
       case 'ready':
         return 'bg-green-100 text-green-800 border-green-300'
       case 'served':
@@ -298,8 +297,20 @@ export default function KitchenPage() {
     }
   }
 
+  const pendingOrders = orders.filter(o => o.status === 'pending' || o.status === 'confirmed')
+  const preparingOrders = orders.filter(o => o.status === 'preparing')
   const readyOrders = orders.filter(o => o.status === 'ready')
-  const filteredOrders = readyOrders
+  const servedOrders = orders.filter(o => o.status === 'served')
+  
+  // Sort orders: pending first, then preparing, then ready, then served
+  const filteredOrders = [...orders].sort((a, b) => {
+    const statusOrder = { 'pending': 0, 'confirmed': 0, 'preparing': 1, 'ready': 2, 'served': 3 }
+    const statusA = statusOrder[a.status as keyof typeof statusOrder] ?? 4
+    const statusB = statusOrder[b.status as keyof typeof statusOrder] ?? 4
+    if (statusA !== statusB) return statusA - statusB
+    // If same status, sort by time (newest first)
+    return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+  })
 
   if (loading) {
     return <div className="min-h-screen flex items-center justify-center">Loading...</div>
@@ -330,32 +341,51 @@ export default function KitchenPage() {
       </nav>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Stats Bar - Ready Orders Only */}
-        <div className="mb-8">
-          <div className="bg-green-600 rounded-2xl p-6 shadow-lg text-white">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <CheckCircle className="w-12 h-12" />
-                <div>
-                  <p className="text-3xl font-bold">{readyOrders.length}</p>
-                  <p className="text-sm font-semibold opacity-90">Ready to Serve</p>
-                </div>
+        {/* Stats Bar - All Order Statuses */}
+        <div className="mb-8 grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="bg-yellow-500 rounded-2xl p-6 shadow-lg text-white">
+            <div className="flex items-center gap-3">
+              <Clock className="w-10 h-10" />
+              <div>
+                <p className="text-2xl font-bold">{pendingOrders.length}</p>
+                <p className="text-xs font-semibold opacity-90">Pending</p>
               </div>
-              <button
-                onClick={fetchOrders}
-                className="bg-green-700 hover:bg-green-800 px-6 py-3 rounded-xl font-semibold transition-all duration-300"
-              >
-                Refresh
-              </button>
+            </div>
+          </div>
+          <div className="bg-orange-500 rounded-2xl p-6 shadow-lg text-white">
+            <div className="flex items-center gap-3">
+              <ChefHat className="w-10 h-10" />
+              <div>
+                <p className="text-2xl font-bold">{preparingOrders.length}</p>
+                <p className="text-xs font-semibold opacity-90">Preparing</p>
+              </div>
+            </div>
+          </div>
+          <div className="bg-green-600 rounded-2xl p-6 shadow-lg text-white">
+            <div className="flex items-center gap-3">
+              <CheckCircle className="w-10 h-10" />
+              <div>
+                <p className="text-2xl font-bold">{readyOrders.length}</p>
+                <p className="text-xs font-semibold opacity-90">Ready</p>
+              </div>
+            </div>
+          </div>
+          <div className="bg-green-800 rounded-2xl p-6 shadow-lg text-white">
+            <div className="flex items-center gap-3">
+              <CheckCircle className="w-10 h-10" />
+              <div>
+                <p className="text-2xl font-bold">{servedOrders.length}</p>
+                <p className="text-xs font-semibold opacity-90">Served</p>
+              </div>
             </div>
           </div>
         </div>
 
-        {/* Orders Grid - Ready Orders Only */}
+        {/* Orders Grid - All Orders */}
         <div>
           <h2 className="text-2xl font-bold mb-6 flex items-center text-gray-900">
-            <CheckCircle className="w-6 h-6 text-lime-600 mr-3" />
-            Ready to Serve ({filteredOrders.length})
+            <CheckCircle className="w-6 h-6 text-green-600 mr-3" />
+            All Orders ({filteredOrders.length})
           </h2>
           {filteredOrders.length > 0 ? (
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -374,9 +404,19 @@ export default function KitchenPage() {
           ) : (
             <div className="text-center py-16">
               <CheckCircle className="w-20 h-20 text-green-300 mx-auto mb-6" />
-              <p className="text-gray-500 text-xl font-semibold">No orders ready to serve</p>
+              <p className="text-gray-500 text-xl font-semibold">No orders</p>
             </div>
           )}
+        </div>
+
+        {/* Refresh Button */}
+        <div className="fixed bottom-8 right-8">
+          <button
+            onClick={fetchOrders}
+            className="bg-green-600 hover:bg-green-800 text-white px-6 py-3 rounded-xl font-semibold shadow-lg transition-all duration-300"
+          >
+            Refresh
+          </button>
         </div>
       </div>
 
@@ -466,7 +506,7 @@ export default function KitchenPage() {
               </button>
               <button
                 onClick={handleThermalPrint}
-                className="flex-1 px-6 py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-xl font-semibold hover:shadow-lg transition-all duration-300"
+                className="flex-1 px-6 py-3 bg-green-600 text-white rounded-xl font-semibold hover:bg-green-800 transition-all duration-300"
               >
                 Print Order
               </button>
@@ -488,13 +528,17 @@ function OrderCard({ order, servedOrderId, onStatusChange, onItemStatusChange, g
 }) {
   const isServed = servedOrderId === order.id
   
+  // Calculate time elapsed
+  const timeElapsed = Math.floor((Date.now() - new Date(order.created_at).getTime()) / 60000) // minutes
+  const timeDisplay = timeElapsed < 1 ? 'Just now' : timeElapsed < 60 ? `${timeElapsed}m ago` : `${Math.floor(timeElapsed / 60)}h ago`
+  
   return (
-    <div className={`bg-white rounded-2xl shadow-lg overflow-hidden border border-gray-200 hover:shadow-xl transition-all duration-300 ${isServed ? 'animate-pulse bg-green-100' : ''}`}>
+    <div className={`bg-white rounded-2xl shadow-lg overflow-hidden border-2 hover:shadow-xl transition-all duration-300 ${isServed ? 'animate-pulse bg-green-100 border-green-500' : order.status === 'pending' || order.status === 'confirmed' ? 'border-yellow-400' : 'border-gray-200'}`}>
       <div className={`p-5 border-b-2 ${getStatusColor(order.status)}`}>
         <div className="flex justify-between items-start">
           <div className="flex-1 min-w-0">
             <h3 className="font-bold text-xl text-gray-900 mb-1 truncate">Table {order.tables?.table_number}</h3>
-            <p className="text-sm opacity-75 mb-1 truncate">{new Date(order.created_at).toLocaleTimeString()}</p>
+            <p className="text-sm opacity-75 mb-1 truncate">{timeDisplay}</p>
             <p className="text-xs opacity-60 truncate">Order #{formatOrderId(order.id)}</p>
           </div>
           <div className="flex flex-col items-end gap-2 shrink-0">
@@ -531,7 +575,11 @@ function OrderCard({ order, servedOrderId, onStatusChange, onItemStatusChange, g
                 </div>
               </div>
               <div className="flex flex-col items-end gap-2 shrink-0">
-                <span className={`px-2 py-0.5 rounded-full text-xs font-bold whitespace-nowrap bg-green-100 text-green-800`}>
+                <span className={`px-2 py-0.5 rounded-full text-xs font-bold whitespace-nowrap ${
+                  item.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                  item.status === 'preparing' ? 'bg-orange-100 text-orange-800' :
+                  'bg-green-100 text-green-800'
+                }`}>
                   {item.status}
                 </span>
                 <button
@@ -540,7 +588,11 @@ function OrderCard({ order, servedOrderId, onStatusChange, onItemStatusChange, g
                                      item.status === 'preparing' ? 'ready' : 'ready'
                     onItemStatusChange(item.id, nextStatus)
                   }}
-                  className="text-xs bg-green-600 text-white px-3 py-1.5 rounded-lg font-semibold hover:bg-green-800 transition-colors whitespace-nowrap"
+                  className={`text-xs text-white px-3 py-1.5 rounded-lg font-semibold transition-colors whitespace-nowrap ${
+                    item.status === 'pending' ? 'bg-yellow-600 hover:bg-yellow-700' :
+                    item.status === 'preparing' ? 'bg-orange-600 hover:bg-orange-700' :
+                    'bg-green-600 hover:bg-green-800'
+                  }`}
                 >
                   {item.status === 'pending' ? 'Start' : item.status === 'preparing' ? 'Complete' : 'Done'}
                 </button>
@@ -560,12 +612,14 @@ function OrderCard({ order, servedOrderId, onStatusChange, onItemStatusChange, g
           </div>
 
           <div className="flex gap-3">
-            <button
-              onClick={() => onStatusChange('served')}
-              className="flex-1 bg-green-600 text-white py-3 rounded-xl font-bold hover:bg-green-800 transition-colors"
-            >
-              Mark Served
-            </button>
+            {order.status === 'ready' && (
+              <button
+                onClick={() => onStatusChange('served')}
+                className="flex-1 bg-green-600 text-white py-3 rounded-xl font-bold hover:bg-green-800 transition-colors"
+              >
+                Mark Served
+              </button>
+            )}
           </div>
         </div>
       </div>
