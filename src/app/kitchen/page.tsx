@@ -192,9 +192,19 @@ export default function KitchenPage() {
       console.log('Kitchen order printed successfully via WebUSB')
       alert('Kitchen order printed successfully!')
       
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error printing kitchen order:', error)
-      alert('Failed to print kitchen order. Please ensure printer is connected via USB and you are using Chrome/Edge browser.')
+      
+      // Provide specific error messages
+      if (error.name === 'NotFoundError') {
+        alert('Printer not found. Please ensure the printer is connected via USB and powered on.')
+      } else if (error.name === 'SecurityError') {
+        alert('Permission denied. Please allow USB device access when prompted.')
+      } else if (error.name === 'NotAllowedError') {
+        alert('User cancelled the device selection. Please try again and select the printer.')
+      } else {
+        alert(`Failed to print kitchen order: ${error.message || 'Unknown error'}. Please ensure printer is connected via USB and you are using Chrome/Edge browser.`)
+      }
     }
   }
 
