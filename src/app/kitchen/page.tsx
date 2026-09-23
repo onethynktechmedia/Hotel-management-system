@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import supabase from '@/lib/db'
 import { User, Order, OrderItem } from '@/types'
-import { Bell, LogOut, CheckCircle, Clock, ChefHat, AlertCircle } from 'lucide-react'
+import { Bell, LogOut, CheckCircle, ChefHat } from 'lucide-react'
 import NotificationSystem from '@/components/NotificationSystem'
 import { WebUSBPrinter } from '@/lib/webusb-printer'
 
@@ -25,7 +25,7 @@ export default function KitchenPage() {
   const [orders, setOrders] = useState<Order[]>([])
   const [loading, setLoading] = useState(true)
   const [notifications, setNotifications] = useState<any[]>([])
-  const [selectedFilter, setSelectedFilter] = useState<string>('all')
+  const [selectedFilter, setSelectedFilter] = useState<string>('ready')
   const [selectedOrderForBill, setSelectedOrderForBill] = useState<Order | null>(null)
 
   useEffect(() => {
@@ -253,21 +253,8 @@ export default function KitchenPage() {
     }
   }
 
-  const completedOrders = orders.filter(o => o.status === 'served')
-  const pendingOrders = orders.filter(o => o.status === 'pending' || o.status === 'confirmed')
-  const preparingOrders = orders.filter(o => o.status === 'preparing')
   const readyOrders = orders.filter(o => o.status === 'ready')
-
-  // Filter orders based on selected filter
-  const filteredOrders = selectedFilter === 'all' 
-    ? orders 
-    : selectedFilter === 'completed'    
-      ? completedOrders
-      : selectedFilter === 'pending'
-        ? pendingOrders
-        : selectedFilter === 'preparing'
-          ? preparingOrders
-          : readyOrders
+  const filteredOrders = readyOrders
 
   if (loading) {
     return <div className="min-h-screen flex items-center justify-center">Loading...</div>
@@ -298,199 +285,50 @@ export default function KitchenPage() {
       </nav>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Stats Bar */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-          <div 
-            onClick={() => setSelectedFilter(selectedFilter === 'pending' ? 'all' : 'pending')}
-            className={`bg-white border-2 rounded-2xl p-4 text-center shadow-md hover:shadow-lg transition-all duration-300 cursor-pointer ${selectedFilter === 'pending' ? 'border-green-500 ring-2 ring-green-200' : 'border-gray-200'}`}
-          >
-            <div className="flex items-center justify-center mb-2">
-              <Clock className="w-6 h-6 text-orange-500 mr-2 shrink-0" />
-              <span className="text-2xl font-bold text-gray-800">{pendingOrders.length}</span>
+        {/* Stats Bar - Ready Orders Only */}
+        <div className="mb-8">
+          <div className="bg-gradient-to-r from-green-500 to-emerald-500 rounded-2xl p-6 shadow-lg text-white">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <CheckCircle className="w-12 h-12" />
+                <div>
+                  <p className="text-3xl font-bold">{readyOrders.length}</p>
+                  <p className="text-sm font-semibold opacity-90">Ready to Serve</p>
+                </div>
+              </div>
+              <button
+                onClick={fetchOrders}
+                className="bg-white/20 hover:bg-white/30 px-6 py-3 rounded-xl font-semibold transition-all duration-300"
+              >
+                Refresh
+              </button>
             </div>
-            <p className="text-xs font-bold text-gray-600">Pending</p>
-          </div>
-          <div 
-            onClick={() => setSelectedFilter(selectedFilter === 'preparing' ? 'all' : 'preparing')}
-            className={`bg-white border-2 rounded-2xl p-4 text-center shadow-md hover:shadow-lg transition-all duration-300 cursor-pointer ${selectedFilter === 'preparing' ? 'border-green-500 ring-2 ring-green-200' : 'border-gray-200'}`}
-          >
-            <div className="flex items-center justify-center mb-2">
-              <ChefHat className="w-6 h-6 text-blue-500 mr-2 shrink-0" />
-              <span className="text-2xl font-bold text-gray-800">{preparingOrders.length}</span>
-            </div>
-            <p className="text-xs font-bold text-gray-600">Preparing</p>
-          </div>
-          <div 
-            onClick={() => setSelectedFilter(selectedFilter === 'ready' ? 'all' : 'ready')}
-            className={`bg-white border-2 rounded-2xl p-4 text-center shadow-md hover:shadow-lg transition-all duration-300 cursor-pointer ${selectedFilter === 'ready' ? 'border-green-500 ring-2 ring-green-200' : 'border-gray-200'}`}
-          >
-            <div className="flex items-center justify-center mb-2">
-              <CheckCircle className="w-6 h-6 text-purple-500 mr-2 shrink-0" />
-              <span className="text-2xl font-bold text-gray-800">{readyOrders.length}</span>
-            </div>
-            <p className="text-xs font-bold text-gray-600">Ready</p>
-          </div>
-          <div 
-            onClick={() => setSelectedFilter(selectedFilter === 'completed' ? 'all' : 'completed')}
-            className={`bg-white border-2 rounded-2xl p-4 text-center shadow-md hover:shadow-lg transition-all duration-300 cursor-pointer ${selectedFilter === 'completed' ? 'border-green-500 ring-2 ring-green-200' : 'border-gray-200'}`}
-          >
-            <div className="flex items-center justify-center mb-2">
-              <CheckCircle className="w-6 h-6 text-green-600 mr-2 shrink-0" />
-              <span className="text-2xl font-bold text-gray-800">{completedOrders.length}</span>
-            </div>
-            <p className="text-xs font-bold text-gray-600">Completed</p>
           </div>
         </div>
 
-        {/* Refresh Button */}
-        <div className="mb-8 flex gap-3">
-          <button
-            onClick={fetchOrders}
-            className="bg-gradient-to-r from-green-600 to-emerald-600 text-white px-6 py-3 rounded-xl font-semibold hover:shadow-lg transition-all duration-300 transform hover:scale-105"
-          >
-            Refresh Orders
-          </button>
-          {selectedFilter !== 'all' && (
-            <button
-              onClick={() => setSelectedFilter('all')}
-              className="bg-white border-2 border-green-500 text-green-700 px-6 py-3 rounded-xl font-semibold hover:bg-green-50 transition-all duration-300"
-            >
-              Show All Orders
-            </button>
-          )}
-        </div>
-
-        {/* Orders Grid */}
-        <div className="space-y-8">
-          {/* Show filtered orders or all orders */}
-          {selectedFilter !== 'all' && (
-            <div>
-              <h2 className="text-2xl font-bold mb-6 flex items-center text-gray-900">
-                {selectedFilter === 'completed' && <CheckCircle className="w-6 h-6 text-green-600 mr-3" />}
-                {selectedFilter === 'pending' && <AlertCircle className="w-6 h-6 text-emerald-600 mr-3" />}
-                {selectedFilter === 'preparing' && <ChefHat className="w-6 h-6 text-teal-600 mr-3" />}
-                {selectedFilter === 'ready' && <CheckCircle className="w-6 h-6 text-lime-600 mr-3" />}
-                {selectedFilter.charAt(0).toUpperCase() + selectedFilter.slice(1)} Orders ({filteredOrders.length})
-              </h2>
-              {filteredOrders.length > 0 ? (
-                <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {filteredOrders.map(order => (
-                    <OrderCard
-                      key={order.id}
-                      order={order}
-                      onStatusChange={(status) => updateOrderStatus(order.id, status)}
-                      onItemStatusChange={updateItemStatus}
-                      getStatusColor={getStatusColor}
-                      onViewBill={setSelectedOrderForBill}
-                    />
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center py-16">
-                  <ChefHat className="w-20 h-20 text-green-300 mx-auto mb-6" />
-                  <p className="text-gray-500 text-xl font-semibold">No {selectedFilter} orders to display</p>
-                </div>
-              )}
+        {/* Orders Grid - Ready Orders Only */}
+        <div>
+          <h2 className="text-2xl font-bold mb-6 flex items-center text-gray-900">
+            <CheckCircle className="w-6 h-6 text-lime-600 mr-3" />
+            Ready to Serve ({filteredOrders.length})
+          </h2>
+          {filteredOrders.length > 0 ? (
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {filteredOrders.map(order => (
+                <OrderCard
+                  key={order.id}
+                  order={order}
+                  onStatusChange={(status) => updateOrderStatus(order.id, status)}
+                  onItemStatusChange={updateItemStatus}
+                  getStatusColor={getStatusColor}
+                  onViewBill={setSelectedOrderForBill}
+                />
+              ))}
             </div>
-          )}
-
-          {/* Show all orders when no filter is selected */}
-          {selectedFilter === 'all' && (
-            <>
-              {/* Pending Orders */}
-              {pendingOrders.length > 0 && (
-                <div>
-                  <h2 className="text-2xl font-bold mb-6 flex items-center text-gray-900">
-                    <AlertCircle className="w-6 h-6 text-emerald-600 mr-3" />
-                    Pending Orders ({pendingOrders.length})
-                  </h2>
-                  <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {pendingOrders.map(order => (
-                      <OrderCard
-                        key={order.id}
-                        order={order}
-                        onStatusChange={(status) => updateOrderStatus(order.id, status)}
-                        onItemStatusChange={updateItemStatus}
-                        getStatusColor={getStatusColor}
-                        onViewBill={setSelectedOrderForBill}
-                      />
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Preparing Orders */}
-              {preparingOrders.length > 0 && (
-                <div>
-                  <h2 className="text-2xl font-bold mb-6 flex items-center text-gray-900">
-                    <ChefHat className="w-6 h-6 text-teal-600 mr-3" />
-                    Preparing Orders ({preparingOrders.length})
-                  </h2>
-                  <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {preparingOrders.map(order => (
-                      <OrderCard
-                        key={order.id}
-                        order={order}
-                        onStatusChange={(status) => updateOrderStatus(order.id, status)}
-                        onItemStatusChange={updateItemStatus}
-                        getStatusColor={getStatusColor}
-                        onViewBill={setSelectedOrderForBill}
-                      />
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Ready Orders */}
-              {readyOrders.length > 0 && (
-                <div>
-                  <h2 className="text-2xl font-bold mb-6 flex items-center text-gray-900">
-                    <CheckCircle className="w-6 h-6 text-lime-600 mr-3" />
-                    Ready to Serve ({readyOrders.length})
-                  </h2>
-                  <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {readyOrders.map(order => (
-                      <OrderCard
-                        key={order.id}
-                        order={order}
-                        onStatusChange={(status) => updateOrderStatus(order.id, status)}
-                        onItemStatusChange={updateItemStatus}
-                        getStatusColor={getStatusColor}
-                        onViewBill={setSelectedOrderForBill}
-                      />
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Completed Orders */}
-              {completedOrders.length > 0 && (
-                <div>
-                  <h2 className="text-2xl font-bold mb-6 flex items-center text-gray-900">
-                    <CheckCircle className="w-6 h-6 text-green-600 mr-3" />
-                    Completed Orders ({completedOrders.length})
-                  </h2>
-                  <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {completedOrders.map(order => (
-                      <OrderCard
-                        key={order.id}
-                        order={order}
-                        onStatusChange={(status) => updateOrderStatus(order.id, status)}
-                        onItemStatusChange={updateItemStatus}
-                        getStatusColor={getStatusColor}
-                        onViewBill={setSelectedOrderForBill}
-                      />
-                    ))}
-                  </div>
-                </div>
-              )}
-            </>
-          )}
-
-          {orders.length === 0 && (
+          ) : (
             <div className="text-center py-16">
-              <ChefHat className="w-20 h-20 text-green-300 mx-auto mb-6" />
-              <p className="text-gray-500 text-xl font-semibold">No orders to display</p>
+              <CheckCircle className="w-20 h-20 text-green-300 mx-auto mb-6" />
+              <p className="text-gray-500 text-xl font-semibold">No orders ready to serve</p>
             </div>
           )}
         </div>
@@ -678,10 +516,10 @@ function OrderCard({ order, onStatusChange, onItemStatusChange, getStatusColor, 
 
           <div className="flex gap-3">
             <button
-              onClick={() => onStatusChange('ready')}
+              onClick={() => onStatusChange('served')}
               className="flex-1 bg-green-600 text-white py-3 rounded-xl font-bold hover:bg-green-700 transition-colors"
             >
-              Mark Ready
+              Mark Served
             </button>
           </div>
         </div>

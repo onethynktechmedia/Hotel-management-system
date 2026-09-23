@@ -412,7 +412,7 @@ export default function AdminDashboard() {
       escposContent += 'Restaurant & Bar\n'
       escposContent += '================================\n'
       
-      // Address - Normal size
+      // Address - Centered
       escposContent += '123, Main Street\n'
       escposContent += 'City, State - 123456\n'
       escposContent += 'Phone: +91 98765 43210\n'
@@ -452,9 +452,11 @@ export default function AdminDashboard() {
       escposContent += '--------------------------\n'
       escposContent += `Subtotal: Rs${order.total_amount.toFixed(2)}\n`
       
-      // Grand Total - Bold and Large
+      // Grand Total - Centered, Bold and Large
+      escposContent += '\x1B\x61\x01' // Center align
+      escposContent += '================================\n'
       escposContent += '\x1B\x21\x08' // Bold
-      escposContent += 'GRAND TOTAL:\n'
+      escposContent += 'GRAND TOTAL\n'
       escposContent += `Rs ${order.total_amount.toFixed(2)}\n`
       escposContent += '\x1B\x21\x00' // Normal
       escposContent += '================================\n'
@@ -507,7 +509,7 @@ export default function AdminDashboard() {
       escposContent += 'Restaurant & Bar\n'
       escposContent += '================================\n'
       
-      // Address - Normal size
+      // Address - Centered
       escposContent += '123, Main Street\n'
       escposContent += 'City, State - 123456\n'
       escposContent += 'Phone: +91 98765 43210\n'
@@ -553,11 +555,12 @@ export default function AdminDashboard() {
         escposContent += `Discount: Rs${discount.toFixed(2)}\n`
       }
       
-      // Grand Total - Bold and Large
+      // Grand Total - Centered, Bold and Large
+      escposContent += '\x1B\x61\x01' // Center align
       escposContent += '================================\n'
       escposContent += '\x1B\x21\x08' // Bold
-      escposContent += '*** GRAND TOTAL:\n'
-      escposContent += `Rs${calculateFinalAmount(selectedOrderForBilling.total_amount).toFixed(2)} ***\n`
+      escposContent += 'GRAND TOTAL\n'
+      escposContent += `Rs${calculateFinalAmount(selectedOrderForBilling.total_amount).toFixed(2)}\n`
       escposContent += '\x1B\x21\x00' // Normal
       escposContent += '================================\n'
       escposContent += 'Thank You for Dining!\n'
@@ -883,7 +886,7 @@ For technical support, contact: support@everycom.com
 <div class="bill-info"><span class="label">Time:</span> <span class="value">${new Date(order.created_at).toLocaleTimeString()}</span></div>
 <div class="bill-info"><span class="label">Table:</span> <span class="value">${tables.find(t => t.id === order.table_id)?.table_number || 'N/A'}</span></div>
 <div class="bill-info"><span class="label">Customer:</span> <span class="value">${order.customer_name || 'Guest'}</span></div>
-<div class="divider">--------------------------------</div>
+<div class="divider">--------------------------</div>
 <table class="items-table">
   <thead>
     <tr>
@@ -908,10 +911,10 @@ ${order.order_items?.map((item: any) => {
 }).join('')}
   </tbody>
 </table>
-<div class="divider">--------------------------------</div>
+<div class="divider">--------------------------</div>
 <div class="total-row"><span class="label">Subtotal:</span> <span class="amount">Rs${order.total_amount.toFixed(2)}</span></div>
 <div class="divider">================================</div>
-<div class="grand-total">*** GRAND TOTAL: Rs${order.total_amount.toFixed(2)} ***</div>
+<div class="grand-total"> GRAND TOTAL: Rs${order.total_amount.toFixed(2)} </div>
 <div class="divider">================================</div>
 <div class="footer">Thank You for Dining!</div>
 <div class="footer">Visit Us Again</div>
@@ -1060,17 +1063,20 @@ ${order.order_items?.map((item: any) => {
                   margin: 2mm 0;
                   text-transform: uppercase;
                   letter-spacing: 1px;
+                  text-align: center;
                 }
                 .footer {
                   font-size: 12px;
                   font-weight: bold;
                   margin: 1mm 0;
+                  text-align: center;
                 }
                 .developer {
                   font-size: 9px;
                   font-weight: bold;
                   margin-top: 2mm;
                   opacity: 0.8;
+                  text-align: center;
                 }
               </style>
             </head>
@@ -1153,9 +1159,9 @@ Time: ${new Date().toLocaleTimeString()}<br>
 Table: ${tableNumber}<br>
 Waiter: ${waiterName}<br>
 Customer: ${customerName || 'Guest'}<br>
---------------------------------<br>
+--------------------------<br>
 ITEM             QTY  AMOUNT<br>
---------------------------------<br>
+--------------------------<br>
 ${offlineCart.map((item) => {
   const name = item.name
   const qty = item.quantity
@@ -1164,7 +1170,7 @@ ${offlineCart.map((item) => {
   const itemName = name.length > 16 ? name.substring(0, 15) + '.' : name
   return `${itemName.padEnd(16)} ${qty.toString().padStart(2)}  ${total.padStart(8)}<br>`
 }).join('')}
---------------------------------<br>
+--------------------------<br>
 Subtotal:      Rs${getCartTotal().toFixed(2).padStart(8)}<br>
 ${(() => {
   const subtotal = getCartTotal()
@@ -1176,7 +1182,7 @@ ${(() => {
   }
   return discount > 0 ? `Discount:      Rs${discount.toFixed(2).padStart(8)}<br>` : ''
 })()}================================<br>
-<strong class="grand-total">*** GRAND TOTAL: Rs${calculateBillTotal().toFixed(2)} ***</strong><br>
+<strong class="grand-total"> GRAND TOTAL: Rs${calculateBillTotal().toFixed(2)} </strong><br>
 ================================<br>
 Thank You for Dining!<br>
 Visit Us Again<br>
@@ -1328,17 +1334,20 @@ Visit Us Again<br>
                   margin: 2mm 0;
                   text-transform: uppercase;
                   letter-spacing: 1px;
+                  text-align: center;
                 }
                 .footer {
                   font-size: 12px;
                   font-weight: bold;
                   margin: 1mm 0;
+                  text-align: center;
                 }
                 .developer {
                   font-size: 9px;
                   font-weight: bold;
                   margin-top: 2mm;
                   opacity: 0.8;
+                  text-align: center;
                 }
               </style>
             </head>
