@@ -16,13 +16,13 @@ import {
   Calendar,
   BarChart3,
   PieChart,
-  WifiOff,
-  CreditCard
+  CreditCard,
+  Receipt
 } from 'lucide-react'
 
 interface SidebarProps {
-  activeTab: 'overview' | 'orders' | 'dishes' | 'tables' | 'waiters' | 'reports' | 'offline-billing' | 'online-billing'
-  setActiveTab: (tab: 'overview' | 'orders' | 'dishes' | 'tables' | 'waiters' | 'reports' | 'offline-billing' | 'online-billing') => void
+  activeTab: 'overview' | 'orders' | 'dishes' | 'tables' | 'waiters' | 'reports' | 'offline-billing' | 'online-orders'
+  setActiveTab: (tab: 'overview' | 'orders' | 'dishes' | 'tables' | 'waiters' | 'reports' | 'offline-billing' | 'online-orders') => void
   user: any
   onLogout: () => void
 }
@@ -31,18 +31,18 @@ export default function Sidebar({ activeTab, setActiveTab, user, onLogout }: Sid
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
   const router = useRouter()
 
-  const menuItems: { id: 'overview' | 'orders' | 'dishes' | 'tables' | 'waiters' | 'reports' | 'offline-billing' | 'online-billing', label: string, icon: any }[] = [
+  const menuItems: { id: 'overview' | 'orders' | 'dishes' | 'tables' | 'waiters' | 'reports' | 'offline-billing' | 'online-orders', label: string, icon: any }[] = [
     { id: 'overview', label: 'Overview', icon: LayoutDashboard },
     { id: 'orders', label: 'Orders', icon: ShoppingCart },
     { id: 'dishes', label: 'Menu Management', icon: Utensils },
     { id: 'tables', label: 'Table Management', icon: Table },
     { id: 'waiters', label: 'Waiter Status', icon: Users },
     { id: 'reports', label: 'Reports', icon: BarChart3 },
-    { id: 'offline-billing', label: 'Offline Billing', icon: WifiOff },
-    { id: 'online-billing', label: 'Online Billing', icon: CreditCard },
+    { id: 'offline-billing', label: 'Offline Billing', icon: Receipt },
+    { id: 'online-orders', label: 'Online Orders', icon: CreditCard },
   ]
 
-  const handleTabChange = (tabId: 'overview' | 'orders' | 'dishes' | 'tables' | 'waiters' | 'reports' | 'offline-billing' | 'online-billing') => {
+  const handleTabChange = (tabId: 'overview' | 'orders' | 'dishes' | 'tables' | 'waiters' | 'reports' | 'offline-billing' | 'online-orders') => {
     setActiveTab(tabId)
     setIsMobileMenuOpen(false)
   }

@@ -28,7 +28,7 @@ export default function AdminDashboard() {
   const [payments, setPayments] = useState<Payment[]>([])
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [showNotifications, setShowNotifications] = useState(false)
-  const [activeTab, setActiveTab] = useState<'overview' | 'orders' | 'dishes' | 'tables' | 'waiters' | 'reports' | 'offline-billing' | 'online-billing'>('overview')
+  const [activeTab, setActiveTab] = useState<'overview' | 'orders' | 'dishes' | 'tables' | 'waiters' | 'reports' | 'offline-billing' | 'online-orders'>('overview')
   const [loading, setLoading] = useState(true)
   const [showDishModal, setShowDishModal] = useState(false)
   const [editingDish, setEditingDish] = useState<Dish | null>(null)
@@ -84,6 +84,8 @@ export default function AdminDashboard() {
   const [billDiscountAmount, setBillDiscountAmount] = useState('')
   const [billDiscountPercentage, setBillDiscountPercentage] = useState('')
   const [billDiscountType, setBillDiscountType] = useState<'amount' | 'percentage'>('amount')
+  const [cgstRate, setCgstRate] = useState('2.5')
+  const [sgstRate, setSgstRate] = useState('2.5')
   const [showCartModal, setShowCartModal] = useState(false)
   const [addedDishIds, setAddedDishIds] = useState<Set<string>>(new Set())
 
@@ -99,11 +101,20 @@ export default function AdminDashboard() {
       return
     }
     setUser(parsedUser)
-    fetchData()
+
+    // Load cached data first
+    loadCachedData()
+
+    // Then fetch from API if online
+    if (navigator.onLine) {
+      fetchData()
+    }
 
     // Set up polling for order updates (replacing real-time subscription)
     const interval = setInterval(() => {
-      fetchData()
+      if (navigator.onLine) {
+        fetchData()
+      }
     }, 5000)
 
     return () => {
@@ -238,23 +249,23 @@ export default function AdminDashboard() {
         fetch('/api/orders').then(async res => {
           if (!res.ok) throw new Error(`Orders API error: ${res.status}`)
           return res.json()
-        }).catch(() => []),
+        }).catch(() => null),
         fetch('/api/dishes').then(async res => {
           if (!res.ok) throw new Error(`Dishes API error: ${res.status}`)
           return res.json()
-        }).catch(() => []),
+        }).catch(() => null),
         fetch('/api/tables').then(async res => {
           if (!res.ok) throw new Error(`Tables API error: ${res.status}`)
           return res.json()
-        }).catch(() => []),
+        }).catch(() => null),
         fetch('/api/payments').then(async res => {
           if (!res.ok) throw new Error(`Payments API error: ${res.status}`)
           return res.json()
-        }).catch(() => []),
+        }).catch(() => null),
         fetch('/api/notifications').then(async res => {
           if (!res.ok) throw new Error(`Notifications API error: ${res.status}`)
           return res.json()
-        }).catch(() => [])
+        }).catch(() => null)
       ])
 
       // Fetch order items for each order
@@ -273,15 +284,26 @@ export default function AdminDashboard() {
       )
 
       // Remove duplicate orders by ID
-      const uniqueOrders = ordersWithItems.filter((order: any, index: number, self: any[]) => 
+      const uniqueOrders = ordersWithItems.filter((order: any, index: number, self: any[]) =>
         index === self.findIndex((o: any) => o.id === order.id)
       )
 
-      setOrders(uniqueOrders)
-      setDishes(dishesRes || [])
-      setTables(tablesRes || [])
-      setPayments(paymentsRes.data || paymentsRes || [])
-      setNotifications(notificationsRes.data || notificationsRes || [])
+      // Only update state if data was successfully fetched
+      if (uniqueOrders && uniqueOrders.length > 0) {
+        setOrders(uniqueOrders)
+      }
+      if (dishesRes && dishesRes.length > 0) {
+        setDishes(dishesRes)
+      }
+      if (tablesRes && tablesRes.length > 0) {
+        setTables(tablesRes)
+      }
+      if (paymentsRes && (paymentsRes.data || paymentsRes).length > 0) {
+        setPayments(paymentsRes.data || paymentsRes)
+      }
+      if (notificationsRes && (notificationsRes.data || notificationsRes).length > 0) {
+        setNotifications(notificationsRes.data || notificationsRes)
+      }
 
       // Cache all data for offline use
       if (dishesRes && dishesRes.length > 0) {
@@ -1171,7 +1193,25 @@ ${order.order_items?.map((item: any) => {
     } else if (billDiscountType === 'percentage' && billDiscountPercentage) {
       discount = (parseFloat(billDiscountPercentage) / 100) * subtotal
     }
-    return Math.max(0, subtotal - discount)
+    const discountedAmount = Math.max(0, subtotal - discount)
+    const cgst = discountedAmount * (parseFloat(cgstRate) / 100)
+    const sgst = discountedAmount * (parseFloat(sgstRate) / 100)
+    return discountedAmount + cgst + sgst
+  }
+
+  // Calculate CGST and SGST amounts
+  const calculateTaxes = () => {
+    const subtotal = getCartTotal()
+    let discount = 0
+    if (billDiscountType === 'amount' && billDiscountAmount) {
+      discount = parseFloat(billDiscountAmount)
+    } else if (billDiscountType === 'percentage' && billDiscountPercentage) {
+      discount = (parseFloat(billDiscountPercentage) / 100) * subtotal
+    }
+    const discountedAmount = Math.max(0, subtotal - discount)
+    const cgst = discountedAmount * (parseFloat(cgstRate) / 100)
+    const sgst = discountedAmount * (parseFloat(sgstRate) / 100)
+    return { cgst, sgst, discountedAmount }
   }
 
   const handleCreateBill = () => {
@@ -1244,7 +1284,9 @@ ${(() => {
     discount = (parseFloat(billDiscountPercentage) / 100) * subtotal
   }
   return discount > 0 ? `Discount:      Rs${discount.toFixed(2).padStart(8)}<br>` : ''
-})()}================================<br>
+})()}CGST (${cgstRate}%):   Rs${calculateTaxes().cgst.toFixed(2).padStart(8)}<br>
+SGST (${sgstRate}%):   Rs${calculateTaxes().sgst.toFixed(2).padStart(8)}<br>
+================================<br>
 <strong class="grand-total"> GRAND TOTAL: Rs${calculateBillTotal().toFixed(2)} </strong><br>
 ================================<br>
 Thank You for Dining!<br>
@@ -1266,6 +1308,7 @@ Visit Us Again<br>
             <head>
               <title>Bill Print</title>
               <meta charset="UTF-8">
+              <meta name="viewport" content="width=device-width, initial-scale=1.0">
               <style>
                 @page {
                   size: 58mm auto;
@@ -1278,7 +1321,7 @@ Visit Us Again<br>
                   }
                   body {
                     margin: 0;
-                    padding: 2mm;
+                    padding: 3mm;
                     width: 58mm;
                     -webkit-print-color-adjust: exact;
                     print-color-adjust: exact;
@@ -1290,49 +1333,49 @@ Visit Us Again<br>
                 }
                 * {
                   box-sizing: border-box;
+                  -webkit-font-smoothing: none;
+                  -moz-osx-font-smoothing: grayscale;
                 }
                 body {
-                  font-family: 'Courier New', 'Consolas', 'Lucida Console', monospace;
-                  font-size: 12px;
+                  font-family: 'Courier New', 'Consolas', 'Monaco', monospace;
+                  font-size: 11px;
                   font-weight: bold;
-                  line-height: 1.3;
+                  line-height: 1.2;
                   margin: 0;
-                  padding: 2mm;
+                  padding: 3mm;
                   text-align: center;
-                  width: 54mm;
-                  max-width: 54mm;
+                  width: 52mm;
+                  max-width: 52mm;
                   overflow: hidden;
                   background: white;
                   color: black;
-                  -webkit-font-smoothing: antialiased;
-                  -moz-osx-font-smoothing: grayscale;
-                  image-rendering: crisp-edges;
+                  letter-spacing: 0.5px;
                 }
                 .header {
-                  font-size: 18px;
+                  font-size: 16px;
                   font-weight: 900;
-                  margin-bottom: 1mm;
+                  margin-bottom: 2mm;
                   text-transform: uppercase;
                   letter-spacing: 1px;
                 }
                 .subheader {
-                  font-size: 13px;
+                  font-size: 12px;
                   font-weight: bold;
                   margin-bottom: 1mm;
                 }
                 .divider {
                   font-size: 10px;
                   font-weight: bold;
-                  margin: 1mm 0;
+                  margin: 1.5mm 0;
                   letter-spacing: 1px;
                 }
                 .address {
-                  font-size: 11px;
+                  font-size: 10px;
                   font-weight: bold;
                   margin: 0.5mm 0;
                 }
                 .section-title {
-                  font-size: 13px;
+                  font-size: 12px;
                   font-weight: 900;
                   margin: 1mm 0;
                 }
@@ -1342,7 +1385,7 @@ Visit Us Again<br>
                 .bill-info {
                   display: flex;
                   justify-content: space-between;
-                  font-size: 11px;
+                  font-size: 10px;
                   font-weight: bold;
                   margin: 0.5mm 0;
                 }
@@ -1356,13 +1399,13 @@ Visit Us Again<br>
                   width: 100%;
                   border-collapse: collapse;
                   margin: 1mm 0;
-                  font-size: 11px;
+                  font-size: 10px;
                 }
                 .items-table th {
                   border-bottom: 1px solid black;
                   padding: 1mm 0;
                   font-weight: 900;
-                  font-size: 11px;
+                  font-size: 10px;
                 }
                 .items-table td {
                   padding: 0.5mm 0;
@@ -1384,7 +1427,7 @@ Visit Us Again<br>
                 .total-row {
                   display: flex;
                   justify-content: space-between;
-                  font-size: 11px;
+                  font-size: 10px;
                   font-weight: bold;
                   margin: 1mm 0;
                 }
@@ -1392,7 +1435,7 @@ Visit Us Again<br>
                   font-weight: bold;
                 }
                 .grand-total {
-                  font-size: 16px;
+                  font-size: 14px;
                   font-weight: 900;
                   margin: 2mm 0;
                   text-transform: uppercase;
@@ -1400,17 +1443,20 @@ Visit Us Again<br>
                   text-align: center;
                 }
                 .footer {
-                  font-size: 12px;
+                  font-size: 11px;
                   font-weight: bold;
                   margin: 1mm 0;
                   text-align: center;
                 }
                 .developer {
-                  font-size: 9px;
+                  font-size: 8px;
                   font-weight: bold;
                   margin-top: 2mm;
                   opacity: 0.8;
                   text-align: center;
+                }
+                br {
+                  line-height: 1.2;
                 }
               </style>
             </head>
@@ -2357,7 +2403,7 @@ Visit Us Again<br>
           </>
         )}
 
-        {activeTab === 'online-billing' && (
+        {activeTab === 'online-orders' && (
           <div className="relative h-[calc(100vh-200px)] overflow-hidden bg-gradient-to-br from-slate-50 via-purple-50 to-indigo-50">
             {/* Animated background gradient orbs */}
             <div className="absolute inset-0 overflow-hidden">
@@ -2869,6 +2915,33 @@ Visit Us Again<br>
               )}
             </div>
 
+            {/* Tax Rates */}
+            <div className="bg-purple-50 rounded-xl p-4 mb-6">
+              <h3 className="font-semibold text-gray-900 mb-3">Tax Rates (%)</h3>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm text-gray-600 mb-1">CGST Rate</label>
+                  <input
+                    type="number"
+                    step="0.1"
+                    value={cgstRate}
+                    onChange={(e) => setCgstRate(e.target.value)}
+                    className="w-full px-4 py-2 border-2 border-purple-200 rounded-xl focus:border-purple-500 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-600 mb-1">SGST Rate</label>
+                  <input
+                    type="number"
+                    step="0.1"
+                    value={sgstRate}
+                    onChange={(e) => setSgstRate(e.target.value)}
+                    className="w-full px-4 py-2 border-2 border-purple-200 rounded-xl focus:border-purple-500 focus:outline-none"
+                  />
+                </div>
+              </div>
+            </div>
+
             {/* Totals */}
             <div className="space-y-2 mb-6">
               <div className="flex justify-between items-center">
@@ -2878,8 +2951,16 @@ Visit Us Again<br>
               <div className="flex justify-between items-center">
                 <span className="text-gray-600">Discount:</span>
                 <span className="font-semibold text-red-600">
-                  -₹{(getCartTotal() - calculateBillTotal()).toFixed(2)}
+                  -₹{(getCartTotal() - calculateTaxes().discountedAmount).toFixed(2)}
                 </span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-gray-600">CGST ({cgstRate}%):</span>
+                <span className="font-semibold">₹{calculateTaxes().cgst.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-gray-600">SGST ({sgstRate}%):</span>
+                <span className="font-semibold">₹{calculateTaxes().sgst.toFixed(2)}</span>
               </div>
               <div className="flex justify-between items-center text-xl font-bold border-t border-gray-200 pt-2">
                 <span>Grand Total:</span>
