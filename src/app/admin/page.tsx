@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { User, Order, Dish, Table, Payment, Notification } from '@/types'
-import { Plus, Edit, Trash2, DollarSign, Users, Utensils, User as UserIcon, Search, Filter, HelpCircle, Bell, LogOut, Download, Printer } from 'lucide-react'
+import { Plus, Edit, Trash2, DollarSign, Users, Utensils, User as UserIcon, Search, Filter, HelpCircle, Bell, LogOut, Download, Printer, X } from 'lucide-react'
 import Sidebar from '@/components/Sidebar'
 import WaiterStatus from '@/components/WaiterStatus'
 import Reports from '@/components/Reports'
@@ -101,6 +101,10 @@ export default function AdminDashboard() {
   const [waiterFilter, setWaiterFilter] = useState<'all' | 'my-orders'>('all')
   const [showAddItemModal, setShowAddItemModal] = useState<string | null>(null)
   const [showChangeTableModal, setShowChangeTableModal] = useState<string | null>(null)
+  const [showCustomOrderModal, setShowCustomOrderModal] = useState(false)
+  const [customItemName, setCustomItemName] = useState('')
+  const [customItemPrice, setCustomItemPrice] = useState('')
+  const [customItemQuantity, setCustomItemQuantity] = useState('1')
   const [selectedNewTable, setSelectedNewTable] = useState<string>('')
 
   // Handle order actions
@@ -728,57 +732,127 @@ export default function AdminDashboard() {
       // Use order_items directly from the order object (already fetched by API)
       const orderItems = billOrderItems
       
+      // Group items by dish name and combine quantities
+      const groupedItems: { [key: string]: { name: string, qty: number, total: number, isExtra: boolean } } = {}
+      orderItems.forEach((item: any) => {
+        const name = item.dishes?.name || item.dish?.name || 'Unknown'
+        const qty = item.quantity
+        const price = item.dishes?.price || item.dish?.price || item.price || 0
+        const total = price * qty
+        const isExtra = item.order_type === 'Extra' || item.item_type === 'Extra'
+        
+        if (!groupedItems[name]) {
+          groupedItems[name] = { name, qty: 0, total: 0, isExtra: false }
+        }
+        groupedItems[name].qty += qty
+        groupedItems[name].total += total
+        if (isExtra) {
+          groupedItems[name].isExtra = true
+        }
+      })
+
+      // Generate items list for bill
+      const itemsList = Object.values(groupedItems).map((item: any) => {
+        const displayName = item.isExtra ? `${item.name} (E)` : item.name
+        const itemName = displayName.length > 20 ? displayName.substring(0, 19) + '.' : displayName
+        return `<div style="display: flex; font-size: 9px; margin: 2px 0;">
+  <span style="flex: 2;">${itemName}</span>
+  <span style="flex: 1; text-align: right;">${item.qty}</span>
+  <span style="flex: 1; text-align: right;">${item.total.toFixed(2)}</span>
+</div>`
+      }).join('')
+      
       // Generate properly formatted plain text bill content for thermal printer
       // 58mm paper width = approximately 32-35 characters per line
       const plainText = `
-<strong class="header">GALAXY GARDEN</strong><br>
-Restaurant & Bar<br>
-================================<br>
-123, Main Street<br>
-City, State - 123456<br>
-Phone: +91 98765 43210<br>
-GSTIN: 29ABCDE1234F1Z5<br>
-================================<br>
-BILL / INVOICE<br>
-================================<br>
-<br>
-Bill No: ${formatOrderId(viewingBill.id)}<br>
-Date: ${new Date().toLocaleDateString()}<br>
-Time: ${new Date().toLocaleTimeString()}<br>
-Table: ${viewingBill.tables?.table_number || 'N/A'}<br>
-Waiter: ${viewingBill.users?.name || 'N/A'}<br>
---------------------------------<br>
-ITEM             QTY  AMOUNT<br>
---------------------------------<br>
-${orderItems.map((item: any) => {
-  const name = item.dishes?.name || item.dish?.name || 'Unknown'
-  const qty = item.quantity
-  const price = item.dishes?.price || item.dish?.price || item.price || 0
-  const total = (price * qty).toFixed(2)
-  const itemName = name.length > 16 ? name.substring(0, 15) + '.' : name
-  return `${itemName.padEnd(16)} ${qty.toString().padStart(2)}  ${total.padStart(8)}<br>`
-}).join('')}
---------------------------------<br>
-Subtotal: Rs${calculateBillSubtotal().toFixed(2)}<br>
-${(() => {
-  const discount = calculateBillDiscount()
-  return discount > 0 ? `Discount: -Rs${discount.toFixed(2)}<br>` : ''
-})()}
-${(() => {
-  const discount = calculateBillDiscount()
-  const afterDiscount = calculateBillSubtotal() - discount
-  const cgst = calculateBillTax(afterDiscount, billCGST)
-  const sgst = calculateBillTax(afterDiscount, billSGST)
-  return `CGST (${billCGST}%): Rs${cgst.toFixed(2)}<br>SGST (${billSGST}%): Rs${sgst.toFixed(2)}<br>`
-})()}
-================================<br>
-<strong class="grand-total">*** GRAND TOTAL: Rs${calculateBillGrandTotal().toFixed(2)} ***</strong><br>
-================================<br>
-Thank You for Dining!<br>
-Visit Us Again<br>
-================================<br>
-<span class="developer">Developed by onethynk techmedia</span><br>
-================================
+<div style="text-align: center; margin-bottom: 8px;">
+  <div style="font-size: 18px; font-weight: bold; color: #8B4513;">GALAXY GARDEN</div>
+  <div style="font-size: 12px; color: #5D3A1A;">Restaurant & Bar</div>
+</div>
+<div style="border-top: 1px dashed #8B4513; margin: 4px 0;"></div>
+<div style="text-align: center; font-size: 10px; margin-bottom: 4px;">
+  <div>123, Main Street</div>
+  <div>City, State - 123456</div>
+  <div>Phone: +91 98765 43210</div>
+  <div style="font-weight: bold;">GSTIN: 29ABCDE1234F1Z5</div>
+</div>
+<div style="border-top: 1px dashed #8B4513; margin: 4px 0;"></div>
+<div style="text-align: center; font-size: 12px; font-weight: bold; margin: 4px 0;">BILL / INVOICE</div>
+<div style="border-top: 1px dashed #8B4513; margin: 4px 0;"></div>
+<div style="margin: 4px 0; font-size: 10px;">
+  <div style="display: flex; justify-content: space-between;">
+    <span>Bill No:</span>
+    <span style="font-weight: bold;">${formatOrderId(viewingBill.id)}</span>
+  </div>
+  <div style="display: flex; justify-content: space-between;">
+    <span>Date:</span>
+    <span>${new Date().toLocaleDateString()}</span>
+  </div>
+  <div style="display: flex; justify-content: space-between;">
+    <span>Time:</span>
+    <span>${new Date().toLocaleTimeString()}</span>
+  </div>
+  <div style="display: flex; justify-content: space-between;">
+    <span>Table:</span>
+    <span style="font-weight: bold;">${viewingBill.tables?.table_number || 'N/A'}</span>
+  </div>
+  <div style="display: flex; justify-content: space-between;">
+    <span>Waiter:</span>
+    <span>${viewingBill.users?.name || 'N/A'}</span>
+  </div>
+</div>
+<div style="border-top: 1px dashed #8B4513; margin: 4px 0;"></div>
+<div style="font-size: 10px; font-weight: bold; margin: 4px 0;">ITEM DETAILS</div>
+<div style="border-top: 1px dashed #8B4513; margin: 4px 0;"></div>
+<div style="display: flex; font-size: 9px; font-weight: bold; margin-bottom: 2px;">
+  <span style="flex: 2;">ITEM</span>
+  <span style="flex: 1; text-align: right;">QTY</span>
+  <span style="flex: 1; text-align: right;">AMT</span>
+</div>
+<div style="border-top: 1px dashed #8B4513; margin: 2px 0;"></div>
+${itemsList}
+<div style="border-top: 1px dashed #8B4513; margin: 4px 0;"></div>
+<div style="font-size: 10px; margin: 2px 0;">
+  <div style="display: flex; justify-content: space-between;">
+    <span>Subtotal:</span>
+    <span>Rs${calculateBillSubtotal().toFixed(2)}</span>
+  </div>
+  ${(() => {
+    const discount = calculateBillDiscount()
+    return discount > 0 ? `<div style="display: flex; justify-content: space-between;">
+    <span>Discount:</span>
+    <span>-Rs${discount.toFixed(2)}</span>
+  </div>` : ''
+  })()}
+  ${(() => {
+    const discount = calculateBillDiscount()
+    const afterDiscount = calculateBillSubtotal() - discount
+    const cgst = calculateBillTax(afterDiscount, billCGST)
+    const sgst = calculateBillTax(afterDiscount, billSGST)
+    return `<div style="display: flex; justify-content: space-between;">
+    <span>CGST (${billCGST}%):</span>
+    <span>Rs${cgst.toFixed(2)}</span>
+  </div>
+  <div style="display: flex; justify-content: space-between;">
+    <span>SGST (${billSGST}%):</span>
+    <span>Rs${sgst.toFixed(2)}</span>
+  </div>`
+  })()}
+</div>
+<div style="border-top: 2px solid #8B4513; margin: 6px 0;"></div>
+<div style="text-align: center; font-size: 14px; font-weight: bold; color: #8B4513; margin: 4px 0;">
+  GRAND TOTAL: Rs${calculateBillGrandTotal().toFixed(2)}
+</div>
+<div style="border-top: 2px solid #8B4513; margin: 6px 0;"></div>
+<div style="text-align: center; font-size: 10px; margin: 4px 0;">
+  <div>Thank You for Dining!</div>
+  <div>Visit Us Again</div>
+</div>
+<div style="border-top: 1px dashed #8B4513; margin: 4px 0;"></div>
+<div style="text-align: center; font-size: 8px; font-weight: bold; color: #8B4513; margin: 4px 0;">
+  Developed by onethynk techmedia
+</div>
+<div style="border-top: 1px dashed #8B4513; margin: 4px 0;"></div>
 `
       
       console.log('Bill content generated')
@@ -825,6 +899,12 @@ Visit Us Again<br>
                   padding: 0;
                   box-sizing: border-box;
                 }
+                body {
+                  font-family: 'Courier New', Courier, monospace;
+                  font-size: 10px;
+                  line-height: 1.2;
+                  color: #000;
+                }
                 .header {
                   font-size: 16px;
                   font-weight: bold;
@@ -870,6 +950,32 @@ Visit Us Again<br>
     try {
       console.log('Starting thermal print...')
       
+      // Group items by dish name and combine quantities
+      const groupedItems: { [key: string]: { name: string, qty: number, total: number, isExtra: boolean } } = {}
+      billOrderItems.forEach((item: any) => {
+        const name = item.dishes?.name || item.dish?.name || 'Unknown'
+        const qty = item.quantity
+        const price = (item.dishes?.price || item.dish?.price || item.price || 0)
+        const total = price * qty
+        const isExtra = item.order_type === 'Extra' || item.item_type === 'Extra'
+        
+        if (!groupedItems[name]) {
+          groupedItems[name] = { name, qty: 0, total: 0, isExtra: false }
+        }
+        groupedItems[name].qty += qty
+        groupedItems[name].total += total
+        if (isExtra) {
+          groupedItems[name].isExtra = true
+        }
+      })
+
+      // Generate items list for bill
+      const itemsList = Object.values(groupedItems).map((item: any) => {
+        const displayName = item.isExtra ? `${item.name} (E)` : item.name
+        const itemName = displayName.length > 16 ? displayName.substring(0, 15) + '.' : displayName
+        return `${itemName.padEnd(16)} ${item.qty.toString().padStart(2)}  ${item.total.toFixed(2).padStart(8)}<br>`
+      }).join('')
+      
       // Generate properly formatted plain text bill content for thermal printer
       // 58mm paper width = approximately 32-35 characters per line
       const plainText = `
@@ -893,14 +999,7 @@ Customer: ${selectedOrderForBilling.customer_name || 'Guest'}<br>
 --------------------------------<br>
 ITEM             QTY  AMOUNT<br>
 --------------------------------<br>
-${billOrderItems.map((item: any) => {
-  const name = item.dishes?.name || item.dish?.name || 'Unknown'
-  const qty = item.quantity
-  const price = (item.dishes?.price || item.dish?.price || item.price || 0)
-  const total = (price * qty).toFixed(2)
-  const itemName = name.length > 16 ? name.substring(0, 15) + '.' : name
-  return `${itemName.padEnd(16)} ${qty.toString().padStart(2)}  ${total.padStart(8)}<br>`
-}).join('')}
+${itemsList}
 --------------------------------<br>
 ================================<br>
 <strong class="grand-total">*** GRAND TOTAL: Rs${selectedOrderForBilling.total_amount.toFixed(2)} ***</strong><br>
@@ -955,6 +1054,12 @@ Visit Us Again<br>
                   margin: 0;
                   padding: 0;
                   box-sizing: border-box;
+                }
+                body {
+                  font-family: 'Courier New', Courier, monospace;
+                  font-size: 10px;
+                  line-height: 1.2;
+                  color: #000;
                 }
                 .header {
                   font-size: 16px;
@@ -1302,6 +1407,28 @@ For technical support, contact: support@everycom.com
 
   const getCartTotal = () => {
     return offlineCart.reduce((sum, item) => sum + (item.price * item.quantity), 0)
+  }
+
+  const addCustomItemToCart = () => {
+    if (!customItemName.trim() || !customItemPrice || parseFloat(customItemPrice) <= 0) {
+      alert('Please enter valid item name and price')
+      return
+    }
+
+    const customItem = {
+      id: `custom-${Date.now()}`,
+      dish_id: null,
+      name: customItemName.trim(),
+      price: parseFloat(customItemPrice),
+      quantity: parseInt(customItemQuantity) || 1
+    }
+
+    setOfflineCart([...offlineCart, customItem])
+    setCustomItemName('')
+    setCustomItemPrice('')
+    setCustomItemQuantity('1')
+    setShowCustomOrderModal(false)
+    playNotificationSound('cart')
   }
 
   // Notification sound function
@@ -2984,7 +3111,16 @@ Visit Us Again<br>
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               {/* Menu Section */}
               <div className="lg:col-span-2 bg-white/95 backdrop-blur-sm rounded-2xl shadow-xl p-6 animate-fade-in">
-                <h2 className="text-xl font-bold text-gray-900 mb-4">Menu Items</h2>
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-xl font-bold text-gray-900">Menu Items</h2>
+                  <button
+                    onClick={() => setShowCustomOrderModal(true)}
+                    className="flex items-center gap-2 bg-[#8B4513] text-white px-4 py-2 rounded-xl font-semibold hover:bg-[#5D3A1A] transition-all"
+                  >
+                    <Plus className="w-4 h-4" />
+                    Custom Order
+                  </button>
+                </div>
                 
                 {/* Search Bar */}
                 <div className="mb-4">
@@ -3144,6 +3280,73 @@ Visit Us Again<br>
               )}
             </div>
           </>
+        )}
+
+        {/* Custom Order Modal */}
+        {showCustomOrderModal && (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 animate-slide-in">
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-xl font-bold text-gray-900">Add Custom Item</h3>
+                <button
+                  onClick={() => {
+                    setShowCustomOrderModal(false)
+                    setCustomItemName('')
+                    setCustomItemPrice('')
+                    setCustomItemQuantity('1')
+                  }}
+                  className="text-gray-500 hover:text-gray-700"
+                >
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Item Name</label>
+                  <input
+                    type="text"
+                    value={customItemName}
+                    onChange={(e) => setCustomItemName(e.target.value)}
+                    placeholder="Enter item name"
+                    className="w-full px-4 py-2 border-2 border-gray-200 rounded-xl focus:border-[#8B4513] focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Price (₹)</label>
+                  <input
+                    type="number"
+                    value={customItemPrice}
+                    onChange={(e) => setCustomItemPrice(e.target.value)}
+                    placeholder="Enter price"
+                    min="0"
+                    step="0.01"
+                    className="w-full px-4 py-2 border-2 border-gray-200 rounded-xl focus:border-[#8B4513] focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Quantity</label>
+                  <input
+                    type="number"
+                    value={customItemQuantity}
+                    onChange={(e) => setCustomItemQuantity(e.target.value)}
+                    placeholder="Enter quantity"
+                    min="1"
+                    className="w-full px-4 py-2 border-2 border-gray-200 rounded-xl focus:border-[#8B4513] focus:outline-none"
+                  />
+                </div>
+
+                <button
+                  onClick={addCustomItemToCart}
+                  className="w-full bg-[#8B4513] text-white px-6 py-3 rounded-xl font-semibold hover:bg-[#5D3A1A] transition-all"
+                >
+                  Add to Cart
+                </button>
+              </div>
+            </div>
+          </div>
         )}
 
         {activeTab === 'online-orders' && (

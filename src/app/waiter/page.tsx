@@ -978,46 +978,104 @@ export default function WaiterPage() {
     if (!viewingBill) return
     
     try {
+      // Group items by dish name and combine quantities
+      const groupedItems: { [key: string]: { name: string, qty: number, total: number, isExtra: boolean } } = {}
+      billOrderItems.forEach((item: any) => {
+        const name = item.dishes?.name || item.dish?.name || 'Unknown'
+        const qty = item.quantity
+        const price = (item.dishes?.price || item.dish?.price || item.price || 0)
+        const total = price * qty
+        const isExtra = item.order_type === 'Extra' || item.item_type === 'Extra'
+        
+        if (!groupedItems[name]) {
+          groupedItems[name] = { name, qty: 0, total: 0, isExtra: false }
+        }
+        groupedItems[name].qty += qty
+        groupedItems[name].total += total
+        if (isExtra) {
+          groupedItems[name].isExtra = true
+        }
+      })
+
+      // Generate items list for bill
+      const itemsList = Object.values(groupedItems).map((item: any) => {
+        const displayName = item.isExtra ? `${item.name} (E)` : item.name
+        const itemName = displayName.length > 20 ? displayName.substring(0, 19) + '.' : displayName
+        return `<div style="display: flex; font-size: 9px; margin: 2px 0;">
+  <span style="flex: 2;">${itemName}</span>
+  <span style="flex: 1; text-align: right;">${item.qty}</span>
+  <span style="flex: 1; text-align: right;">${item.total.toFixed(2)}</span>
+</div>`
+      }).join('')
+
       // Generate properly formatted plain text bill content for thermal printer
       // 58mm paper width = approximately 32-35 characters per line
       const plainText = `
-<strong class="header">GALAXY GARDEN</strong><br>
-Restaurant & Bar<br>
-================================<br>
-123, Main Street<br>
-City, State - 123456<br>
-Phone: +91 98765 43210<br>
-GSTIN: 29ABCDE1234F1Z5<br>
-================================<br>
-BILL / INVOICE<br>
-================================<br>
-<br>
-Bill No: ${formatOrderId(viewingBill.id)}<br>
-Date: ${new Date().toLocaleDateString()}<br>
-Time: ${new Date().toLocaleTimeString()}<br>
-Table: ${viewingBill.tables?.table_number}<br>
-Waiter: ${viewingBill.users?.name}<br>
-Customer: ${viewingBill.customer_name || 'Guest'}<br>
---------------------------------<br>
-ITEM             QTY  AMOUNT<br>
---------------------------------<br>
-${viewingBill.order_items?.map((item: any) => {
-  const name = item.dishes?.name || 'Unknown'
-  const qty = item.quantity
-  const price = (item.dishes?.price || item.price || 0)
-  const total = (price * qty).toFixed(2)
-  const itemName = name.length > 16 ? name.substring(0, 15) + '.' : name
-  return `${itemName.padEnd(16)} ${qty.toString().padStart(2)}  ${total.padStart(8)}<br>`
-}).join('')}
---------------------------------<br>
-================================<br>
-<strong class="grand-total">*** GRAND TOTAL: Rs${viewingBill.total_amount.toFixed(2)} ***</strong><br>
-================================<br>
-Thank You for Dining!<br>
-Visit Us Again<br>
-================================<br>
-<span class="developer">Developed by onethynk techmedia</span><br>
-================================
+<div style="text-align: center; margin-bottom: 8px;">
+  <div style="font-size: 18px; font-weight: bold; color: #8B4513;">GALAXY GARDEN</div>
+  <div style="font-size: 12px; color: #5D3A1A;">Restaurant & Bar</div>
+</div>
+<div style="border-top: 1px dashed #8B4513; margin: 4px 0;"></div>
+<div style="text-align: center; font-size: 10px; margin-bottom: 4px;">
+  <div>123, Main Street</div>
+  <div>City, State - 123456</div>
+  <div>Phone: +91 98765 43210</div>
+  <div style="font-weight: bold;">GSTIN: 29ABCDE1234F1Z5</div>
+</div>
+<div style="border-top: 1px dashed #8B4513; margin: 4px 0;"></div>
+<div style="text-align: center; font-size: 12px; font-weight: bold; margin: 4px 0;">BILL / INVOICE</div>
+<div style="border-top: 1px dashed #8B4513; margin: 4px 0;"></div>
+<div style="margin: 4px 0; font-size: 10px;">
+  <div style="display: flex; justify-content: space-between;">
+    <span>Bill No:</span>
+    <span style="font-weight: bold;">${formatOrderId(viewingBill.id)}</span>
+  </div>
+  <div style="display: flex; justify-content: space-between;">
+    <span>Date:</span>
+    <span>${new Date().toLocaleDateString()}</span>
+  </div>
+  <div style="display: flex; justify-content: space-between;">
+    <span>Time:</span>
+    <span>${new Date().toLocaleTimeString()}</span>
+  </div>
+  <div style="display: flex; justify-content: space-between;">
+    <span>Table:</span>
+    <span style="font-weight: bold;">${viewingBill.tables?.table_number}</span>
+  </div>
+  <div style="display: flex; justify-content: space-between;">
+    <span>Waiter:</span>
+    <span>${viewingBill.users?.name}</span>
+  </div>
+  <div style="display: flex; justify-content: space-between;">
+    <span>Customer:</span>
+    <span>${viewingBill.customer_name || 'Guest'}</span>
+  </div>
+</div>
+<div style="border-top: 1px dashed #8B4513; margin: 4px 0;"></div>
+<div style="font-size: 10px; font-weight: bold; margin: 4px 0;">ITEM DETAILS</div>
+<div style="border-top: 1px dashed #8B4513; margin: 4px 0;"></div>
+<div style="display: flex; font-size: 9px; font-weight: bold; margin-bottom: 2px;">
+  <span style="flex: 2;">ITEM</span>
+  <span style="flex: 1; text-align: right;">QTY</span>
+  <span style="flex: 1; text-align: right;">AMT</span>
+</div>
+<div style="border-top: 1px dashed #8B4513; margin: 2px 0;"></div>
+${itemsList}
+<div style="border-top: 1px dashed #8B4513; margin: 4px 0;"></div>
+<div style="border-top: 2px solid #8B4513; margin: 6px 0;"></div>
+<div style="text-align: center; font-size: 14px; font-weight: bold; color: #8B4513; margin: 4px 0;">
+  GRAND TOTAL: Rs${viewingBill.total_amount.toFixed(2)}
+</div>
+<div style="border-top: 2px solid #8B4513; margin: 6px 0;"></div>
+<div style="text-align: center; font-size: 10px; margin: 4px 0;">
+  <div>Thank You for Dining!</div>
+  <div>Visit Us Again</div>
+</div>
+<div style="border-top: 1px dashed #8B4513; margin: 4px 0;"></div>
+<div style="text-align: center; font-size: 8px; font-weight: bold; color: #8B4513; margin: 4px 0;">
+  Developed by onethynk techmedia
+</div>
+<div style="border-top: 1px dashed #8B4513; margin: 4px 0;"></div>
 `
       
       console.log('Bill content generated')
@@ -1053,55 +1111,15 @@ Visit Us Again<br>
                     width: 58mm;
                     -webkit-print-color-adjust: exact;
                     print-color-adjust: exact;
+                    font-family: 'Courier New', Courier, monospace;
+                    font-size: 10px;
+                    line-height: 1.2;
+                    color: #000;
                   }
                   * {
-                    -webkit-print-color-adjust: exact;
-                    print-color-adjust: exact;
-                  }
-                }
-                * {
-                  box-sizing: border-box;
-                }
-                body {
-                  font-family: 'Courier New', 'Consolas', 'Lucida Console', monospace;
-                  font-size: 14px;
-                  font-weight: bold;
-                  line-height: 1.4;
-                  margin: 0;
-                  padding: 2mm;
-                  text-align: center;
-                  width: 54mm;
-                  max-width: 54mm;
-                  overflow: hidden;
-                  background: white;
-                  color: black;
-                  -webkit-font-smoothing: antialiased;
-                  -moz-osx-font-smoothing: grayscale;
-                  image-rendering: crisp-edges;
-                }
-                .header {
-                  font-size: 18px;
-                  font-weight: 900;
-                  margin-bottom: 2mm;
-                  display: block;
-                }
-                .grand-total {
-                  font-size: 18px;
-                  font-weight: 900;
-                  margin: 2mm 0;
-                  display: block;
-                }
-                .developer {
-                  font-size: 8px;
-                  font-weight: normal;
-                  margin-top: 2mm;
-                  display: block;
-                }
-                /* Windows-specific fixes */
-                @media screen and (-ms-high-contrast: active), (-ms-high-contrast: none) {
-                  body {
-                    font-size: 11px;
-                    line-height: 1.2;
+                    margin: 0;
+                    padding: 0;
+                    box-sizing: border-box;
                   }
                 }
               </style>
@@ -2788,22 +2806,45 @@ Visit Us Again<br>
                     </div>
                   ) : (
                     <div className="space-y-3">
-                      {billOrderItems.map((item) => (
-                        <div key={item.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-xl border border-gray-200">
-                          <div className="flex-1">
-                            <h4 className="font-bold text-gray-900">{item.dishes?.name || item.dish?.name}</h4>
-                            <div className="flex items-center gap-2 mt-1">
-                              <p className="text-sm text-gray-600">Qty: {item.quantity} × ₹{item.price.toFixed(2)}</p>
-                              {item.dish_type && (
-                                <span className="px-2 py-0.5 bg-[#F5F5DC] text-[#5D3A1A] text-xs font-semibold rounded-full">
-                                  {item.dish_type}
-                                </span>
-                              )}
+                      {(() => {
+                        // Group items by dish name
+                        const groupedItems: { [key: string]: { name: string, qty: number, total: number, isExtra: boolean } } = {}
+                        billOrderItems.forEach((item: any) => {
+                          const name = item.dishes?.name || item.dish?.name || 'Unknown'
+                          const qty = item.quantity
+                          const price = item.dishes?.price || item.dish?.price || item.price || 0
+                          const total = price * qty
+                          const isExtra = item.order_type === 'Extra' || item.item_type === 'Extra'
+                          
+                          if (!groupedItems[name]) {
+                            groupedItems[name] = { name, qty: 0, total: 0, isExtra: false }
+                          }
+                          groupedItems[name].qty += qty
+                          groupedItems[name].total += total
+                          if (isExtra) {
+                            groupedItems[name].isExtra = true
+                          }
+                        })
+                        
+                        return Object.values(groupedItems).map((item: any, index: number) => (
+                          <div key={index} className="flex items-center justify-between p-4 bg-gray-50 rounded-xl border border-gray-200">
+                            <div className="flex-1">
+                              <h4 className="font-bold text-gray-900">
+                                {item.isExtra ? `${item.name} (E)` : item.name}
+                              </h4>
+                              <div className="flex items-center gap-2 mt-1">
+                                <p className="text-sm text-gray-600">Qty: {item.qty} × ₹{(item.total / item.qty).toFixed(2)}</p>
+                                {item.isExtra && (
+                                  <span className="px-2 py-0.5 bg-[#F5F5DC] text-[#5D3A1A] text-xs font-semibold rounded-full">
+                                    Extra
+                                  </span>
+                                )}
+                              </div>
                             </div>
+                            <p className="font-bold text-gray-900">₹{item.total.toFixed(2)}</p>
                           </div>
-                          <p className="font-bold text-gray-900">₹{(item.price * item.quantity).toFixed(2)}</p>
-                        </div>
-                      ))}
+                        ))
+                      })()}
                     </div>
                   )}
                 </div>
