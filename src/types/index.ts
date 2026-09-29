@@ -12,6 +12,9 @@ export interface Table {
   capacity: number
   is_occupied: boolean
   is_master: boolean
+  is_prebooked?: boolean
+  prebooked_by?: string
+  prebooked_time?: string
   created_at: string
 }
 
@@ -34,6 +37,9 @@ export interface Order {
   total_amount: number
   customer_name?: string
   customer_mobile?: string
+  order_type?: 'Normal' | 'Repeat' | 'Extra' | 'Parcel' | 'Takeaway'
+  is_prebooked?: boolean
+  prebooked_time?: string
   created_at: string
   updated_at: string
   tables?: Table
@@ -49,7 +55,7 @@ export interface OrderItem {
   price: number
   special_instructions: string | null
   status: 'pending' | 'preparing' | 'ready' | 'served'
-  created_at: string
+  item_type?: 'Normal' | 'Extra'
   dish_type?: string
   dish?: Dish
   dishes?: Dish

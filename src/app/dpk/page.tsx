@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { User } from '@/types'
+import { playClickSound, playSuccessSound, playErrorSound } from '@/lib/sound-effects'
 
 export default function LoginPage() {
   const router = useRouter()
@@ -14,6 +15,7 @@ export default function LoginPage() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
+    playClickSound()
     setLoading(true)
     setError('')
 
@@ -29,28 +31,43 @@ export default function LoginPage() {
       const data = await response.json()
 
       if (!response.ok) {
+        playErrorSound()
         setError(data.error || 'Invalid credentials')
         return
       }
 
-      // Store user data in localStorage
-      localStorage.setItem('user', JSON.stringify(data.user))
+      // Set secure cookies for session management
+      // Use secure flag only in production (https)
+      const isSecure = process.env.NODE_ENV === 'production'
+      document.cookie = `hotel_session=${data.session_token || data.user.id}; path=/; ${isSecure ? 'secure;' : ''} samesite=strict; max-age=86400`
+      document.cookie = `hotel_role=${data.user.role}; path=/; ${isSecure ? 'secure;' : ''} samesite=strict; max-age=86400`
+      document.cookie = `hotel_user_id=${data.user.id}; path=/; ${isSecure ? 'secure;' : ''} samesite=strict; max-age=86400`
+      
+      // Store minimal user data in localStorage for UI (non-sensitive)
+      localStorage.setItem('user_name', data.user.name || '')
+      localStorage.setItem('user_role', data.user.role || '')
+      
+      playSuccessSound()
 
-      // Redirect based on role
+      // Redirect based on role to secure routes
       switch (data.user.role) {
         case 'admin':
           router.push('/admin')
           break
         case 'waiter':
-          router.push('/waiter')
+          router.push('/staff-portal-abc456')
           break
         case 'kitchen':
-          router.push('/kitchen')
+          router.push('/chef-station-def123')
+          break
+        case 'offline-admin':
+          router.push('/backup-control-ghi789')
           break
         default:
           setError('Invalid role')
       }
     } catch (error) {
+      playErrorSound()
       setError('Login failed. Please try again.')
     } finally {
       setLoading(false)
@@ -58,13 +75,17 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-100 via-gray-50 to-slate-100 flex items-center justify-center px-4">
-      <div className="max-w-md w-full bg-white rounded-2xl shadow-xl p-8 border border-gray-200">
+    <div className="min-h-screen bg-[#F5F5DC] flex items-center justify-center px-4">
+      <div className="max-w-md w-full bg-white rounded-2xl shadow-xl p-8 border-2 border-[#5D3A1A]">
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-slate-800 mb-2">
-            Staff Login
+          <div className="mb-4">
+            <img src="/logo.png" alt="Dhole Patil Hotel Logo" className="w-24 h-24 mx-auto rounded-full object-cover" />
+          </div>
+          <h1 className="text-3xl font-bold text-[#5D3A1A] mb-2">
+            Dhole Patil Hotel
           </h1>
-          <p className="text-gray-600">Enter your credentials to access the system</p>
+          <p className="text-gray-600">Staff Login</p>
+          <p className="text-sm text-gray-500 mt-1">Enter your credentials to access the system</p>
         </div>
 
         <form onSubmit={handleLogin} className="space-y-6">
@@ -78,7 +99,8 @@ export default function LoginPage() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
-              className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-slate-500 focus:border-slate-500 transition-all duration-300 outline-none"
+              autoComplete="email"
+              className="w-full px-4 py-3 border border-[#8B4513] rounded-xl focus:ring-2 focus:ring-[#5D3A1A] focus:border-[#5D3A1A] transition-all duration-300 outline-none"
               placeholder="admin@hotel.com"
             />
           </div>
@@ -93,7 +115,8 @@ export default function LoginPage() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
-              className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-slate-500 focus:border-slate-500 transition-all duration-300 outline-none"
+              autoComplete="current-password"
+              className="w-full px-4 py-3 border border-[#8B4513] rounded-xl focus:ring-2 focus:ring-[#5D3A1A] focus:border-[#5D3A1A] transition-all duration-300 outline-none"
               placeholder="••••••••"
             />
           </div>
@@ -107,16 +130,16 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-slate-800 text-white py-3 rounded-xl font-semibold hover:bg-slate-700 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed shadow-md hover:shadow-lg"
+            className="w-full bg-[#5D3A1A] text-white py-3 rounded-xl font-semibold hover:bg-[#8B4513] transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed shadow-md hover:shadow-lg"
           >
             {loading ? 'Logging in...' : 'Login'}
           </button>
         </form>
 
         <div className="mt-6 text-center">
-          <Link href="/" className="text-slate-600 hover:text-slate-800 text-sm font-semibold transition-colors">
-            ← Back to Home
-          </Link>
+          <p className="text-[#8B4513] text-sm">
+            Secure Staff Portal
+          </p>
         </div>
 
         <div className="mt-8 pt-6 border-t border-gray-200">
@@ -128,7 +151,7 @@ export default function LoginPage() {
             </div>
             <div className="flex justify-between items-center text-sm">
               <span className="text-gray-600 font-medium">Waiter:</span>
-              <span className="font-mono text-gray-800 text-xs">waiter@hotel.com / waiter123</span>
+              <span className="font-mono text-gray-800 text-xs">sham@hotel.com / sham123</span>
             </div>
             <div className="flex justify-between items-center text-sm">
               <span className="text-gray-600 font-medium">Kitchen:</span>

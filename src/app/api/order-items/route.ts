@@ -13,7 +13,9 @@ export async function POST(request: NextRequest) {
     const createdItems = []
     
     for (const item of items) {
-      const { order_id, dish_id, quantity, price, status, dish_type } = item
+      const { order_id, dish_id, quantity, price, status } = item
+      
+      console.log('Creating item:', { order_id, dish_id, quantity, price, status })
       
       const { data: orderItem, error } = await supabase
         .from('order_items')
@@ -22,13 +24,15 @@ export async function POST(request: NextRequest) {
           dish_id,
           quantity,
           price,
-          status,
-          dish_type: dish_type || 'Normal'
+          status
         })
         .select()
         .single()
       
-      if (error) throw error
+      if (error) {
+        console.error('Supabase error for order item:', error)
+        throw error
+      }
       
       orderItem.price = parseFloat(orderItem.price)
       createdItems.push(orderItem)
@@ -59,8 +63,12 @@ export async function POST(request: NextRequest) {
     })
     
     return NextResponse.json(Array.isArray(body) ? createdItems : createdItems[0])
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error creating order items:', error)
-    return NextResponse.json({ error: 'Failed to create order items', details: String(error) }, { status: 500 })
+    return NextResponse.json({ 
+      error: 'Failed to create order items', 
+      details: error?.message || String(error),
+      supabaseError: error?.code || null
+    }, { status: 500 })
   }
 }

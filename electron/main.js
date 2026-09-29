@@ -56,18 +56,18 @@ function createWindow() {
       webSecurity: false
     },
     icon: path.join(__dirname, '../public/icon.png'),
-    title: 'Galaxy Garden Hotel Admin'
+    title: 'Galaxy Garden Hotel Admin - OFFLINE'
   })
 
-  // Load the app
+  // Load the app - start with offline login page
   if (isDev) {
-    mainWindow.loadURL('http://localhost:3000')
+    mainWindow.loadURL('http://localhost:3000/offline-login')
     // Open DevTools in development
     mainWindow.webContents.openDevTools()
   } else {
     // In production, wait for server then load
     startServer().then(() => {
-      mainWindow.loadURL('http://localhost:3000')
+      mainWindow.loadURL('http://localhost:3000/offline-login')
     }).catch((err) => {
       console.error('Failed to start server:', err)
       app.quit()

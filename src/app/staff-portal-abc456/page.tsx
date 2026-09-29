@@ -44,11 +44,8 @@ export default function WaiterPage() {
   const [repeatOrderCart, setRepeatOrderCart] = useState<CartItem[]>([])
   const [viewingBill, setViewingBill] = useState<Order | null>(null)
   const [billOrderItems, setBillOrderItems] = useState<any[]>([])
-  const [customerName, setCustomerName] = useState('')
-  const [customerMobile, setCustomerMobile] = useState('')
   const [tableOrders, setTableOrders] = useState<Order[]>([])
   const [selectedItemsToRepeat, setSelectedItemsToRepeat] = useState<any[]>([])
-  const [orderType, setOrderType] = useState<'Normal' | 'Parcel' | 'Takeaway'>('Normal')
 
   const dishTypes = ['Normal', 'Medium', 'Spicy', 'Extra Spicy']
 
@@ -150,17 +147,12 @@ export default function WaiterPage() {
     setSelectedTable(null)
     setCart([])
     setTableOrders([])
-    setCustomerName('')
-    setCustomerMobile('')
     setSelectedItemsToRepeat([])
     setCurrentStep('tables')
   }
 
   const handleNewOrder = () => {
     setCart([])
-    setCustomerName('')
-    setCustomerMobile('')
-    setOrderType('Normal')
     setCurrentStep('dishes')
   }
 
@@ -204,18 +196,19 @@ export default function WaiterPage() {
       console.log('Submitting repeated order for table:', selectedTable?.id)
       console.log('Cart items:', cartItems)
 
+      // Get user_id from cookie
+      const userIdMatch = document.cookie.match(/hotel_user_id=([^;]+)/)
+      const userId = userIdMatch ? decodeURIComponent(userIdMatch[1]) : null
+
       // Create order via API
       const orderResponse = await fetch('/api/orders', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           table_id: selectedTable?.id,
-          waiter_id: user?.id,
+          waiter_id: userId,
           status: 'pending',
-          total_amount: cartItems.reduce((sum, item) => sum + (item.price * item.quantity), 0),
-          customer_name: customerName || null,
-          customer_mobile: customerMobile || null,
-          order_type: orderType
+          total_amount: cartItems.reduce((sum, item) => sum + (item.price * item.quantity), 0)
         })
       })
 
@@ -232,8 +225,7 @@ export default function WaiterPage() {
         dish_id: item.dish_id,
         quantity: item.quantity,
         price: item.price,
-        status: 'pending',
-        dish_type: item.dish_type || 'Normal'
+        status: 'pending'
       }))
 
       const itemsResponse = await fetch('/api/order-items', {
@@ -287,8 +279,6 @@ export default function WaiterPage() {
       setCart([])
       setSelectedItemsToRepeat([])
       setSelectedTable(null)
-      setCustomerName('')
-      setCustomerMobile('')
       
       // Refresh data
       fetchData()
@@ -349,23 +339,28 @@ export default function WaiterPage() {
       console.log('Submitting order for table:', selectedTable?.id)
       console.log('Cart items:', cart)
 
+      // Get user_id from cookie
+      const userIdMatch = document.cookie.match(/hotel_user_id=([^;]+)/)
+      const userId = userIdMatch ? decodeURIComponent(userIdMatch[1]) : null
+      console.log('User ID from cookie:', userId)
+
       // Create order via API to avoid CORS
       const orderResponse = await fetch('/api/orders', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           table_id: selectedTable?.id,
-          waiter_id: user?.id,
+          waiter_id: userId,
           status: 'pending',
-          total_amount: getCartTotal(),
-          customer_name: customerName || null,
-          customer_mobile: customerMobile || null,
-          order_type: orderType
+          total_amount: getCartTotal()
         })
       })
 
+      console.log('Order response status:', orderResponse.status)
       if (!orderResponse.ok) {
-        throw new Error('Failed to create order')
+        const errorData = await orderResponse.json()
+        console.error('Order API error:', errorData)
+        throw new Error(errorData.error || 'Failed to create order')
       }
 
       const orderData = await orderResponse.json()
@@ -377,8 +372,7 @@ export default function WaiterPage() {
         dish_id: item.dish_id,
         quantity: item.quantity,
         price: item.price,
-        status: 'pending',
-        dish_type: item.dish_type || 'Normal'
+        status: 'pending'
       }))
 
       // Use API to create order items instead of direct Supabase
@@ -415,7 +409,7 @@ export default function WaiterPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          user_id: user?.id,
+          user_id: userId,
           order_id: orderData.id,
           type: 'new_order',
           message: `New order for Table ${selectedTable?.table_number}`,
@@ -432,8 +426,6 @@ export default function WaiterPage() {
       setCurrentStep('success')
       setCart([])
       setSelectedTable(null)
-      setCustomerName('')
-      setCustomerMobile('')
       
       // Refresh data
       fetchData()
@@ -967,7 +959,6 @@ Restaurant & Bar<br>
 123, Main Street<br>
 City, State - 123456<br>
 Phone: +91 98765 43210<br>
-GSTIN: 29ABCDE1234F1Z5<br>
 ================================<br>
 BILL / INVOICE<br>
 ================================<br>
@@ -1383,22 +1374,7 @@ Visit Us Again<br>
                   {(() => {
                     // Group orders by table
                     const tableGroups = orders
-                      .filter(o => {
-                        // Check if order belongs to current waiter
-                        const isWaiterOrder = o.waiter_id === user?.id || o.users?.id === user?.id
-                        // Check if order is active (not paid or completed)
-                        const isActive = !['paid', 'completed'].includes(o.status)
-                        console.log('Order check:', {
-                          orderId: o.id,
-                          waiterId: o.waiter_id,
-                          usersId: o.users?.id,
-                          currentUserId: user?.id,
-                          isWaiterOrder,
-                          isActive,
-                          status: o.status
-                        })
-                        return isWaiterOrder && isActive
-                      })
+                      .filter(o => (o.waiter_id === user?.id || o.users?.id === user?.id) && !['paid', 'completed'].includes(o.status))
                       .reduce((acc, order) => {
                         const tableId = order.table_id
                         if (!acc[tableId]) {
@@ -1410,10 +1386,6 @@ Visit Us Again<br>
                         acc[tableId].orders.push(order)
                         return acc
                       }, {} as any)
-                    
-                    console.log('Table groups:', tableGroups)
-                    console.log('User:', user)
-                    console.log('All orders:', orders)
                     
                     return Object.values(tableGroups).map((group: any) => (
                       <div
@@ -1487,43 +1459,6 @@ Visit Us Again<br>
                 Table {selectedTable.table_number} - Order Options
               </h2>
               <p className="text-gray-600">Choose how you want to proceed with this table</p>
-            </div>
-
-            {/* Order Type Selection */}
-            <div className="bg-white rounded-2xl shadow-xl p-6 border-2 border-[#8B4513] mb-6">
-              <h3 className="text-xl font-bold text-gray-900 mb-4">Order Type</h3>
-              <div className="grid grid-cols-3 gap-4">
-                <button
-                  onClick={() => { playClickSound(); setOrderType('Normal') }}
-                  className={`p-4 rounded-xl font-semibold transition-all duration-300 ${
-                    orderType === 'Normal'
-                      ? 'bg-[#5D3A1A] text-white shadow-lg'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                  }`}
-                >
-                  Dine In
-                </button>
-                <button
-                  onClick={() => { playClickSound(); setOrderType('Parcel') }}
-                  className={`p-4 rounded-xl font-semibold transition-all duration-300 ${
-                    orderType === 'Parcel'
-                      ? 'bg-[#5D3A1A] text-white shadow-lg'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                  }`}
-                >
-                  Parcel
-                </button>
-                <button
-                  onClick={() => { playClickSound(); setOrderType('Takeaway') }}
-                  className={`p-4 rounded-xl font-semibold transition-all duration-300 ${
-                    orderType === 'Takeaway'
-                      ? 'bg-[#5D3A1A] text-white shadow-lg'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                  }`}
-                >
-                  Takeaway
-                </button>
-              </div>
             </div>
 
             {/* Order Options Buttons */}
@@ -1772,19 +1707,6 @@ Visit Us Again<br>
             </div>
 
             {/* Customer Name Input */}
-            <div className="bg-white rounded-2xl shadow-lg p-4 mb-4">
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Customer Name (Optional)
-              </label>
-              <input
-                type="text"
-                value={customerName}
-                onChange={(e) => setCustomerName(e.target.value)}
-                placeholder="Enter customer name"
-                className="w-full px-4 py-2 border-2 border-gray-200 rounded-xl focus:border-[#5D3A1A] focus:outline-none transition-colors"
-              />
-            </div>
-
             {/* Dishes List */}
             <div className="bg-white rounded-2xl shadow-xl overflow-hidden mb-20 sm:mb-8">
               <div className="overflow-x-auto">
@@ -1902,39 +1824,6 @@ Visit Us Again<br>
                   <ArrowLeft className="w-4 h-4" />
                   Change Table
                 </button>
-              </div>
-            </div>
-
-            {/* Customer Name Input */}
-            <div className="bg-white rounded-2xl shadow-xl overflow-hidden mb-6">
-              <div className="p-4 sm:p-6 border-b border-gray-200 bg-[#F5F5DC]">
-                <h3 className="text-lg sm:text-xl font-bold text-gray-900">Customer Details</h3>
-              </div>
-              <div className="p-4 sm:p-6 space-y-4">
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Customer Name (Optional)
-                  </label>
-                  <input
-                    type="text"
-                    value={customerName}
-                    onChange={(e) => setCustomerName(e.target.value)}
-                    placeholder="Enter customer name..."
-                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-[#5D3A1A] focus:outline-none transition-colors text-sm sm:text-base"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Mobile Number (Optional - Not shown on bill)
-                  </label>
-                  <input
-                    type="tel"
-                    value={customerMobile}
-                    onChange={(e) => setCustomerMobile(e.target.value)}
-                    placeholder="Enter mobile number..."
-                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-[#5D3A1A] focus:outline-none transition-colors text-sm sm:text-base"
-                  />
-                </div>
               </div>
             </div>
 
@@ -2716,72 +2605,79 @@ Visit Us Again<br>
         {/* Step 8: Bill Preview */}
         {currentStep === 'bill-preview' && viewingBill && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden">
-              <div className="bg-[#5D3A1A] p-4 sm:p-6">
-                <div className="flex justify-between items-center">
-                  <div>
-                    <h2 className="text-xl sm:text-2xl font-bold text-white">Bill Preview</h2>
-                    <p className="text-[#F5F5DC] text-sm">Order #{formatOrderId(viewingBill.id)}</p>
-                  </div>
-                  <button
-                    onClick={() => {
-                      setViewingBill(null)
-                      setCurrentStep('tables')
-                    }}
-                    className="text-white hover:bg-white/20 p-2 rounded-lg transition-colors"
-                  >
-                    <X className="w-6 h-6" />
-                  </button>
+            <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-hidden">
+              {/* Header */}
+              <div className="bg-[#5D3A1A] p-6 text-center">
+                <div className="mb-3">
+                  <img src="/logo.png" alt="Dhole Patil Hotel Logo" className="w-20 h-20 mx-auto rounded-full object-cover border-4 border-white" />
                 </div>
+                <h2 className="text-2xl font-bold text-white mb-1">Dhole Patil Hotel</h2>
+                <p className="text-[#F5F5DC] text-sm">Authentic Maharashtrian Cuisine</p>
               </div>
 
-              <div className="p-4 sm:p-6 overflow-y-auto max-h-[calc(90vh-200px)]">
-                {/* Order Details */}
-                <div className="mb-6 p-4 bg-gray-50 rounded-xl border border-gray-200">
-                  <div className="grid grid-cols-2 gap-4 text-sm">
+              <div className="p-6 overflow-y-auto max-h-[calc(90vh-250px)]">
+                {/* Bill Info */}
+                <div className="border-b-2 border-dashed border-gray-300 pb-4 mb-4">
+                  <div className="flex justify-between items-center mb-3">
                     <div>
-                      <span className="font-semibold text-gray-600">Table:</span>
-                      <span className="ml-2 font-bold text-gray-900">{viewingBill.tables?.table_number}</span>
+                      <p className="text-xs text-gray-500 uppercase tracking-wide">Bill No</p>
+                      <p className="font-bold text-gray-900">{formatOrderId(viewingBill.id)}</p>
                     </div>
-                    <div>
-                      <span className="font-semibold text-gray-600">Date:</span>
-                      <span className="ml-2 font-bold text-gray-900">{new Date(viewingBill.created_at).toLocaleString()}</span>
+                    <div className="text-right">
+                      <p className="text-xs text-gray-500 uppercase tracking-wide">Date</p>
+                      <p className="font-bold text-gray-900">{new Date(viewingBill.created_at).toLocaleDateString()}</p>
                     </div>
+                  </div>
+                  <div className="flex justify-between items-center mb-3">
                     <div>
-                      <span className="font-semibold text-gray-600">Waiter:</span>
-                      <span className="ml-2 font-bold text-gray-900">{viewingBill.users?.name}</span>
+                      <p className="text-xs text-gray-500 uppercase tracking-wide">Table</p>
+                      <p className="font-bold text-gray-900">{viewingBill.tables?.table_number}</p>
                     </div>
+                    <div className="text-right">
+                      <p className="text-xs text-gray-500 uppercase tracking-wide">Time</p>
+                      <p className="font-bold text-gray-900">{new Date(viewingBill.created_at).toLocaleTimeString()}</p>
+                    </div>
+                  </div>
+                  <div className="flex justify-between items-center">
                     <div>
-                      <span className="font-semibold text-gray-600">Status:</span>
-                      <span className="ml-2 font-bold text-gray-900 capitalize">{viewingBill.status}</span>
+                      <p className="text-xs text-gray-500 uppercase tracking-wide">Waiter</p>
+                      <p className="font-bold text-gray-900">{viewingBill.users?.name}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-xs text-gray-500 uppercase tracking-wide">Status</p>
+                      <span className={`px-2 py-1 rounded-full text-xs font-bold ${
+                        viewingBill.status === 'paid' ? 'bg-green-100 text-green-800' :
+                        viewingBill.status === 'ready' ? 'bg-blue-100 text-blue-800' :
+                        viewingBill.status === 'preparing' ? 'bg-yellow-100 text-yellow-800' :
+                        'bg-gray-100 text-gray-800'
+                      }`}>
+                        {viewingBill.status}
+                      </span>
                     </div>
                   </div>
                 </div>
 
-                {/* Items */}
-                <div className="mb-6">
-                  <h3 className="text-lg font-bold text-gray-900 mb-4">Order Items</h3>
+                {/* Items Table */}
+                <div className="mb-4">
+                  <div className="flex items-center justify-between text-xs font-bold text-gray-500 uppercase tracking-wide mb-2 pb-2 border-b border-gray-200">
+                    <span className="flex-1">Item</span>
+                    <span className="w-16 text-center">Qty</span>
+                    <span className="w-20 text-right">Amount</span>
+                  </div>
                   {billOrderItems.length === 0 ? (
                     <div className="text-center py-8 bg-gray-50 rounded-xl">
                       <ShoppingCart className="w-12 h-12 text-gray-300 mx-auto mb-3" />
                       <p className="text-gray-500">No items in this order</p>
                     </div>
                   ) : (
-                    <div className="space-y-3">
+                    <div className="space-y-2">
                       {billOrderItems.map((item) => (
-                        <div key={item.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-xl border border-gray-200">
+                        <div key={item.id} className="flex items-center justify-between py-2 border-b border-gray-100">
                           <div className="flex-1">
-                            <h4 className="font-bold text-gray-900">{item.dishes?.name || item.dish?.name}</h4>
-                            <div className="flex items-center gap-2 mt-1">
-                              <p className="text-sm text-gray-600">Qty: {item.quantity} × ₹{item.price.toFixed(2)}</p>
-                              {item.dish_type && (
-                                <span className="px-2 py-0.5 bg-[#F5F5DC] text-[#5D3A1A] text-xs font-semibold rounded-full">
-                                  {item.dish_type}
-                                </span>
-                              )}
-                            </div>
+                            <p className="font-semibold text-gray-900 text-sm">{item.dishes?.name || item.dish?.name}</p>
                           </div>
-                          <p className="font-bold text-gray-900">₹{(item.price * item.quantity).toFixed(2)}</p>
+                          <span className="w-16 text-center text-sm text-gray-600">{item.quantity}</span>
+                          <span className="w-20 text-right font-bold text-gray-900 text-sm">₹{(item.price * item.quantity).toFixed(2)}</span>
                         </div>
                       ))}
                     </div>
@@ -2789,23 +2685,39 @@ Visit Us Again<br>
                 </div>
 
                 {/* Total */}
-                <div className="p-4 bg-[#F5F5DC] rounded-xl border-2 border-[#8B4513]">
+                <div className="border-t-2 border-dashed border-gray-300 pt-4 mt-4">
                   <div className="flex justify-between items-center">
-                    <span className="text-xl font-bold text-gray-700">Total Amount</span>
-                    <span className="text-3xl font-bold text-[#5D3A1A]">
+                    <span className="text-lg font-bold text-gray-700">GRAND TOTAL</span>
+                    <span className="text-2xl font-bold text-[#5D3A1A]">
                       ₹{viewingBill.total_amount.toFixed(2)}
                     </span>
                   </div>
                 </div>
 
-                {/* Print Button */}
-                <div className="mt-6">
+                {/* Footer */}
+                <div className="mt-6 pt-4 border-t border-gray-200 text-center">
+                  <p className="text-xs text-gray-500 mb-2">Thank you for dining with us!</p>
+                  <p className="text-xs text-gray-400">Visit us again soon</p>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="mt-6 space-y-3">
                   <button
                     onClick={handleThermalPrint}
                     className="w-full flex items-center justify-center gap-2 bg-[#5D3A1A] text-white px-6 py-3 rounded-xl font-semibold hover:bg-[#8B4513] transition-all duration-300"
                   >
                     <Printer className="w-5 h-5" />
-                    Print Bill (Thermal)
+                    Print Bill
+                  </button>
+                  <button
+                    onClick={() => {
+                      setViewingBill(null)
+                      setCurrentStep('tables')
+                    }}
+                    className="w-full flex items-center justify-center gap-2 bg-gray-100 text-gray-700 px-6 py-3 rounded-xl font-semibold hover:bg-gray-200 transition-all duration-300"
+                  >
+                    <X className="w-5 h-5" />
+                    Close
                   </button>
                 </div>
               </div>

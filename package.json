@@ -13,7 +13,10 @@
     "electron-build": "npm run build && electron-builder",
     "electron-build-win": "npm run build && electron-builder --win",
     "electron-build-mac": "npm run build && electron-builder --mac",
-    "electron-build-linux": "npm run build && electron-builder --linux"
+    "electron-build-linux": "npm run build && electron-builder --linux",
+    "offline-dev": "next dev",
+    "offline-build": "next build",
+    "offline-start": "next start"
   },
   "dependencies": {
     "@supabase/auth-helpers-nextjs": "^0.15.0",
@@ -21,6 +24,8 @@
     "@types/pg": "^8.23.1",
     "clsx": "^2.1.1",
     "date-fns": "^4.4.0",
+    "jspdf": "^4.2.1",
+    "jspdf-autotable": "^5.0.8",
     "lucide-react": "^1.41.0",
     "next": "16.3.4",
     "pg": "^8.23.0",
@@ -61,53 +66,58 @@
       "package.json",
       "next.config.ts"
     ],
+    "asar": true,
+    "compression": "maximum",
+    "fileAssociations": [],
     "win": {
       "target": [
         {
-          "target": "nsis",
-          "arch": ["x64"]
-        },
-        {
           "target": "portable",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         }
-      ],
-      "icon": "public/icon.png"
+      ]
     },
     "mac": {
       "target": [
         {
           "target": "dmg",
-          "arch": ["x64", "arm64"]
+          "arch": [
+            "x64",
+            "arm64"
+          ]
         },
         {
           "target": "zip",
-          "arch": ["x64", "arm64"]
+          "arch": [
+            "x64",
+            "arm64"
+          ]
         }
       ],
-      "icon": "public/icon.png",
       "category": "public.app-category.business"
     },
     "linux": {
       "target": [
         {
           "target": "AppImage",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         },
         {
           "target": "deb",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         }
       ],
-      "icon": "public/icon.png",
       "category": "Office"
     },
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
-      "installerIcon": "public/icon.png",
-      "uninstallerIcon": "public/icon.png",
-      "installerHeaderIcon": "public/icon.png",
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true
     }

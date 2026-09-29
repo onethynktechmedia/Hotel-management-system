@@ -148,8 +148,8 @@ export default function SalesAnalytics({ payments, orders }: SalesAnalyticsProps
             onClick={() => setTimeRange(range)}
             className={`flex-1 min-w-[80px] py-2 px-4 rounded-lg text-sm font-semibold transition-all duration-300
               ${timeRange === range
-                ? 'bg-gradient-to-r from-green-600 to-emerald-600 text-white shadow-md'
-                : 'text-gray-600 hover:bg-green-50'
+                ? 'bg-[#5D3A1A] text-white shadow-md'
+                : 'text-gray-600 hover:bg-[#F5F5DC]'
               }`}
           >
             {range.charAt(0).toUpperCase() + range.slice(1)}
@@ -163,7 +163,7 @@ export default function SalesAnalytics({ payments, orders }: SalesAnalyticsProps
           <div className="flex items-center justify-between">
             <div>
               <p className="text-gray-600 text-sm font-semibold">Total Sales</p>
-              <p className="text-2xl font-bold bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">
+              <p className="text-2xl font-bold text-[#5D3A1A]">
                 ₹{totalSales.toFixed(2)}
               </p>
             </div>
@@ -187,7 +187,7 @@ export default function SalesAnalytics({ payments, orders }: SalesAnalyticsProps
           <div className="flex items-center justify-between">
             <div>
               <p className="text-gray-600 text-sm font-semibold">Total Orders</p>
-              <p className="text-2xl font-bold bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">
+              <p className="text-2xl font-bold text-[#5D3A1A]">
                 {totalOrders}
               </p>
             </div>
@@ -204,7 +204,7 @@ export default function SalesAnalytics({ payments, orders }: SalesAnalyticsProps
           <div className="flex items-center justify-between">
             <div>
               <p className="text-gray-600 text-sm font-semibold">Growth Rate</p>
-              <p className="text-2xl font-bold bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">
+              <p className="text-2xl font-bold text-[#5D3A1A]">
                 {growth >= 0 ? '+' : ''}{growth.toFixed(1)}%
               </p>
             </div>

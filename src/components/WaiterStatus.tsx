@@ -51,7 +51,9 @@ export default function WaiterStatus() {
         .from('users')
         .select('*')
         .eq('role', 'waiter')
-        .order('name')
+        .order('created_at', { ascending: false }) // Show newest first
+
+      console.log('Fetched waiters:', users)
 
       if (users) {
         const waitersWithStats = await Promise.all(
@@ -247,7 +249,7 @@ export default function WaiterStatus() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-gray-600 text-sm font-semibold">Available Waiters</p>
-              <p className="text-2xl font-bold bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">
+              <p className="text-2xl font-bold text-[#5D3A1A]">
                 {availableWaiters}/{totalWaiters}
               </p>
             </div>
@@ -261,7 +263,7 @@ export default function WaiterStatus() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-gray-600 text-sm font-semibold">Active Orders</p>
-              <p className="text-2xl font-bold bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">
+              <p className="text-2xl font-bold text-[#5D3A1A]">
                 {waiters.reduce((sum, w) => sum + w.active_orders, 0)}
               </p>
             </div>
@@ -271,11 +273,12 @@ export default function WaiterStatus() {
           </div>
         </div>
 
+
         <div className="bg-white rounded-xl shadow-lg p-6 hover:shadow-xl transition-all duration-300">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-gray-600 text-sm font-semibold">Notifications</p>
-              <p className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+              <p className="text-2xl font-bold text-[#5D3A1A]">
                 {notifications.length}
               </p>
             </div>
@@ -289,14 +292,14 @@ export default function WaiterStatus() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Waiter List */}
         <div className="bg-white rounded-xl shadow-lg overflow-hidden">
-          <div className="p-6 border-b border-gray-200 bg-gradient-to-r from-green-50 to-emerald-50 flex justify-between items-center">
+          <div className="p-6 border-b border-gray-200 bg-[#F5F5DC] flex justify-between items-center">
             <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
               <Users className="w-5 h-5" />
               Waiter Management
             </h3>
             <button
               onClick={handleAddWaiter}
-              className="flex items-center bg-gradient-to-r from-green-600 to-emerald-600 text-white px-4 py-2 rounded-xl font-semibold hover:shadow-lg transition-all duration-300 transform hover:scale-105"
+              className="flex items-center bg-[#5D3A1A] text-white px-4 py-2 rounded-xl font-semibold hover:bg-[#8B4513] transition-all duration-300 transform hover:scale-105"
             >
               <Plus className="w-4 h-4 mr-2" />
               Add Waiter
@@ -308,7 +311,7 @@ export default function WaiterStatus() {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-bold ${
-                      waiter.is_available ? 'bg-gradient-to-r from-green-500 to-emerald-500' : 'bg-gradient-to-r from-gray-400 to-gray-500'
+                      waiter.is_available ? 'bg-[#5D3A1A]' : 'bg-gray-400'
                     }`}>
                       {waiter.name.charAt(0).toUpperCase()}
                     </div>
@@ -371,7 +374,7 @@ export default function WaiterStatus() {
 
         {/* Notifications */}
         <div className="bg-white rounded-xl shadow-lg overflow-hidden">
-          <div className="p-6 border-b border-gray-200 bg-gradient-to-r from-green-50 to-emerald-50">
+          <div className="p-6 border-b border-gray-200 bg-[#F5F5DC]">
             <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
               <Bell className="w-5 h-5" />
               Recent Notifications
@@ -417,7 +420,7 @@ export default function WaiterStatus() {
       {showWaiterModal && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
           <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md mx-4">
-            <h2 className="text-2xl font-bold mb-6 bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">
+            <h2 className="text-2xl font-bold mb-6 text-[#5D3A1A]">
               {editingWaiter ? 'Edit Waiter' : 'Add New Waiter'}
             </h2>
             <div className="space-y-4">
@@ -483,7 +486,7 @@ export default function WaiterStatus() {
               </button>
               <button
                 onClick={handleSaveWaiter}
-                className="flex-1 px-6 py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-xl font-semibold hover:shadow-lg transition-all duration-300 transform hover:scale-105"
+                className="flex-1 px-6 py-3 bg-[#5D3A1A] text-white rounded-xl font-semibold hover:bg-[#8B4513] transition-all duration-300 transform hover:scale-105"
               >
                 {editingWaiter ? 'Update' : 'Add Waiter'}
               </button>

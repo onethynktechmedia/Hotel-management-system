@@ -3,6 +3,13 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
+  /* Single Brown Color Scheme - Dark to Light */
+  --brown-900: #5D3A1A;  /* Darkest - for primary buttons, headers */
+  --brown-800: #8B4513;  /* Dark - for secondary buttons, borders */
+  --brown-700: #A0522D;  /* Medium - for accents */
+  --brown-600: #D2691E;  /* Light - for highlights */
+  --brown-100: #F5F5DC;  /* Very light - for backgrounds */
+  --brown-50: #FAEBD7;   /* Lightest - for hover states */
 }
 
 @theme inline {
@@ -10,6 +17,13 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  /* Custom brown colors */
+  --color-brown-900: var(--brown-900);
+  --color-brown-800: var(--brown-800);
+  --color-brown-700: var(--brown-700);
+  --color-brown-600: var(--brown-600);
+  --color-brown-100: var(--brown-100);
+  --color-brown-50: var(--brown-50);
 }
 
 @media (prefers-color-scheme: dark) {

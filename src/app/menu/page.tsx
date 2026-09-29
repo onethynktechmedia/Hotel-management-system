@@ -3,12 +3,15 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { Dish } from '@/types'
+import { Menu, X } from 'lucide-react'
+import { playClickSound } from '@/lib/sound-effects'
 
 export default function MenuPage() {
   const [dishes, setDishes] = useState<Dish[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedCategory, setSelectedCategory] = useState<string>('all')
   const [imageErrors, setImageErrors] = useState<Set<string>>(new Set())
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
 
   useEffect(() => {
     fetchDishes()
@@ -73,35 +76,67 @@ export default function MenuPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-green-50 flex items-center justify-center">
-        <div className="text-xl">Loading menu...</div>
+      <div className="min-h-screen bg-[#F5F5DC] flex items-center justify-center px-4">
+        <div className="text-xl text-[#5D3A1A]">Loading menu...</div>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-green-50">
+    <div className="min-h-screen bg-[#F5F5DC]">
       <nav className="bg-white shadow-md sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-16">
-            <div className="flex items-center">
-              <Link href="/" className="text-2xl font-bold text-green-700">
-                Hotel Management
+            <div className="flex items-center gap-3">
+              <img src="/logo.png" alt="Dhole Patil Hotel Logo" className="w-10 h-10 rounded-full object-cover" />
+              <Link href="/" className="text-2xl font-bold text-[#5D3A1A]">
+                Dhole Patil Hotel
               </Link>
             </div>
-            <div className="flex items-center space-x-4">
-              <Link href="/" className="text-gray-700 hover:text-green-600 px-3 py-2 rounded-md text-sm font-medium transition-colors">
+            
+            {/* Desktop Navigation */}
+            <div className="hidden md:flex items-center space-x-4">
+              <Link href="/" onClick={() => playClickSound()} className="text-gray-700 hover:text-[#5D3A1A] px-3 py-2 rounded-md text-sm font-medium transition-colors">
                 Home
               </Link>
-              <Link href="/menu" className="text-green-600 px-3 py-2 rounded-md text-sm font-medium">
+              <Link href="/menu" className="text-[#5D3A1A] px-3 py-2 rounded-md text-sm font-medium">
                 Menu
               </Link>
-              <Link href="/login" className="bg-green-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-green-700 transition-colors">
-                Staff Login
-              </Link>
+            </div>
+
+            {/* Mobile menu button */}
+            <div className="md:hidden flex items-center">
+              <button
+                onClick={() => { playClickSound(); setIsMobileMenuOpen(!isMobileMenuOpen) }}
+                className="p-2 rounded-lg text-gray-700 hover:text-[#5D3A1A] hover:bg-[#F5F5DC] transition-colors"
+              >
+                {isMobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+              </button>
             </div>
           </div>
         </div>
+
+        {/* Mobile menu */}
+        {isMobileMenuOpen && (
+          <div className="md:hidden bg-white border-t border-gray-200">
+            <div className="px-4 py-3 space-y-2">
+              <Link
+                href="/"
+                onClick={() => { playClickSound(); setIsMobileMenuOpen(false) }}
+                className="block text-gray-700 hover:text-[#5D3A1A] hover:bg-[#F5F5DC] px-3 py-2 rounded-md text-sm font-medium transition-colors"
+              >
+                Home
+              </Link>
+              <Link
+                href="/menu"
+                onClick={() => { playClickSound(); setIsMobileMenuOpen(false) }}
+                className="block text-[#5D3A1A] bg-[#F5F5DC] px-3 py-2 rounded-md text-sm font-medium"
+              >
+                Menu
+              </Link>
+            </div>
+          </div>
+        )}
       </nav>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
@@ -114,11 +149,11 @@ export default function MenuPage() {
           {categories.map(category => (
             <button
               key={category}
-              onClick={() => setSelectedCategory(category)}
+              onClick={() => { playClickSound(); setSelectedCategory(category) }}
               className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
                 selectedCategory === category
-                  ? 'bg-green-600 text-white'
-                  : 'bg-white text-gray-700 hover:bg-green-100'
+                  ? 'bg-[#5D3A1A] text-white'
+                  : 'bg-white text-gray-700 hover:bg-[#F5F5DC]'
               }`}
             >
               {category.charAt(0).toUpperCase() + category.slice(1)}
@@ -150,11 +185,11 @@ export default function MenuPage() {
               <div className="p-3 sm:p-4 md:p-6">
                 <div className="flex justify-between items-start mb-2">
                   <h3 className="text-sm sm:text-base md:text-xl font-bold text-gray-900 line-clamp-1">{dish.name}</h3>
-                  <span className="text-sm sm:text-base md:text-2xl font-bold text-green-600">
+                  <span className="text-sm sm:text-base md:text-2xl font-bold text-[#5D3A1A]">
                     ₹{dish.price.toFixed(2)}
                   </span>
                 </div>
-                <p className="text-xs sm:text-sm font-semibold text-green-600 mb-1 flex items-center gap-1">
+                <p className="text-xs sm:text-sm font-semibold text-[#8B4513] mb-1 flex items-center gap-1">
                   <span>{getCategoryIcon(dish.category)}</span>
                   {dish.category}
                 </p>

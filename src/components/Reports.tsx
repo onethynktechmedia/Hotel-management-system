@@ -27,8 +27,13 @@ import {
   Filter,
   FileText,
   Clock,
-  CheckCircle
+  CheckCircle,
+  FileSpreadsheet,
+  FileDown
 } from 'lucide-react'
+import { playClickSound, playSuccessSound, playErrorSound } from '@/lib/sound-effects'
+import jsPDF from 'jspdf'
+import autoTable from 'jspdf-autotable'
 
 // Utility function to format order ID as GGR-XXX
 const formatOrderId = (orderId: string) => {
@@ -51,6 +56,7 @@ export default function Reports({ orders, payments, dishes }: ReportsProps) {
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
   const [reportData, setReportData] = useState<any>(null)
+  const [showExportModal, setShowExportModal] = useState(false)
 
   useEffect(() => {
     generateReport()
@@ -117,10 +123,10 @@ export default function Reports({ orders, payments, dishes }: ReportsProps) {
 
     // Order status distribution
     const statusDistribution = [
-      { name: 'Paid', value: filteredOrders.filter(o => o.status === 'paid').length, color: '#22c55e' },
-      { name: 'Preparing', value: filteredOrders.filter(o => o.status === 'preparing').length, color: '#eab308' },
-      { name: 'Ready', value: filteredOrders.filter(o => o.status === 'ready').length, color: '#3b82f6' },
-      { name: 'Pending', value: filteredOrders.filter(o => o.status === 'pending').length, color: '#f97316' },
+      { name: 'Paid', value: filteredOrders.filter(o => o.status === 'paid').length, color: '#5D3A1A' },
+      { name: 'Preparing', value: filteredOrders.filter(o => o.status === 'preparing').length, color: '#8B4513' },
+      { name: 'Ready', value: filteredOrders.filter(o => o.status === 'ready').length, color: '#DEB887' },
+      { name: 'Pending', value: filteredOrders.filter(o => o.status === 'pending').length, color: '#F5F5DC' },
     ]
 
     // Hourly sales data - use order data for better accuracy
@@ -181,39 +187,64 @@ export default function Reports({ orders, payments, dishes }: ReportsProps) {
     })
   }
 
-  const exportReport = () => {
+  const exportCSV = () => {
     if (!reportData) return
+    playSuccessSound()
 
-    let csvContent = 'Hotel Management System - Sales Report\n'
-    csvContent += `Generated: ${new Date().toLocaleString()}\n`
-    csvContent += `Date Range: ${dateRange === 'custom' ? `${startDate} to ${endDate}` : dateRange}\n`
-    csvContent += '\n'
+    // Calculate totals
+    let totalFoodAmount = 0
+    let totalDiscount = 0
+    let totalCGST = 0
+    let totalSGST = 0
+    let totalFoodTotal = 0
 
-    // Summary Section
-    csvContent += 'SUMMARY METRICS\n'
-    csvContent += 'Metric,Value\n'
-    csvContent += `Total Revenue,₹${reportData.totalRevenue.toFixed(2)}\n`
+    // Check if any order has GST
+    const hasGST = reportData.filteredOrders.some((order: any) => {
+      const foodAmount = order.total_amount || 0
+      const discount = order.discount_amount || 0
+      return (foodAmount - discount) > 0
+    })
+
+    let csvContent = 'Bill No,Table No,Payment,Food Amount,Discount'
+    if (hasGST) {
+      csvContent += ',CGST,SGST'
+    }
+    csvContent += ',Food Total\n'
+    
+    reportData.filteredOrders.forEach((order: any) => {
+      const billNo = formatOrderId(order.id)
+      const tableNo = order.tables?.table_number || 'N/A'
+      const payment = order.payment_method || 'Cash'
+      const foodAmount = order.total_amount || 0
+      const discount = order.discount_amount || 0
+      const cgst = (foodAmount - discount) * 0.025
+      const sgst = (foodAmount - discount) * 0.025
+      const foodTotal = foodAmount - discount + cgst + sgst
+      
+      totalFoodAmount += foodAmount
+      totalDiscount += discount
+      totalCGST += cgst
+      totalSGST += sgst
+      totalFoodTotal += foodTotal
+      
+      csvContent += `"${billNo}","${tableNo}","${payment}",${foodAmount.toFixed(2)},${discount.toFixed(2)}`
+      if (hasGST) {
+        csvContent += `,${cgst.toFixed(2)},${sgst.toFixed(2)}`
+      }
+      csvContent += `,${foodTotal.toFixed(2)}\n`
+    })
+
+    // Add summary rows
+    csvContent += '\nSUMMARY\n'
+    csvContent += `Total Food Amount,${totalFoodAmount.toFixed(2)}\n`
+    csvContent += `Total Discount,${totalDiscount.toFixed(2)}\n`
+    if (hasGST) {
+      csvContent += `Total CGST,${totalCGST.toFixed(2)}\n`
+      csvContent += `Total SGST,${totalSGST.toFixed(2)}\n`
+    }
+    csvContent += `Total Sales,${totalFoodTotal.toFixed(2)}\n`
     csvContent += `Total Orders,${reportData.totalOrders}\n`
     csvContent += `Completed Orders,${reportData.completedOrders}\n`
-    csvContent += `Pending Orders,${reportData.pendingOrders}\n`
-    csvContent += `Average Order Value,₹${reportData.avgOrderValue.toFixed(2)}\n`
-    csvContent += `Completion Rate,${reportData.totalOrders > 0 ? ((reportData.completedOrders / reportData.totalOrders) * 100).toFixed(1) : 0}%\n`
-    csvContent += '\n'
-
-    // Top Dishes Section
-    csvContent += 'TOP SELLING DISHES\n'
-    csvContent += 'Rank,Dish Name,Orders,Revenue\n'
-    reportData.topDishes.forEach((dish: any, index: number) => {
-      csvContent += `${index + 1},"${dish.name}",${dish.orders},₹${dish.revenue.toFixed(2)}\n`
-    })
-    csvContent += '\n'
-
-    // Order Details Section
-    csvContent += 'ORDER DETAILS\n'
-    csvContent += 'Order ID,Table,Waiter,Status,Amount,Date,Time\n'
-    reportData.filteredOrders.forEach((order: any) => {
-      csvContent += `"${formatOrderId(order.id)}",${order.tables?.table_number},"${order.users?.name || 'N/A'}",${order.status},₹${order.total_amount.toFixed(2)},${new Date(order.created_at).toLocaleDateString()},${new Date(order.created_at).toLocaleTimeString()}\n`
-    })
 
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
     const url = URL.createObjectURL(blob)
@@ -222,6 +253,132 @@ export default function Reports({ orders, payments, dishes }: ReportsProps) {
     a.download = `hotel-report-${new Date().toISOString().split('T')[0]}.csv`
     a.click()
     URL.revokeObjectURL(url)
+    setShowExportModal(false)
+  }
+
+  const exportPDF = () => {
+    if (!reportData) return
+    playSuccessSound()
+
+    try {
+      const doc = new jsPDF()
+      
+      // Add title
+      doc.setFontSize(18)
+      doc.setTextColor(139, 69, 19)
+      doc.text('Dhole Patil Hotel', 14, 20)
+      
+      doc.setFontSize(12)
+      doc.setTextColor(100, 100, 100)
+      doc.text('Sales Report', 14, 28)
+      
+      doc.setFontSize(10)
+      doc.setTextColor(0, 0, 0)
+      doc.text(`Generated: ${new Date().toLocaleString()}`, 14, 35)
+      doc.text(`Date Range: ${dateRange === 'custom' ? `${startDate} to ${endDate}` : dateRange}`, 14, 42)
+
+      // Calculate totals
+      let totalFoodAmount = 0
+      let totalDiscount = 0
+      let totalCGST = 0
+      let totalSGST = 0
+      let totalFoodTotal = 0
+
+      // Check if any order has GST
+      const hasGST = reportData.filteredOrders.some((order: any) => {
+        const foodAmount = order.total_amount || 0
+        const discount = order.discount_amount || 0
+        return (foodAmount - discount) > 0
+      })
+
+      // Prepare table data
+      const tableData: string[][] = []
+      reportData.filteredOrders.forEach((order: any) => {
+        const billNo = formatOrderId(order.id)
+        const tableNo = order.tables?.table_number || 'N/A'
+        const payment = order.payment_method || 'Cash'
+        const foodAmount = order.total_amount || 0
+        const discount = order.discount_amount || 0
+        const cgst = (foodAmount - discount) * 0.025
+        const sgst = (foodAmount - discount) * 0.025
+        const foodTotal = foodAmount - discount + cgst + sgst
+        
+        totalFoodAmount += foodAmount
+        totalDiscount += discount
+        totalCGST += cgst
+        totalSGST += sgst
+        totalFoodTotal += foodTotal
+        
+        const row = [billNo, tableNo, payment, foodAmount.toFixed(2), discount.toFixed(2)]
+        if (hasGST) {
+          row.push(cgst.toFixed(2), sgst.toFixed(2))
+        }
+        row.push(foodTotal.toFixed(2))
+        tableData.push(row)
+      })
+
+      // Prepare table header
+      const tableHeader = ['Bill No', 'Table No', 'Payment', 'Food Amount', 'Discount']
+      if (hasGST) {
+        tableHeader.push('CGST', 'SGST')
+      }
+      tableHeader.push('Food Total')
+
+      // Add table using autoTable
+      autoTable(doc, {
+        startY: 50,
+        head: [tableHeader],
+        body: tableData,
+        theme: 'grid',
+        headStyles: {
+          fillColor: [93, 58, 26],
+          textColor: [255, 255, 255],
+          fontSize: 9,
+          fontStyle: 'bold'
+        },
+        bodyStyles: {
+          fontSize: 8,
+          cellPadding: 3
+        },
+        alternateRowStyles: {
+          fillColor: [245, 245, 220]
+        }
+      })
+
+      // Add summary at bottom
+      const finalY = (doc as any).lastAutoTable.finalY + 10
+      
+      doc.setFontSize(11)
+      doc.setFont('helvetica', 'bold')
+      doc.setTextColor(0, 0, 0)
+      doc.text('SUMMARY', 14, finalY)
+      
+      doc.setFontSize(9)
+      doc.setFont('helvetica', 'normal')
+      doc.text(`Total Food Amount: ₹${totalFoodAmount.toFixed(2)}`, 14, finalY + 7)
+      doc.text(`Total Discount: ₹${totalDiscount.toFixed(2)}`, 14, finalY + 14)
+      if (hasGST) {
+        doc.text(`Total CGST: ₹${totalCGST.toFixed(2)}`, 14, finalY + 21)
+        doc.text(`Total SGST: ₹${totalSGST.toFixed(2)}`, 14, finalY + 28)
+        doc.setFont('helvetica', 'bold')
+        doc.text(`Total Sales: ₹${totalFoodTotal.toFixed(2)}`, 14, finalY + 35)
+        doc.setFont('helvetica', 'normal')
+        doc.text(`Total Orders: ${reportData.totalOrders}`, 14, finalY + 42)
+        doc.text(`Completed Orders: ${reportData.completedOrders}`, 14, finalY + 49)
+      } else {
+        doc.setFont('helvetica', 'bold')
+        doc.text(`Total Sales: ₹${totalFoodTotal.toFixed(2)}`, 14, finalY + 21)
+        doc.setFont('helvetica', 'normal')
+        doc.text(`Total Orders: ${reportData.totalOrders}`, 14, finalY + 28)
+        doc.text(`Completed Orders: ${reportData.completedOrders}`, 14, finalY + 35)
+      }
+
+      doc.save(`hotel-report-${new Date().toISOString().split('T')[0]}.pdf`)
+      setShowExportModal(false)
+    } catch (error) {
+      console.error('Error generating PDF:', error)
+      alert(`Failed to generate PDF: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    }
   }
 
   if (!reportData) {
@@ -260,18 +417,21 @@ export default function Reports({ orders, payments, dishes }: ReportsProps) {
   return (
     <div className="space-y-3 animate-fade-in">
       {/* Header with Title and Export */}
-      <div className="bg-gradient-to-r from-green-600 via-emerald-600 to-teal-600 rounded-lg shadow-md p-2 sm:p-3 md:p-4 text-white relative overflow-hidden">
+      <div className="bg-[#5D3A1A] rounded-lg shadow-md p-2 sm:p-3 md:p-4 text-white relative overflow-hidden">
         <div className="absolute top-0 right-0 w-20 h-20 sm:w-32 sm:h-32 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2"></div>
         <div className="absolute bottom-0 left-0 w-16 h-16 sm:w-24 sm:h-24 bg-white/10 rounded-full translate-y-1/2 -translate-x-1/2"></div>
         <div className="relative z-10">
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-1.5 sm:gap-2">
             <div>
               <h2 className="text-sm sm:text-base md:text-xl font-bold mb-0.5">Reports & Analytics</h2>
-              <p className="text-green-100 text-[10px] sm:text-xs">Track your restaurant performance</p>
+              <p className="text-[#F5F5DC] text-[10px] sm:text-xs">Track your restaurant performance</p>
             </div>
             <button
-              onClick={exportReport}
-              className="flex items-center justify-center gap-1 bg-white text-green-600 px-2 sm:px-3 py-1 sm:py-1.5 rounded-md font-semibold hover:shadow-md transition-all duration-300 text-[10px] sm:text-xs"
+              onClick={() => {
+                playClickSound()
+                setShowExportModal(true)
+              }}
+              className="flex items-center justify-center gap-1 bg-white text-[#5D3A1A] px-2 sm:px-3 py-1 sm:py-1.5 rounded-md font-semibold hover:shadow-md transition-all duration-300 text-[10px] sm:text-xs"
             >
               <Download className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
               <span className="hidden sm:inline">Export Report</span>
@@ -285,8 +445,8 @@ export default function Reports({ orders, payments, dishes }: ReportsProps) {
       <div className="bg-white rounded-lg shadow-sm p-2 sm:p-3 border border-gray-200">
         <div className="flex flex-col gap-1.5 sm:gap-2">
           <div className="flex items-center gap-1 sm:gap-1.5">
-            <div className="bg-green-100 p-1 sm:p-1.5 rounded-md">
-              <Calendar className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-green-600" />
+            <div className="bg-[#F5F5DC] p-1 sm:p-1.5 rounded-md">
+              <Calendar className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-[#5D3A1A]" />
             </div>
             <span className="font-bold text-gray-800 text-[10px] sm:text-xs">Date Range</span>
           </div>
@@ -294,11 +454,14 @@ export default function Reports({ orders, payments, dishes }: ReportsProps) {
             {(['today', 'week', 'month', 'custom'] as const).map((range) => (
               <button
                 key={range}
-                onClick={() => setDateRange(range)}
+                onClick={() => {
+                  playClickSound()
+                  setDateRange(range)
+                }}
                 className={`px-1.5 sm:px-2 py-1 sm:py-1.5 rounded-md text-[10px] sm:text-xs font-semibold transition-all duration-300
                   ${dateRange === range
-                    ? 'bg-gradient-to-r from-green-600 to-emerald-600 text-white shadow-sm'
-                    : 'text-gray-600 hover:bg-green-50 border border-gray-200 hover:border-green-300'
+                    ? 'bg-[#5D3A1A] text-white shadow-sm'
+                    : 'text-gray-600 hover:bg-[#F5F5DC] border border-gray-200 hover:border-[#5D3A1A]'
                   }`}
               >
                 {range.charAt(0).toUpperCase() + range.slice(1)}
@@ -311,13 +474,13 @@ export default function Reports({ orders, payments, dishes }: ReportsProps) {
                 type="date"
                 value={startDate}
                 onChange={(e) => setStartDate(e.target.value)}
-                className="px-1.5 sm:px-2 py-1 sm:py-1.5 border border-gray-200 rounded-md focus:border-green-500 focus:outline-none text-[10px] sm:text-xs flex-1"
+                className="px-1.5 sm:px-2 py-1 sm:py-1.5 border border-gray-200 rounded-md focus:border-[#5D3A1A] focus:outline-none text-[10px] sm:text-xs flex-1"
               />
               <input
                 type="date"
                 value={endDate}
                 onChange={(e) => setEndDate(e.target.value)}
-                className="px-1.5 sm:px-2 py-1 sm:py-1.5 border border-gray-200 rounded-md focus:border-green-500 focus:outline-none text-[10px] sm:text-xs flex-1"
+                className="px-1.5 sm:px-2 py-1 sm:py-1.5 border border-gray-200 rounded-md focus:border-[#5D3A1A] focus:outline-none text-[10px] sm:text-xs flex-1"
               />
             </div>
           )}
@@ -328,7 +491,7 @@ export default function Reports({ orders, payments, dishes }: ReportsProps) {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-1.5">
         <div className="bg-white border border-gray-200 rounded-md p-1.5 sm:p-2 text-center shadow-sm hover:shadow-md transition-all duration-300">
           <div className="flex items-center justify-center mb-0.5">
-            <DollarSign className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-green-600 mr-0.5" />
+            <DollarSign className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#5D3A1A] mr-0.5" />
             <span className="text-sm sm:text-base font-bold text-gray-800">₹{reportData.totalRevenue.toFixed(0)}</span>
           </div>
           <p className="text-[9px] sm:text-[10px] font-bold text-gray-600">Total Revenue</p>
@@ -336,7 +499,7 @@ export default function Reports({ orders, payments, dishes }: ReportsProps) {
 
         <div className="bg-white border border-gray-200 rounded-md p-1.5 sm:p-2 text-center shadow-sm hover:shadow-md transition-all duration-300">
           <div className="flex items-center justify-center mb-0.5">
-            <Utensils className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-green-600 mr-0.5" />
+            <Utensils className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#5D3A1A] mr-0.5" />
             <span className="text-sm sm:text-base font-bold text-gray-800">{reportData.totalOrders}</span>
           </div>
           <p className="text-[9px] sm:text-[10px] font-bold text-gray-600">Total Orders</p>
@@ -344,7 +507,7 @@ export default function Reports({ orders, payments, dishes }: ReportsProps) {
 
         <div className="bg-white border border-gray-200 rounded-md p-1.5 sm:p-2 text-center shadow-sm hover:shadow-md transition-all duration-300">
           <div className="flex items-center justify-center mb-0.5">
-            <CheckCircle className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-green-600 mr-0.5" />
+            <CheckCircle className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#5D3A1A] mr-0.5" />
             <span className="text-sm sm:text-base font-bold text-gray-800">{reportData.completedOrders}</span>
           </div>
           <p className="text-[9px] sm:text-[10px] font-bold text-gray-600">Completed</p>
@@ -352,7 +515,7 @@ export default function Reports({ orders, payments, dishes }: ReportsProps) {
 
         <div className="bg-white border border-gray-200 rounded-md p-1.5 sm:p-2 text-center shadow-sm hover:shadow-md transition-all duration-300">
           <div className="flex items-center justify-center mb-0.5">
-            <Clock className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-green-600 mr-0.5" />
+            <Clock className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#5D3A1A] mr-0.5" />
             <span className="text-sm sm:text-base font-bold text-gray-800">{reportData.pendingOrders}</span>
           </div>
           <p className="text-[9px] sm:text-[10px] font-bold text-gray-600">Pending</p>
@@ -363,7 +526,7 @@ export default function Reports({ orders, payments, dishes }: ReportsProps) {
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
         <div className="bg-white border border-gray-200 rounded-md p-1.5 sm:p-2 text-center shadow-sm hover:shadow-md transition-all duration-300">
           <div className="flex items-center justify-center mb-0.5">
-            <TrendingUp className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-green-600 mr-0.5" />
+            <TrendingUp className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#5D3A1A] mr-0.5" />
             <span className="text-sm sm:text-base font-bold text-gray-800">₹{reportData.avgOrderValue.toFixed(0)}</span>
           </div>
           <p className="text-[9px] sm:text-[10px] font-bold text-gray-600">Avg Order Value</p>
@@ -371,7 +534,7 @@ export default function Reports({ orders, payments, dishes }: ReportsProps) {
 
         <div className="bg-white border border-gray-200 rounded-md p-1.5 sm:p-2 text-center shadow-sm hover:shadow-md transition-all duration-300">
           <div className="flex items-center justify-center mb-0.5">
-            <Users className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-green-600 mr-0.5" />
+            <Users className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#5D3A1A] mr-0.5" />
             <span className="text-sm sm:text-base font-bold text-gray-800">
               {reportData.totalOrders > 0 ? ((reportData.completedOrders / reportData.totalOrders) * 100).toFixed(0) : 0}%
             </span>
@@ -385,7 +548,7 @@ export default function Reports({ orders, payments, dishes }: ReportsProps) {
         {/* Hourly Sales Chart */}
         <div className="bg-white border border-gray-200 rounded-md p-1.5 sm:p-2 shadow-sm hover:shadow-md transition-all duration-300">
           <h3 className="text-[10px] sm:text-xs font-bold text-gray-900 mb-1.5 flex items-center gap-1">
-            <TrendingUp className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-green-600" />
+            <TrendingUp className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-[#5D3A1A]" />
             Hourly Sales
           </h3>
           <ResponsiveContainer width="100%" height={120}>
@@ -402,7 +565,7 @@ export default function Reports({ orders, payments, dishes }: ReportsProps) {
                 }}
               />
               <Legend />
-              <Bar dataKey="sales" fill="#16a34a" name="Sales (₹)" radius={[2, 2, 0, 0]} />
+              <Bar dataKey="sales" fill="#5D3A1A" name="Sales (₹)" radius={[2, 2, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </div>
@@ -410,7 +573,7 @@ export default function Reports({ orders, payments, dishes }: ReportsProps) {
         {/* Order Status Distribution */}
         <div className="bg-white border border-gray-200 rounded-md p-1.5 sm:p-2 shadow-sm hover:shadow-md transition-all duration-300">
           <h3 className="text-[10px] sm:text-xs font-bold text-gray-900 mb-1.5 flex items-center gap-1">
-            <FileText className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-green-600" />
+            <FileText className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-[#5D3A1A]" />
             Order Status
           </h3>
           <ResponsiveContainer width="100%" height={120}>
@@ -451,19 +614,19 @@ export default function Reports({ orders, payments, dishes }: ReportsProps) {
         </h3>
         <div className="overflow-x-auto">
           <table className="w-full min-w-[250px] sm:min-w-[400px]">
-            <thead className="bg-gray-50">
+            <thead className="bg-[#D2691E]">
               <tr>
-                <th className="px-1.5 sm:px-2 py-1 text-left text-[9px] sm:text-[10px] font-bold text-gray-700 uppercase rounded-tl-md">Rank</th>
-                <th className="px-1.5 sm:px-2 py-1 text-left text-[9px] sm:text-[10px] font-bold text-gray-700 uppercase">Dish Name</th>
-                <th className="px-1.5 sm:px-2 py-1 text-left text-[9px] sm:text-[10px] font-bold text-gray-700 uppercase">Orders</th>
-                <th className="px-1.5 sm:px-2 py-1 text-left text-[9px] sm:text-[10px] font-bold text-gray-700 uppercase rounded-tr-md">Revenue</th>
+                <th className="px-1.5 sm:px-2 py-1 text-left text-[9px] sm:text-[10px] font-bold text-white uppercase rounded-tl-md">Rank</th>
+                <th className="px-1.5 sm:px-2 py-1 text-left text-[9px] sm:text-[10px] font-bold text-white uppercase">Dish Name</th>
+                <th className="px-1.5 sm:px-2 py-1 text-left text-[9px] sm:text-[10px] font-bold text-white uppercase">Orders</th>
+                <th className="px-1.5 sm:px-2 py-1 text-left text-[9px] sm:text-[10px] font-bold text-white uppercase rounded-tr-md">Revenue</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
               {reportData.topDishes.map((dish: any, index: number) => (
-                <tr key={index} className="hover:bg-gray-50 transition-colors">
+                <tr key={index} className="hover:bg-[#F5F5DC] transition-colors">
                   <td className="px-1.5 sm:px-2 py-1 whitespace-nowrap">
-                    <div className="w-4 h-4 sm:w-5 sm:h-5 bg-green-600 rounded-full flex items-center justify-center text-white font-bold text-[9px] sm:text-[10px]">
+                    <div className="w-4 h-4 sm:w-5 sm:h-5 bg-[#5D3A1A] rounded-full flex items-center justify-center text-white font-bold text-[9px] sm:text-[10px]">
                       {index + 1}
                     </div>
                   </td>
@@ -490,27 +653,27 @@ export default function Reports({ orders, payments, dishes }: ReportsProps) {
       <div className="bg-white border border-gray-200 rounded-md overflow-hidden shadow-sm hover:shadow-md transition-all duration-300">
         <div className="p-1.5 sm:p-2 border-b border-gray-200 bg-gray-50">
           <h3 className="text-[10px] sm:text-xs font-bold text-gray-900 flex items-center gap-1">
-            <FileText className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-green-600" />
+            <FileText className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-[#5D3A1A]" />
             Order Report
           </h3>
           <p className="text-[9px] sm:text-[10px] text-gray-600 mt-0.5">Complete order history for selected period</p>
         </div>
         <div className="overflow-x-auto max-h-40 sm:max-h-56 md:max-h-72 overflow-y-auto">
           <table className="w-full min-w-[350px] sm:min-w-[600px]">
-            <thead className="bg-gray-50 sticky top-0">
+            <thead className="bg-[#D2691E] sticky top-0">
               <tr>
-                <th className="px-1.5 sm:px-2 py-1 text-left text-[9px] sm:text-[10px] font-bold text-gray-700 uppercase rounded-tl-md">Order ID</th>
-                <th className="px-1.5 sm:px-2 py-1 text-left text-[9px] sm:text-[10px] font-bold text-gray-700 uppercase">Table</th>
-                <th className="px-1.5 sm:px-2 py-1 text-left text-[9px] sm:text-[10px] font-bold text-gray-700 uppercase">Waiter</th>
-                <th className="px-1.5 sm:px-2 py-1 text-left text-[9px] sm:text-[10px] font-bold text-gray-700 uppercase">Status</th>
-                <th className="px-1.5 sm:px-2 py-1 text-left text-[9px] sm:text-[10px] font-bold text-gray-700 uppercase">Amount</th>
-                <th className="hidden sm:table-cell px-1.5 sm:px-2 py-1 text-left text-[9px] sm:text-[10px] font-bold text-gray-700 uppercase">Date</th>
-                <th className="hidden sm:table-cell px-1.5 sm:px-2 py-1 text-left text-[9px] sm:text-[10px] font-bold text-gray-700 uppercase rounded-tr-md">Time</th>
+                <th className="px-1.5 sm:px-2 py-1 text-left text-[9px] sm:text-[10px] font-bold text-white uppercase rounded-tl-md">Order ID</th>
+                <th className="px-1.5 sm:px-2 py-1 text-left text-[9px] sm:text-[10px] font-bold text-white uppercase">Table</th>
+                <th className="px-1.5 sm:px-2 py-1 text-left text-[9px] sm:text-[10px] font-bold text-white uppercase">Waiter</th>
+                <th className="px-1.5 sm:px-2 py-1 text-left text-[9px] sm:text-[10px] font-bold text-white uppercase">Status</th>
+                <th className="px-1.5 sm:px-2 py-1 text-left text-[9px] sm:text-[10px] font-bold text-white uppercase">Amount</th>
+                <th className="hidden sm:table-cell px-1.5 sm:px-2 py-1 text-left text-[9px] sm:text-[10px] font-bold text-white uppercase">Date</th>
+                <th className="hidden sm:table-cell px-1.5 sm:px-2 py-1 text-left text-[9px] sm:text-[10px] font-bold text-white uppercase rounded-tr-md">Time</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
               {reportData.filteredOrders.map((order: any) => (
-                <tr key={order.id} className="hover:bg-gray-50 transition-colors">
+                <tr key={order.id} className="hover:bg-[#F5F5DC] transition-colors">
                   <td className="px-1.5 sm:px-2 py-1 text-[9px] sm:text-[10px] font-semibold text-gray-900 truncate" title={order.id}>
                     {formatOrderId(order.id)}
                   </td>
@@ -520,7 +683,7 @@ export default function Reports({ orders, payments, dishes }: ReportsProps) {
                   </td>
                   <td className="px-1.5 sm:px-2 py-1">
                     <span className={`px-0.5 sm:px-1 py-0.5 rounded-full text-[9px] sm:text-[10px] font-bold ${
-                      order.status === 'paid' ? 'bg-green-100 text-green-800' :
+                      order.status === 'paid' ? 'bg-[#F5F5DC] text-[#5D3A1A]' :
                       order.status === 'ready' ? 'bg-blue-100 text-blue-800' :
                       order.status === 'preparing' ? 'bg-yellow-100 text-yellow-800' :
                       'bg-gray-100 text-gray-800'
@@ -544,6 +707,55 @@ export default function Reports({ orders, payments, dishes }: ReportsProps) {
           </table>
         </div>
       </div>
+
+      {/* Export Modal */}
+      {showExportModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-md w-full mx-4 animate-slide-in">
+            <h3 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
+              <Download className="w-5 h-5 text-[#5D3A1A]" />
+              Export Report
+            </h3>
+            <p className="text-gray-600 mb-6">Choose the format to export the report:</p>
+            
+            <div className="grid grid-cols-2 gap-4">
+              <button
+                onClick={() => {
+                  playClickSound()
+                  exportCSV()
+                }}
+                className="flex flex-col items-center gap-3 p-6 border-2 border-[#5D3A1A] rounded-xl hover:bg-[#F5F5DC] transition-all duration-300 group"
+              >
+                <FileSpreadsheet className="w-12 h-12 text-[#5D3A1A] group-hover:scale-110 transition-transform" />
+                <span className="font-semibold text-gray-900">CSV</span>
+                <span className="text-xs text-gray-500">Spreadsheet format</span>
+              </button>
+              
+              <button
+                onClick={() => {
+                  playClickSound()
+                  exportPDF()
+                }}
+                className="flex flex-col items-center gap-3 p-6 border-2 border-[#8B4513] rounded-xl hover:bg-[#F5F5DC] transition-all duration-300 group"
+              >
+                <FileDown className="w-12 h-12 text-[#8B4513] group-hover:scale-110 transition-transform" />
+                <span className="font-semibold text-gray-900">PDF</span>
+                <span className="text-xs text-gray-500">Printable format</span>
+              </button>
+            </div>
+            
+            <button
+              onClick={() => {
+                playClickSound()
+                setShowExportModal(false)
+              }}
+              className="mt-6 w-full px-6 py-3 bg-gray-200 text-gray-700 rounded-xl font-semibold hover:bg-gray-300 transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

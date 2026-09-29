@@ -69,9 +69,9 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { table_id, waiter_id, status, total_amount, customer_name, customer_mobile } = body
+    const { table_id, waiter_id, status, total_amount } = body
 
-    console.log('Creating order with:', { table_id, waiter_id, status, total_amount, customer_name, customer_mobile })
+    console.log('Creating order with:', { table_id, waiter_id, status, total_amount })
 
     const { data: order, error } = await supabase
       .from('orders')
@@ -79,20 +79,25 @@ export async function POST(request: NextRequest) {
         table_id,
         waiter_id,
         status,
-        total_amount,
-        customer_name: customer_name || null,
-        customer_mobile: customer_mobile || null
+        total_amount
       })
       .select()
       .single()
 
-    if (error) throw error
+    if (error) {
+      console.error('Supabase error:', error)
+      throw error
+    }
 
     order.total_amount = parseFloat(order.total_amount)
     return NextResponse.json(order)
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error creating order:', error)
-    return NextResponse.json({ error: 'Failed to create order', details: String(error) }, { status: 500 })
+    return NextResponse.json({ 
+      error: 'Failed to create order', 
+      details: error?.message || String(error),
+      supabaseError: error?.code || null
+    }, { status: 500 })
   }
 }
 

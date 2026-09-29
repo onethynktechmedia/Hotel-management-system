@@ -19,15 +19,15 @@ import {
   CreditCard,
   Receipt
 } from 'lucide-react'
+import { playClickSound } from '@/lib/sound-effects'
 
 interface SidebarProps {
-  activeTab: 'overview' | 'orders' | 'dishes' | 'tables' | 'waiters' | 'reports' | 'offline-billing' | 'online-orders'
-  setActiveTab: (tab: 'overview' | 'orders' | 'dishes' | 'tables' | 'waiters' | 'reports' | 'offline-billing' | 'online-orders') => void
+  activeTab: string
+  setActiveTab: (tab: any) => void
   user: any
-  onLogout: () => void
 }
 
-export default function Sidebar({ activeTab, setActiveTab, user, onLogout }: SidebarProps) {
+export default function Sidebar({ activeTab, setActiveTab, user }: SidebarProps) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
   const router = useRouter()
 
@@ -42,8 +42,23 @@ export default function Sidebar({ activeTab, setActiveTab, user, onLogout }: Sid
     { id: 'online-orders', label: 'Online Orders', icon: CreditCard },
   ]
 
-  const handleTabChange = (tabId: 'overview' | 'orders' | 'dishes' | 'tables' | 'waiters' | 'reports' | 'offline-billing' | 'online-orders') => {
-    setActiveTab(tabId)
+  const handleLogout = () => {
+    playClickSound()
+    // Clear all cookies
+    document.cookie = 'hotel_session=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT'
+    document.cookie = 'hotel_role=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT'
+    document.cookie = 'hotel_user_id=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT'
+    
+    // Clear localStorage
+    localStorage.clear()
+    
+    // Redirect to main page
+    router.push('/')
+  }
+
+  const handleTabChange = (tabId: string) => {
+    playClickSound()
+    setActiveTab(tabId as any)
     setIsMobileMenuOpen(false)
   }
 
@@ -52,7 +67,7 @@ export default function Sidebar({ activeTab, setActiveTab, user, onLogout }: Sid
       {/* Mobile menu button */}
       <button
         onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-        className="lg:hidden fixed top-4 left-4 z-50 bg-gradient-to-r from-green-600 to-emerald-600 text-white p-3 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300"
+        className="lg:hidden fixed top-4 left-4 z-50 bg-[#5D3A1A] text-white p-3 rounded-xl shadow-lg hover:bg-[#8B4513] transition-all duration-300"
         style={{ left: isMobileMenuOpen ? '280px' : '16px' }}
       >
         {isMobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
@@ -68,22 +83,27 @@ export default function Sidebar({ activeTab, setActiveTab, user, onLogout }: Sid
 
       {/* Sidebar */}
       <aside
-        className={`fixed left-0 top-0 h-full bg-gradient-to-b from-white to-green-50 shadow-2xl z-40 transition-transform duration-300 ease-in-out
+        className={`fixed left-0 top-0 h-full bg-white shadow-2xl z-40 transition-transform duration-300 ease-in-out
           ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0
           w-72 flex flex-col`}
       >
         {/* Logo/Brand */}
-        <div className="p-6 border-b border-green-200">
-          <h1 className="text-2xl font-bold bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">
-            Hotel Admin
-          </h1>
-          <p className="text-sm text-gray-600 mt-1">Management Dashboard</p>
+        <div className="p-6 border-b border-[#5D3A1A]">
+          <div className="flex items-center gap-3">
+            <img src="/logo.png" alt="Dhole Patil Hotel Logo" className="w-12 h-12 rounded-full object-cover" />
+            <div>
+              <h1 className="text-xl font-bold text-[#5D3A1A]">
+                Dhole Patil Hotel
+              </h1>
+              <p className="text-sm text-gray-600">Management Dashboard</p>
+            </div>
+          </div>
         </div>
 
         {/* User Info */}
-        <div className="p-4 mx-4 mt-4 bg-gradient-to-r from-green-100 to-emerald-100 rounded-xl">
+        <div className="p-4 mx-4 mt-4 bg-[#F5F5DC] rounded-xl">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-gradient-to-r from-green-600 to-emerald-600 rounded-full flex items-center justify-center text-white font-bold">
+            <div className="w-10 h-10 bg-[#5D3A1A] rounded-full flex items-center justify-center text-white font-bold">
               {user?.name?.charAt(0).toUpperCase() || 'A'}
             </div>
             <div>
@@ -104,8 +124,8 @@ export default function Sidebar({ activeTab, setActiveTab, user, onLogout }: Sid
                     onClick={() => handleTabChange(item.id)}
                     className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300
                       ${activeTab === item.id
-                        ? 'bg-gradient-to-r from-green-600 to-emerald-600 text-white shadow-lg transform scale-105'
-                        : 'text-gray-700 hover:bg-green-100 hover:shadow-md'
+                        ? 'bg-[#5D3A1A] text-white shadow-lg transform scale-105'
+                        : 'text-gray-700 hover:bg-[#F5F5DC] hover:shadow-md'
                       }`}
                   >
                     <Icon className="w-5 h-5" />
@@ -118,10 +138,10 @@ export default function Sidebar({ activeTab, setActiveTab, user, onLogout }: Sid
         </nav>
 
         {/* Logout Button */}
-        <div className="p-4 border-t border-green-200">
+        <div className="p-4 border-t border-[#5D3A1A]">
           <button
-            onClick={onLogout}
-            className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-red-500 to-pink-500 text-white rounded-xl font-semibold hover:shadow-lg transition-all duration-300 transform hover:scale-105"
+            onClick={handleLogout}
+            className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-[#8B4513] text-white rounded-xl font-semibold hover:bg-[#A0522D] transition-all duration-300 transform hover:scale-105"
           >
             <LogOut className="w-5 h-5" />
             Logout
