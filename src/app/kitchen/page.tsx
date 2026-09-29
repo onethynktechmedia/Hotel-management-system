@@ -90,11 +90,11 @@ export default function KitchenPage() {
         })
       })
       
-      // Filter orders: show recent orders (last 1 hour) OR active orders (not served)
+      // Filter orders: show recent orders (last 1 hour) OR active orders (not served/completed)
       const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000)
       const filteredOrders = (data || []).filter((order: Order) => {
         const isRecent = new Date(order.created_at) > oneHourAgo
-        const isActive = order.status !== 'served'
+        const isActive = order.status !== 'served' && order.status !== 'completed'
         return isRecent || isActive
       })
       

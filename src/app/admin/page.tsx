@@ -1130,6 +1130,40 @@ Visit Us Again<br>
           printWindow.print()
           setTimeout(() => {
             printWindow.close()
+            // Update order status to completed after printing
+            // This will hide it from waiter and kitchen but keep it in admin
+            const updateOrderStatus = async () => {
+              try {
+                // Update all orders for this table and customer to completed
+                const allTableOrders = orders.filter(o => 
+                  o.table_id === selectedOrderForBilling.table_id && 
+                  o.customer_name === selectedOrderForBilling.customer_name &&
+                  !['paid', 'completed'].includes(o.status)
+                )
+                
+                await Promise.all(
+                  allTableOrders.map(async (order) => {
+                    await fetch(`/api/orders/${order.id}`, {
+                      method: 'PATCH',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ status: 'completed' })
+                    })
+                  })
+                )
+                
+                // Refresh orders
+                fetchData()
+                playNotificationSound('success')
+                
+                // Close bill preview
+                setSelectedOrderForBilling(null)
+                setBillOrderItems([])
+              } catch (error) {
+                console.error('Error updating order status:', error)
+              }
+            }
+            
+            updateOrderStatus()
           }, 1000)
         }, 750)
       } else {
