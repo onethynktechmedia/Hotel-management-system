@@ -873,11 +873,32 @@ export default function WaiterPage() {
 
   const handleViewBill = async (order: Order) => {
     try {
-      const response = await fetch(`/api/orders/${order.id}/items`)
-      if (!response.ok) throw new Error('Failed to fetch order items')
-      const items = await response.json()
-      setBillOrderItems(items)
-      setViewingBill(order)
+      // Fetch all orders for the same table AND customer that are not paid/completed (including extra orders)
+      const allTableOrders = orders.filter(o => 
+        o.table_id === order.table_id && 
+        o.customer_name === order.customer_name &&
+        !['paid', 'completed'].includes(o.status)
+      )
+      
+      // Fetch items for all orders
+      const allItems = await Promise.all(
+        allTableOrders.map(async (o) => {
+          const response = await fetch(`/api/orders/${o.id}/items`)
+          if (!response.ok) throw new Error('Failed to fetch order items')
+          const items = await response.json()
+          return items.map((item: any) => ({ ...item, order_id: o.id, order_type: o.order_type }))
+        })
+      )
+      
+      // Flatten all items
+      const mergedItems = allItems.flat()
+      
+      // Calculate total amount from all orders
+      const totalAmount = allTableOrders.reduce((sum, o) => sum + o.total_amount, 0)
+      
+      // Set merged items and viewing bill with updated total
+      setBillOrderItems(mergedItems)
+      setViewingBill({ ...order, total_amount: totalAmount })
       setCurrentStep('bill-preview')
     } catch (error) {
       console.error('Error fetching bill:', error)
@@ -950,45 +971,104 @@ export default function WaiterPage() {
     if (!viewingBill) return
     
     try {
+      // Group items by dish name and combine quantities
+      const groupedItems: { [key: string]: { name: string, qty: number, total: number, isExtra: boolean } } = {}
+      billOrderItems.forEach((item: any) => {
+        const name = item.dishes?.name || item.dish?.name || 'Unknown'
+        const qty = item.quantity
+        const price = (item.dishes?.price || item.dish?.price || item.price || 0)
+        const total = price * qty
+        const isExtra = item.order_type === 'Extra' || item.item_type === 'Extra'
+        
+        if (!groupedItems[name]) {
+          groupedItems[name] = { name, qty: 0, total: 0, isExtra: false }
+        }
+        groupedItems[name].qty += qty
+        groupedItems[name].total += total
+        if (isExtra) {
+          groupedItems[name].isExtra = true
+        }
+      })
+
+      // Generate items list for bill
+      const itemsList = Object.values(groupedItems).map((item: any) => {
+        const displayName = item.isExtra ? `${item.name} (E)` : item.name
+        const itemName = displayName.length > 20 ? displayName.substring(0, 19) + '.' : displayName
+        return `<div style="display: flex; font-size: 9px; margin: 2px 0;">
+  <span style="flex: 2;">${itemName}</span>
+  <span style="flex: 1; text-align: right;">${item.qty}</span>
+  <span style="flex: 1; text-align: right;">${item.total.toFixed(2)}</span>
+</div>`
+      }).join('')
+
       // Generate properly formatted plain text bill content for thermal printer
       // 58mm paper width = approximately 32-35 characters per line
       const plainText = `
-<strong class="header">GALAXY GARDEN</strong><br>
-Restaurant & Bar<br>
-================================<br>
-123, Main Street<br>
-City, State - 123456<br>
-Phone: +91 98765 43210<br>
-================================<br>
-BILL / INVOICE<br>
-================================<br>
-<br>
-Bill No: ${formatOrderId(viewingBill.id)}<br>
-Date: ${new Date(viewingBill.created_at).toLocaleDateString()}<br>
-Time: ${new Date(viewingBill.created_at).toLocaleTimeString()}<br>
-Table: ${viewingBill.tables?.table_number}<br>
-Waiter: ${viewingBill.users?.name}<br>
-Customer: ${viewingBill.customer_name || 'Guest'}<br>
---------------------------------<br>
-ITEM             QTY  AMOUNT<br>
---------------------------------<br>
-${viewingBill.order_items?.map((item: any) => {
-  const name = item.dishes?.name || 'Unknown'
-  const qty = item.quantity
-  const price = (item.dishes?.price || item.price || 0)
-  const total = (price * qty).toFixed(2)
-  const itemName = name.length > 16 ? name.substring(0, 15) + '.' : name
-  return `${itemName.padEnd(16)} ${qty.toString().padStart(2)}  ${total.padStart(8)}<br>`
-}).join('')}
---------------------------------<br>
-================================<br>
-<strong class="grand-total">*** GRAND TOTAL: Rs${viewingBill.total_amount.toFixed(2)} ***</strong><br>
-================================<br>
-Thank You for Dining!<br>
-Visit Us Again<br>
-================================<br>
-<span class="developer">Developed by onethynk techmedia</span><br>
-================================
+<div style="text-align: center; margin-bottom: 8px;">
+  <div style="font-size: 18px; font-weight: bold; color: #8B4513;">Dhole Patil Khanawal</div>
+  <div style="font-size: 12px; color: #5D3A1A;">Restaurant & Bar</div>
+</div>
+<div style="border-top: 1px dashed #8B4513; margin: 4px 0;"></div>
+<div style="text-align: center; font-size: 10px; margin-bottom: 4px;">
+  <div>123, Main Street</div>
+  <div>City, State - 123456.</div>
+  <div>Phone: +91 98765 43210</div>
+  <div style="font-weight: bold;">GSTIN: 29ABCDE1234F1Z5</div>
+</div>
+<div style="border-top: 1px dashed #8B4513; margin: 4px 0;"></div>
+<div style="text-align: center; font-size: 12px; font-weight: bold; margin: 4px 0;">BILL / INVOICE</div>
+<div style="border-top: 1px dashed #8B4513; margin: 4px 0;"></div>
+<div style="margin: 4px 0; font-size: 10px;">
+  <div style="display: flex; justify-content: space-between;">
+    <span>Bill No:</span>
+    <span style="font-weight: bold;">${formatOrderId(viewingBill.id)}</span>
+  </div>
+  <div style="display: flex; justify-content: space-between;">
+    <span>Date:</span>
+    <span>${new Date().toLocaleDateString()}</span>
+  </div>
+  <div style="display: flex; justify-content: space-between;">
+    <span>Time:</span>
+    <span>${new Date().toLocaleTimeString()}</span>
+  </div>
+  <div style="display: flex; justify-content: space-between;">
+    <span>Table:</span>
+    <span style="font-weight: bold;">${viewingBill.tables?.table_number}</span>
+  </div>
+  <div style="display: flex; justify-content: space-between;">
+    <span>Waiter:</span>
+    <span>${viewingBill.users?.name}</span>
+  </div>
+  <div style="display: flex; justify-content: space-between;">
+    <span>Customer:</span>
+    <span>${viewingBill.customer_name || 'Guest'}</span>
+  </div>
+</div>
+<div style="border-top: 1px dashed #8B4513; margin: 4px 0;"></div>
+<div style="font-size: 10px; font-weight: bold; margin: 4px 0;">ITEM DETAILS</div>
+<div style="border-top: 1px dashed #8B4513; margin: 4px 0;"></div>
+<div style="display: flex; font-size: 9px; font-weight: bold; margin-bottom: 2px;">
+  <span style="flex: 2;">ITEM</span>
+  <span style="flex: 1; text-align: right;">QTY</span>
+  <span style="flex: 1; text-align: right;">AMT</span>
+</div>
+<div style="border-top: 1px dashed #8B4513; margin: 2px 0;"></div>
+${itemsList}
+<div style="border-top: 1px dashed #8B4513; margin: 4px 0;"></div>
+<div style="border-top: 2px solid #8B4513; margin: 6px 0;"></div>
+<div style="text-align: center; font-size: 14px; font-weight: bold; color: #8B4513; margin: 4px 0;">
+  GRAND TOTAL: Rs${viewingBill.total_amount.toFixed(2)}
+</div>
+<div style="border-top: 2px solid #8B4513; margin: 6px 0;"></div>
+<div style="text-align: center; font-size: 10px; margin: 4px 0;">
+  <div>Thank You for Dining!</div>
+  <div>Visit Us Again</div>
+</div>
+<div style="border-top: 1px dashed #8B4513; margin: 4px 0;"></div>
+<div style="text-align: center; font-size: 8px; font-weight: bold; color: #8B4513; margin: 4px 0;">
+  Developed by onethynk techmedia
+</div>
+<div style="border-top: 1px dashed #8B4513; margin: 4px 0;"></div>
 `
       
       console.log('Bill content generated')
@@ -1031,49 +1111,15 @@ Visit Us Again<br>
                   }
                 }
                 * {
+                  margin: 0;
+                  padding: 0;
                   box-sizing: border-box;
                 }
                 body {
-                  font-family: 'Courier New', 'Consolas', 'Lucida Console', monospace;
-                  font-size: 14px;
-                  font-weight: bold;
-                  line-height: 1.4;
-                  margin: 0;
-                  padding: 2mm;
-                  text-align: center;
-                  width: 54mm;
-                  max-width: 54mm;
-                  overflow: hidden;
-                  background: white;
-                  color: black;
-                  -webkit-font-smoothing: antialiased;
-                  -moz-osx-font-smoothing: grayscale;
-                  image-rendering: crisp-edges;
-                }
-                .header {
-                  font-size: 18px;
-                  font-weight: 900;
-                  margin-bottom: 2mm;
-                  display: block;
-                }
-                .grand-total {
-                  font-size: 18px;
-                  font-weight: 900;
-                  margin: 2mm 0;
-                  display: block;
-                }
-                .developer {
-                  font-size: 8px;
-                  font-weight: normal;
-                  margin-top: 2mm;
-                  display: block;
-                }
-                /* Windows-specific fixes */
-                @media screen and (-ms-high-contrast: active), (-ms-high-contrast: none) {
-                  body {
-                    font-size: 11px;
-                    line-height: 1.2;
-                  }
+                  font-family: 'Courier New', Courier, monospace;
+                  font-size: 10px;
+                  line-height: 1.2;
+                  color: #000;
                 }
               </style>
             </head>
@@ -1499,27 +1545,74 @@ Visit Us Again<br>
                   <Clock className="w-5 h-5 text-[#5D3A1A]" />
                   Current Orders ({tableOrders.length})
                 </h3>
-                <div className="space-y-3">
-                  {tableOrders.map((order) => (
-                    <div key={order.id} className="flex items-center justify-between p-4 bg-purple-50 rounded-xl hover:bg-purple-100 transition-colors cursor-pointer" onClick={() => { playClickSound(); handleViewBill(order) }}>
-                      <div>
-                        <p className="font-bold text-gray-900">{formatOrderId(order.id)}</p>
-                        <p className="text-sm text-gray-600">{new Date(order.created_at).toLocaleString()}</p>
+                {(() => {
+                  // Group orders by customer
+                  const customerGroups = tableOrders.reduce((acc: any, order: any) => {
+                    const customerName = order.customer_name || 'Guest'
+                    if (!acc[customerName]) {
+                      acc[customerName] = {
+                        customer: customerName,
+                        orders: []
+                      }
+                    }
+                    acc[customerName].orders.push(order)
+                    return acc
+                  }, {})
+                  
+                  return Object.values(customerGroups).map((group: any) => {
+                    // Combine all items from all orders for this customer
+                    const allItems: { [key: string]: { name: string, qty: number } } = {}
+                    group.orders.forEach((order: any) => {
+                      order.order_items?.forEach((item: any) => {
+                        const name = item.dishes?.name || item.dish?.name || 'Unknown'
+                        const qty = item.quantity
+                        if (!allItems[name]) {
+                          allItems[name] = { name, qty: 0 }
+                        }
+                        allItems[name].qty += qty
+                      })
+                    })
+                    
+                    const totalAmount = group.orders.reduce((sum: number, o: any) => sum + o.total_amount, 0)
+                    const primaryOrder = group.orders[0]
+                    
+                    return (
+                      <div key={group.customer} className="p-4 bg-purple-50 rounded-xl mb-3 last:mb-0">
+                        <div className="flex justify-between items-start mb-3">
+                          <div>
+                            <p className="font-bold text-gray-900">Customer: {group.customer}</p>
+                            <p className="text-sm text-gray-600">{group.orders.length} order{group.orders.length > 1 ? 's' : ''}</p>
+                          </div>
+                          <span className={`px-2 py-1 rounded-full text-xs font-bold ${
+                            primaryOrder.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                            primaryOrder.status === 'preparing' ? 'bg-blue-100 text-blue-800' :
+                            primaryOrder.status === 'ready' ? 'bg-[#F5F5DC] text-[#5D3A1A]' :
+                            'bg-gray-100 text-gray-800'
+                          }`}>
+                            {primaryOrder.status}
+                          </span>
+                        </div>
+                        <div className="space-y-2">
+                          {Object.values(allItems).map((item: any, index: number) => (
+                            <div key={index} className="flex justify-between items-center text-sm">
+                              <span className="text-gray-900 font-medium">{item.name}</span>
+                              <span className="text-[#8B4513] font-bold">{item.qty}x</span>
+                            </div>
+                          ))}
+                        </div>
+                        <div className="mt-3 pt-3 border-t border-purple-200 flex justify-between items-center">
+                          <button
+                            onClick={() => { playClickSound(); handleViewBill(primaryOrder) }}
+                            className="text-sm text-[#8B4513] font-semibold hover:underline"
+                          >
+                            View Bill
+                          </button>
+                          <p className="font-bold text-purple-600">₹{totalAmount.toFixed(2)}</p>
+                        </div>
                       </div>
-                      <div className="text-right">
-                        <p className="font-bold text-purple-600">₹{order.total_amount.toFixed(2)}</p>
-                        <span className={`px-2 py-1 rounded-full text-xs font-bold ${
-                          order.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-                          order.status === 'preparing' ? 'bg-blue-100 text-blue-800' :
-                          order.status === 'ready' ? 'bg-[#F5F5DC] text-[#5D3A1A]' :
-                          'bg-gray-100 text-gray-800'
-                        }`}>
-                          {order.status}
-                        </span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                    )
+                  })
+                })()}
               </div>
             )}
           </div>
@@ -1550,119 +1643,177 @@ Visit Us Again<br>
               </div>
             ) : (
               <div className="space-y-4">
-                {tableOrders.map((order) => (
-                  <div key={order.id} className="bg-white rounded-2xl shadow-xl overflow-hidden border-2 border-[#8B4513] hover:border-[#5D3A1A] transition-all duration-300">
-                    <div className="p-6 bg-[#F5F5DC]">
-                      <div className="flex justify-between items-start">
-                        <div>
-                          <h3 className="text-xl font-bold text-gray-900 mb-1">{formatOrderId(order.id)}</h3>
-                          <p className="text-sm text-gray-600">{new Date(order.created_at).toLocaleString()}</p>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-2xl font-bold text-[#5D3A1A]">
-                            ₹{order.total_amount.toFixed(2)}
-                          </p>
-                          <span className={`px-3 py-1 rounded-full text-xs font-bold ${
-                            order.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-                            order.status === 'preparing' ? 'bg-blue-100 text-blue-800' :
-                            order.status === 'ready' ? 'bg-[#F5F5DC] text-[#5D3A1A]' :
-                            'bg-gray-100 text-gray-800'
-                          }`}>
-                            {order.status}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
+                {(() => {
+                  // Group orders by customer
+                  const customerGroups = tableOrders.reduce((acc: any, order: any) => {
+                    const customerName = order.customer_name || 'Guest'
+                    if (!acc[customerName]) {
+                      acc[customerName] = {
+                        customer: customerName,
+                        orders: []
+                      }
+                    }
+                    acc[customerName].orders.push(order)
+                    return acc
+                  }, {})
+                  
+                  return Object.values(customerGroups).map((group: any) => {
+                    // Combine all items from all orders for this customer
+                    const allItems: { [key: string]: { name: string, qty: number, price: number, items: any[] } } = {}
+                    group.orders.forEach((order: any) => {
+                      order.order_items?.forEach((item: any) => {
+                        const name = item.dishes?.name || 'Unknown'
+                        const qty = item.quantity
+                        const price = item.price
+                        if (!allItems[name]) {
+                          allItems[name] = { name, qty: 0, price, items: [] }
+                        }
+                        allItems[name].qty += qty
+                        allItems[name].items.push(item)
+                      })
+                    })
                     
-                    <div className="p-6">
-                      <div className="flex justify-between items-center mb-3">
-                        <h4 className="font-bold text-gray-900">Order Items:</h4>
-                        <button
-                          onClick={() => {
-                            playClickSound()
-                            const orderItemsIds = order.order_items?.map(i => i.id) || []
-                            const allSelected = orderItemsIds.every(id => selectedItemsToRepeat.find(i => i.id === id))
-                            if (allSelected) {
-                              setSelectedItemsToRepeat(prev => prev.filter(i => !orderItemsIds.includes(i.id)))
-                            } else {
-                              setSelectedItemsToRepeat(prev => {
-                                const newItems = order.order_items?.filter(item => !prev.find(i => i.id === item.id)) || []
-                                return [...prev, ...newItems]
-                              })
-                            }
-                          }}
-                          className="text-sm text-[#5D3A1A] font-semibold hover:text-[#8B4513]"
-                        >
-                          {order.order_items?.every(item => selectedItemsToRepeat.find(i => i.id === item.id)) ? 'Deselect All' : 'Select All'}
-                        </button>
-                      </div>
-                      <div className="space-y-2">
-                        {order.order_items?.map((item) => (
-                          <div 
-                            key={item.id} 
-                            className={`flex items-center justify-between p-3 rounded-xl cursor-pointer transition-colors ${
-                              selectedItemsToRepeat.find(i => i.id === item.id) 
-                                ? 'bg-[#F5F5DC] border-2 border-[#5D3A1A]' 
-                                : 'bg-gray-50'
-                            }`}
-                            onClick={() => { playClickSound(); toggleItemSelection(item) }}
-                          >
-                            <div className="flex items-center gap-3">
-                              <div className={`w-5 h-5 rounded border-2 flex items-center justify-center ${
-                                selectedItemsToRepeat.find(i => i.id === item.id)
-                                  ? 'bg-[#5D3A1A] border-[#5D3A1A]'
-                                  : 'border-gray-300'
-                              }`}>
-                                {selectedItemsToRepeat.find(i => i.id === item.id) && (
-                                  <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                                  </svg>
-                                )}
-                              </div>
-                              {item.dishes?.image_url && (
-                                <img
-                                  src={item.dishes.image_url}
-                                  alt={item.dishes.name}
-                                  className="w-12 h-12 object-cover rounded-lg"
-                                />
-                              )}
-                              <div>
-                                <p className="font-semibold text-gray-900">{item.dishes?.name || 'Unknown'}</p>
-                                <p className="text-sm text-gray-600">₹{item.price.toFixed(2)} each</p>
-                              </div>
+                    const totalAmount = group.orders.reduce((sum: number, o: any) => sum + o.total_amount, 0)
+                    const primaryOrder = group.orders[0]
+                    
+                    return (
+                      <div key={group.customer} className="bg-white rounded-2xl shadow-xl overflow-hidden border-2 border-[#8B4513] hover:border-[#5D3A1A] transition-all duration-300">
+                        <div className="p-6 bg-[#F5F5DC]">
+                          <div className="flex justify-between items-start">
+                            <div>
+                              <h3 className="text-xl font-bold text-gray-900 mb-1">Customer: {group.customer}</h3>
+                              <p className="text-sm text-gray-600">{group.orders.length} order{group.orders.length > 1 ? 's' : ''}</p>
                             </div>
                             <div className="text-right">
-                              <p className="font-bold text-gray-900">x{item.quantity}</p>
-                              <p className="text-sm text-orange-600 font-semibold">₹{(item.price * item.quantity).toFixed(2)}</p>
+                              <p className="text-2xl font-bold text-[#5D3A1A]">
+                                ₹{totalAmount.toFixed(2)}
+                              </p>
+                              <span className={`px-3 py-1 rounded-full text-xs font-bold ${
+                                primaryOrder.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                                primaryOrder.status === 'preparing' ? 'bg-blue-100 text-blue-800' :
+                                primaryOrder.status === 'ready' ? 'bg-[#F5F5DC] text-[#5D3A1A]' :
+                                'bg-gray-100 text-gray-800'
+                              }`}>
+                                {primaryOrder.status}
+                              </span>
                             </div>
                           </div>
-                        ))}
-                      </div>
-                    </div>
+                        </div>
+                        
+                        <div className="p-6">
+                          <div className="flex justify-between items-center mb-3">
+                            <h4 className="font-bold text-gray-900">Order Items:</h4>
+                            <button
+                              onClick={() => {
+                                playClickSound()
+                                const allItemIds = Object.values(allItems).flatMap((g: any) => g.items.map((i: any) => i.id))
+                                const allSelected = allItemIds.every(id => selectedItemsToRepeat.find(i => i.id === id))
+                                if (allSelected) {
+                                  setSelectedItemsToRepeat(prev => prev.filter(i => !allItemIds.includes(i.id)))
+                                } else {
+                                  setSelectedItemsToRepeat(prev => {
+                                    const newItems = Object.values(allItems).flatMap((g: any) => g.items).filter((item: any) => !prev.find(i => i.id === item.id))
+                                    return [...prev, ...newItems]
+                                  })
+                                }
+                              }}
+                              className="text-sm text-[#5D3A1A] font-semibold hover:text-[#8B4513]"
+                            >
+                              {Object.values(allItems).every((g: any) => g.items.every((item: any) => selectedItemsToRepeat.find(i => i.id === item.id))) ? 'Deselect All' : 'Select All'}
+                            </button>
+                          </div>
+                          <div className="space-y-2">
+                            {Object.values(allItems).map((group: any, index: number) => (
+                              <div 
+                                key={index} 
+                                className="flex items-center justify-between p-3 rounded-xl bg-gray-50"
+                              >
+                                <div className="flex items-center gap-3">
+                                  <div className="flex items-center gap-2">
+                                    <button
+                                      onClick={() => {
+                                        playClickSound()
+                                        // Decrease selection by 1
+                                        const currentlySelected = group.items.filter((item: any) => selectedItemsToRepeat.find(i => i.id === item.id))
+                                        if (currentlySelected.length > 0) {
+                                          setSelectedItemsToRepeat(prev => {
+                                            const itemToDeselect = currentlySelected[0]
+                                            return prev.filter(i => i.id !== itemToDeselect.id)
+                                          })
+                                        }
+                                      }}
+                                      className="w-8 h-8 rounded-full bg-gray-200 hover:bg-gray-300 flex items-center justify-center font-bold text-gray-700 transition-colors"
+                                      disabled={!group.items.some((item: any) => selectedItemsToRepeat.find(i => i.id === item.id))}
+                                    >
+                                      -
+                                    </button>
+                                    <span className="font-bold text-gray-900 min-w-[20px] text-center">
+                                      {group.items.filter((item: any) => selectedItemsToRepeat.find(i => i.id === item.id)).length}
+                                    </span>
+                                    <button
+                                      onClick={() => {
+                                        playClickSound()
+                                        // Increase selection by 1
+                                        const currentlySelected = group.items.filter((item: any) => selectedItemsToRepeat.find(i => i.id === item.id))
+                                        if (currentlySelected.length < group.qty) {
+                                          const itemToSelect = group.items.find((item: any) => !selectedItemsToRepeat.find(i => i.id === item.id))
+                                          if (itemToSelect) {
+                                            setSelectedItemsToRepeat(prev => [...prev, itemToSelect])
+                                          }
+                                        }
+                                      }}
+                                      className="w-8 h-8 rounded-full bg-[#5D3A1A] hover:bg-[#8B4513] flex items-center justify-center font-bold text-white transition-colors"
+                                      disabled={group.items.every((item: any) => selectedItemsToRepeat.find(i => i.id === item.id))}
+                                    >
+                                      +
+                                    </button>
+                                  </div>
+                                  {group.items[0]?.dishes?.image_url && (
+                                    <img
+                                      src={group.items[0].dishes.image_url}
+                                      alt={group.name}
+                                      className="w-12 h-12 object-cover rounded-lg"
+                                    />
+                                  )}
+                                  <div>
+                                    <p className="font-semibold text-gray-900">{group.name}</p>
+                                    <p className="text-sm text-gray-600">₹{group.price.toFixed(2)} each</p>
+                                  </div>
+                                </div>
+                                <div className="text-right">
+                                  <p className="font-bold text-gray-900">{group.qty}x</p>
+                                  <p className="text-sm text-orange-600 font-semibold">₹{(group.price * group.qty).toFixed(2)}</p>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
 
-                    {selectedItemsToRepeat.length > 0 && (
-                      <div className="p-4 bg-[#F5F5DC] border-t-2 border-[#8B4513]">
-                        <p className="font-semibold text-gray-900">{selectedItemsToRepeat.length} items selected</p>
-                      </div>
-                    )}
+                        {selectedItemsToRepeat.length > 0 && (
+                          <div className="p-4 bg-[#F5F5DC] border-t-2 border-[#8B4513]">
+                            <p className="font-semibold text-gray-900">{selectedItemsToRepeat.length} items selected</p>
+                          </div>
+                        )}
 
-                    <div className="p-6 bg-[#F5F5DC] flex gap-4">
-                      <button
-                        onClick={() => { playClickSound(); handleRepeatOrder(order) }}
-                        className="flex-1 flex items-center justify-center gap-2 bg-[#5D3A1A] text-white px-6 py-3 rounded-xl font-semibold hover:bg-[#8B4513] transition-all duration-300"
-                      >
-                        <RefreshCw className="w-5 h-5" />
-                        Repeat Order
-                      </button>
-                      <button
-                        onClick={() => { playClickSound(); setCurrentStep('order-options') }}
-                        className="px-6 py-3 border-2 border-gray-300 text-gray-700 rounded-xl font-semibold hover:bg-gray-50 transition-all duration-300"
-                      >
-                        Back
-                      </button>
-                    </div>
-                  </div>
-                ))}
+                        <div className="p-6 bg-[#F5F5DC] flex gap-4">
+                          <button
+                            onClick={() => { playClickSound(); handleRepeatOrder(primaryOrder) }}
+                            className="flex-1 flex items-center justify-center gap-2 bg-[#5D3A1A] text-white px-6 py-3 rounded-xl font-semibold hover:bg-[#8B4513] transition-all duration-300"
+                          >
+                            <RefreshCw className="w-5 h-5" />
+                            Repeat Order
+                          </button>
+                          <button
+                            onClick={() => { playClickSound(); setCurrentStep('order-options') }}
+                            className="px-6 py-3 border-2 border-gray-300 text-gray-700 rounded-xl font-semibold hover:bg-gray-50 transition-all duration-300"
+                          >
+                            Back
+                          </button>
+                        </div>
+                      </div>
+                    )
+                  })
+                })()}
               </div>
             )}
           </div>
@@ -2671,15 +2822,38 @@ Visit Us Again<br>
                     </div>
                   ) : (
                     <div className="space-y-2">
-                      {billOrderItems.map((item) => (
-                        <div key={item.id} className="flex items-center justify-between py-2 border-b border-gray-100">
-                          <div className="flex-1">
-                            <p className="font-semibold text-gray-900 text-sm">{item.dishes?.name || item.dish?.name}</p>
+                      {(() => {
+                        // Group items by dish name
+                        const groupedItems: { [key: string]: { name: string, qty: number, total: number, isExtra: boolean } } = {}
+                        billOrderItems.forEach((item: any) => {
+                          const name = item.dishes?.name || item.dish?.name || 'Unknown'
+                          const qty = item.quantity
+                          const price = item.dishes?.price || item.dish?.price || item.price || 0
+                          const total = price * qty
+                          const isExtra = item.order_type === 'Extra' || item.item_type === 'Extra'
+                          
+                          if (!groupedItems[name]) {
+                            groupedItems[name] = { name, qty: 0, total: 0, isExtra: false }
+                          }
+                          groupedItems[name].qty += qty
+                          groupedItems[name].total += total
+                          if (isExtra) {
+                            groupedItems[name].isExtra = true
+                          }
+                        })
+                        
+                        return Object.values(groupedItems).map((item: any, index: number) => (
+                          <div key={index} className="flex items-center justify-between py-2 border-b border-gray-100">
+                            <div className="flex-1">
+                              <p className="font-semibold text-gray-900 text-sm">
+                                {item.isExtra ? `${item.name} (E)` : item.name}
+                              </p>
+                            </div>
+                            <span className="w-16 text-center text-sm text-gray-600">{item.qty}</span>
+                            <span className="w-20 text-right font-bold text-gray-900 text-sm">₹{item.total.toFixed(2)}</span>
                           </div>
-                          <span className="w-16 text-center text-sm text-gray-600">{item.quantity}</span>
-                          <span className="w-20 text-right font-bold text-gray-900 text-sm">₹{(item.price * item.quantity).toFixed(2)}</span>
-                        </div>
-                      ))}
+                        ))
+                      })()}
                     </div>
                   )}
                 </div>

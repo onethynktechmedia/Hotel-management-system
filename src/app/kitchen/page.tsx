@@ -278,7 +278,7 @@ export default function KitchenPage() {
       case 'ready':
         return 'bg-[#F5F5DC] text-[#5D3A1A] border-[#8B4513]'
       case 'served':
-        return 'bg-[#5D3A1A] text-white border-[#8B4513]'
+        return 'bg-white text-black border-black'
       default:
         return 'bg-gray-100 text-gray-800 border-gray-300'
     }
@@ -655,7 +655,7 @@ function OrderCard({ order, servedOrderId, onStatusChange, onItemStatusChange, g
   return (
     <div 
       onClick={() => (order.status === 'served' || order.status === 'ready') && onViewDetails(order)}
-      className={`bg-white rounded-2xl shadow-lg overflow-hidden border-2 hover:shadow-xl transition-all duration-300 cursor-pointer ${isServed ? 'animate-pulse bg-[#F5F5DC] border-[#5D3A1A]' : order.status === 'served' || order.status === 'ready' ? 'hover:border-[#8B4513]' : 'border-gray-200'}`}
+      className={`bg-white rounded-2xl shadow-lg overflow-hidden border-2 hover:shadow-xl transition-all duration-300 cursor-pointer ${isServed ? 'animate-pulse bg-white border-black' : order.status === 'served' || order.status === 'ready' ? 'hover:border-[#8B4513]' : 'border-gray-200'}`}
     >
       <div className={`p-5 border-b-2 ${getStatusColor(order.status)}`}>
         <div className="flex justify-between items-start">
@@ -739,7 +739,7 @@ function OrderCard({ order, servedOrderId, onStatusChange, onItemStatusChange, g
             {order.status === 'ready' && (
               <button
                 onClick={() => { playClickSound(); onStatusChange('served') }}
-                className="flex-1 bg-[#5D3A1A] text-white py-3 rounded-xl font-bold hover:bg-[#8B4513] transition-colors"
+                className="flex-1 bg-white text-black border-2 border-black py-3 rounded-xl font-bold hover:bg-gray-100 transition-colors"
               >
                 Served
               </button>

@@ -881,9 +881,10 @@ export default function WaiterPage() {
 
   const handleViewBill = async (order: Order) => {
     try {
-      // Fetch all orders for the same table that are not paid/completed (including extra orders)
+      // Fetch all orders for the same table AND customer that are not paid/completed (including extra orders)
       const allTableOrders = orders.filter(o => 
         o.table_id === order.table_id && 
+        o.customer_name === order.customer_name &&
         !['paid', 'completed'].includes(o.status)
       )
       
@@ -1604,13 +1605,12 @@ ${itemsList}
                 </h3>
                 <div className="space-y-3">
                   {tableOrders.map((order) => (
-                    <div key={order.id} className="flex items-center justify-between p-4 bg-purple-50 rounded-xl hover:bg-purple-100 transition-colors cursor-pointer" onClick={() => { playClickSound(); handleViewBill(order) }}>
-                      <div>
-                        <p className="font-bold text-gray-900">{formatOrderId(order.id)}</p>
-                        <p className="text-sm text-gray-600">{new Date(order.created_at).toLocaleString()}</p>
-                      </div>
-                      <div className="text-right">
-                        <p className="font-bold text-purple-600">₹{order.total_amount.toFixed(2)}</p>
+                    <div key={order.id} className="p-4 bg-purple-50 rounded-xl hover:bg-purple-100 transition-colors">
+                      <div className="flex justify-between items-start mb-3">
+                        <div>
+                          <p className="font-bold text-gray-900">Customer: {order.customer_name || 'Guest'}</p>
+                          <p className="text-sm text-gray-600">{new Date(order.created_at).toLocaleTimeString()}</p>
+                        </div>
                         <span className={`px-2 py-1 rounded-full text-xs font-bold ${
                           order.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
                           order.status === 'preparing' ? 'bg-blue-100 text-blue-800' :
@@ -1619,6 +1619,35 @@ ${itemsList}
                         }`}>
                           {order.status}
                         </span>
+                      </div>
+                      <div className="space-y-2">
+                        {(() => {
+                          // Group items by dish name and combine quantities
+                          const groupedItems: { [key: string]: { name: string, qty: number } } = {}
+                          order.order_items?.forEach((item: any) => {
+                            const name = item.dishes?.name || item.dish?.name || 'Unknown'
+                            const qty = item.quantity
+                            if (!groupedItems[name]) {
+                              groupedItems[name] = { name, qty: 0 }
+                            }
+                            groupedItems[name].qty += qty
+                          })
+                          return Object.values(groupedItems).map((item: any, index: number) => (
+                            <div key={index} className="flex justify-between items-center text-sm">
+                              <span className="text-gray-900 font-medium">{item.name}</span>
+                              <span className="text-[#8B4513] font-bold">{item.qty}x</span>
+                            </div>
+                          ))
+                        })()}
+                      </div>
+                      <div className="mt-3 pt-3 border-t border-purple-200 flex justify-between items-center">
+                        <button
+                          onClick={() => { playClickSound(); handleViewBill(order) }}
+                          className="text-sm text-[#8B4513] font-semibold hover:underline"
+                        >
+                          View Bill
+                        </button>
+                        <p className="font-bold text-purple-600">₹{order.total_amount.toFixed(2)}</p>
                       </div>
                     </div>
                   ))}
@@ -1658,7 +1687,7 @@ ${itemsList}
                     <div className="p-6 bg-[#F5F5DC]">
                       <div className="flex justify-between items-start">
                         <div>
-                          <h3 className="text-xl font-bold text-gray-900 mb-1">{formatOrderId(order.id)}</h3>
+                          <h3 className="text-xl font-bold text-gray-900 mb-1">Customer: {order.customer_name || 'Guest'}</h3>
                           <p className="text-sm text-gray-600">{new Date(order.created_at).toLocaleString()}</p>
                         </div>
                         <div className="text-right">
@@ -1700,46 +1729,72 @@ ${itemsList}
                         </button>
                       </div>
                       <div className="space-y-2">
-                        {order.order_items?.map((item) => (
-                          <div 
-                            key={item.id} 
-                            className={`flex items-center justify-between p-3 rounded-xl cursor-pointer transition-colors ${
-                              selectedItemsToRepeat.find(i => i.id === item.id) 
-                                ? 'bg-[#F5F5DC] border-2 border-[#5D3A1A]' 
-                                : 'bg-gray-50'
-                            }`}
-                            onClick={() => { playClickSound(); toggleItemSelection(item) }}
-                          >
-                            <div className="flex items-center gap-3">
-                              <div className={`w-5 h-5 rounded border-2 flex items-center justify-center ${
-                                selectedItemsToRepeat.find(i => i.id === item.id)
-                                  ? 'bg-[#5D3A1A] border-[#5D3A1A]'
-                                  : 'border-gray-300'
-                              }`}>
-                                {selectedItemsToRepeat.find(i => i.id === item.id) && (
-                                  <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                                  </svg>
+                        {(() => {
+                          // Group items by dish name and combine quantities
+                          const groupedItems: { [key: string]: { name: string, qty: number, price: number, items: any[] } } = {}
+                          order.order_items?.forEach((item: any) => {
+                            const name = item.dishes?.name || 'Unknown'
+                            const qty = item.quantity
+                            const price = item.price
+                            if (!groupedItems[name]) {
+                              groupedItems[name] = { name, qty: 0, price, items: [] }
+                            }
+                            groupedItems[name].qty += qty
+                            groupedItems[name].items.push(item)
+                          })
+                          return Object.values(groupedItems).map((group: any, index: number) => (
+                            <div 
+                              key={index} 
+                              className={`flex items-center justify-between p-3 rounded-xl cursor-pointer transition-colors ${
+                                group.items.every((item: any) => selectedItemsToRepeat.find(i => i.id === item.id))
+                                  ? 'bg-[#F5F5DC] border-2 border-[#5D3A1A]' 
+                                  : 'bg-gray-50'
+                              }`}
+                              onClick={() => {
+                                playClickSound()
+                                // Toggle selection for all items in this group
+                                const allSelected = group.items.every((item: any) => selectedItemsToRepeat.find(i => i.id === item.id))
+                                if (allSelected) {
+                                  setSelectedItemsToRepeat(prev => prev.filter(i => !group.items.find((g: any) => g.id === i.id)))
+                                } else {
+                                  setSelectedItemsToRepeat(prev => {
+                                    const newItems = group.items.filter((item: any) => !prev.find(i => i.id === item.id))
+                                    return [...prev, ...newItems]
+                                  })
+                                }
+                              }}
+                            >
+                              <div className="flex items-center gap-3">
+                                <div className={`w-5 h-5 rounded border-2 flex items-center justify-center ${
+                                  group.items.every((item: any) => selectedItemsToRepeat.find(i => i.id === item.id))
+                                    ? 'bg-[#5D3A1A] border-[#5D3A1A]'
+                                    : 'border-gray-300'
+                                }`}>
+                                  {group.items.every((item: any) => selectedItemsToRepeat.find(i => i.id === item.id)) && (
+                                    <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                    </svg>
+                                  )}
+                                </div>
+                                {group.items[0]?.dishes?.image_url && (
+                                  <img
+                                    src={group.items[0].dishes.image_url}
+                                    alt={group.name}
+                                    className="w-12 h-12 object-cover rounded-lg"
+                                  />
                                 )}
+                                <div>
+                                  <p className="font-semibold text-gray-900">{group.name}</p>
+                                  <p className="text-sm text-gray-600">₹{group.price.toFixed(2)} each</p>
+                                </div>
                               </div>
-                              {item.dishes?.image_url && (
-                                <img
-                                  src={item.dishes.image_url}
-                                  alt={item.dishes.name}
-                                  className="w-12 h-12 object-cover rounded-lg"
-                                />
-                              )}
-                              <div>
-                                <p className="font-semibold text-gray-900">{item.dishes?.name || 'Unknown'}</p>
-                                <p className="text-sm text-gray-600">₹{item.price.toFixed(2)} each</p>
+                              <div className="text-right">
+                                <p className="font-bold text-gray-900">{group.qty}x</p>
+                                <p className="text-sm text-orange-600 font-semibold">₹{(group.price * group.qty).toFixed(2)}</p>
                               </div>
                             </div>
-                            <div className="text-right">
-                              <p className="font-bold text-gray-900">x{item.quantity}</p>
-                              <p className="text-sm text-orange-600 font-semibold">₹{(item.price * item.quantity).toFixed(2)}</p>
-                            </div>
-                          </div>
-                        ))}
+                          ))
+                        })()}
                       </div>
                     </div>
 

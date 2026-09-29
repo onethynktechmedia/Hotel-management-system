@@ -604,9 +604,10 @@ export default function AdminDashboard() {
     try {
       console.log('Generating bill for order:', order.id)
       
-      // Fetch all orders for the same table that are not paid/completed (including extra orders)
+      // Fetch all orders for the same table AND customer that are not paid/completed (including extra orders)
       const allTableOrders = orders.filter(o => 
         o.table_id === order.table_id && 
+        o.customer_name === order.customer_name &&
         !['paid', 'completed'].includes(o.status)
       )
       
@@ -636,6 +637,47 @@ export default function AdminDashboard() {
       
     } catch (error: any) {
       console.error('Error generating bill:', error)
+    }
+  }
+
+  // Helper function to group orders by table and customer
+  const groupOrdersByTableAndCustomer = (orders: Order[]) => {
+    const grouped: { [key: string]: Order[] } = {}
+    orders.forEach(order => {
+      // Create a unique key combining table_id and customer_name
+      const tableId = order.table_id
+      const customerName = order.customer_name || 'Guest'
+      const key = `${tableId}-${customerName}`
+      
+      if (!grouped[key]) {
+        grouped[key] = []
+      }
+      grouped[key].push(order)
+    })
+    return grouped
+  }
+
+  // Helper function to get consolidated order for a table and customer
+  const getConsolidatedOrder = (tableOrders: Order[]) => {
+    // Sort by created_at to get the original order first
+    const sortedOrders = [...tableOrders].sort((a, b) => 
+      new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+    )
+    const primaryOrder = sortedOrders[0]
+    
+    // Calculate total items and amount
+    const totalItems = tableOrders.reduce((sum, o) => sum + (o.order_items?.length || 0), 0)
+    const totalAmount = tableOrders.reduce((sum, o) => sum + o.total_amount, 0)
+    
+    // Check if there are extra orders (more than 1 order for this table+customer)
+    const hasExtraOrders = tableOrders.length > 1
+    
+    return {
+      ...primaryOrder,
+      total_items: totalItems,
+      total_amount: totalAmount,
+      has_extra_orders: hasExtraOrders,
+      order_count: tableOrders.length
     }
   }
 
@@ -766,7 +808,7 @@ export default function AdminDashboard() {
       // 58mm paper width = approximately 32-35 characters per line
       const plainText = `
 <div style="text-align: center; margin-bottom: 8px;">
-  <div style="font-size: 18px; font-weight: bold; color: #8B4513;">GALAXY GARDEN</div>
+  <div style="font-size: 18px; font-weight: bold; color: #8B4513;">Dhole Patil Khanawal</div>
   <div style="font-size: 12px; color: #5D3A1A;">Restaurant & Bar</div>
 </div>
 <div style="border-top: 1px dashed #8B4513; margin: 4px 0;"></div>
@@ -1528,57 +1570,93 @@ For technical support, contact: support@everycom.com
 
   const printOfflineBill = async (order: any) => {
     try {
+      // Group items by dish name for offline orders
+      const groupedItems: { [key: string]: { name: string, qty: number, total: number } } = {}
+      order.order_items?.forEach((item: any) => {
+        const dish = dishes.find(d => d.id === item.dish_id)
+        const name = dish?.name || item.name || 'Unknown'
+        const qty = item.quantity
+        const price = item.price
+        const total = price * qty
+        
+        if (!groupedItems[name]) {
+          groupedItems[name] = { name, qty: 0, total: 0 }
+        }
+        groupedItems[name].qty += qty
+        groupedItems[name].total += total
+      })
+
+      const itemsList = Object.values(groupedItems).map((item: any) => {
+        const itemName = item.name.length > 20 ? item.name.substring(0, 19) + '.' : item.name
+        return `<div style="display: flex; font-size: 9px; margin: 2px 0;">
+  <span style="flex: 2;">${itemName}</span>
+  <span style="flex: 1; text-align: right;">${item.qty}</span>
+  <span style="flex: 1; text-align: right;">${item.total.toFixed(2)}</span>
+</div>`
+      }).join('')
+
       const plainText = `
-<div class="header">GALAXY GARDEN</div>
-<div class="subheader">Restaurant & Bar</div>
-<div class="divider">================================</div>
-<div class="address">123, Main Street</div>
-<div class="address">City, State - 123456</div>
-<div class="address">Phone: +91 98765 43210</div>
-<div class="divider">================================</div>
-<div class="section-title">BILL / INVOICE</div>
-<div class="divider">================================</div>
-<div class="spacer"></div>
-<div class="bill-info"><span class="label">Bill No:</span> <span class="value">OFF-${order.id}</span></div>
-<div class="bill-info"><span class="label">Date:</span> <span class="value">${new Date(order.created_at).toLocaleDateString()}</span></div>
-<div class="bill-info"><span class="label">Time:</span> <span class="value">${new Date(order.created_at).toLocaleTimeString()}</span></div>
-<div class="bill-info"><span class="label">Table:</span> <span class="value">${tables.find(t => t.id === order.table_id)?.table_number || 'N/A'}</span></div>
-<div class="bill-info"><span class="label">Customer:</span> <span class="value">${order.customer_name || 'Guest'}</span></div>
-<div class="divider">--------------------------</div>
-<table class="items-table">
-  <thead>
-    <tr>
-      <th class="col-item">ITEM</th>
-      <th class="col-qty">QTY</th>
-      <th class="col-amount">AMOUNT</th>
-    </tr>
-  </thead>
-  <tbody>
-${order.order_items?.map((item: any) => {
-  const dish = dishes.find(d => d.id === item.dish_id)
-  const name = dish?.name || 'Unknown'
-  const qty = item.quantity
-  const price = item.price
-  const total = (price * qty).toFixed(2)
-  const displayName = name.length > 18 ? name.substring(0, 17) + '.' : name
-  return `    <tr>
-      <td class="col-item">${displayName}</td>
-      <td class="col-qty">${qty}</td>
-      <td class="col-amount">${total}</td>
-    </tr>`
-}).join('')}
-  </tbody>
-</table>
-<div class="divider">--------------------------</div>
-<div class="total-row"><span class="label">Subtotal:</span> <span class="amount">Rs${order.total_amount.toFixed(2)}</span></div>
-<div class="divider">================================</div>
-<div class="grand-total"> GRAND TOTAL: Rs${order.total_amount.toFixed(2)} </div>
-<div class="divider">================================</div>
-<div class="footer">Thank You for Dining!</div>
-<div class="footer">Visit Us Again</div>
-<div class="divider">================================</div>
-<div class="developer">Developed by onethynk techmedia</div>
-<div class="divider">================================</div>
+<div style="text-align: center; margin-bottom: 8px;">
+  <div style="font-size: 18px; font-weight: bold; color: #8B4513;">Dhole Patil Khanawal</div>
+  <div style="font-size: 12px; color: #5D3A1A;">Restaurant & Bar</div>
+</div>
+<div style="border-top: 1px dashed #8B4513; margin: 4px 0;"></div>
+<div style="text-align: center; font-size: 10px; margin-bottom: 4px;">
+  <div>123, Main Street</div>
+  <div>City, State - 123456</div>
+  <div>Phone: +91 98765 43210</div>
+  <div style="font-weight: bold;">GSTIN: 29ABCDE1234F1Z5</div>
+</div>
+<div style="border-top: 1px dashed #8B4513; margin: 4px 0;"></div>
+<div style="text-align: center; font-size: 12px; font-weight: bold; margin: 4px 0;">BILL / INVOICE</div>
+<div style="border-top: 1px dashed #8B4513; margin: 4px 0;"></div>
+<div style="margin: 4px 0; font-size: 10px;">
+  <div style="display: flex; justify-content: space-between;">
+    <span>Bill No:</span>
+    <span style="font-weight: bold;">OFF-${order.id}</span>
+  </div>
+  <div style="display: flex; justify-content: space-between;">
+    <span>Date:</span>
+    <span>${new Date(order.created_at).toLocaleDateString()}</span>
+  </div>
+  <div style="display: flex; justify-content: space-between;">
+    <span>Time:</span>
+    <span>${new Date(order.created_at).toLocaleTimeString()}</span>
+  </div>
+  <div style="display: flex; justify-content: space-between;">
+    <span>Table:</span>
+    <span style="font-weight: bold;">${tables.find(t => t.id === order.table_id)?.table_number || 'N/A'}</span>
+  </div>
+  <div style="display: flex; justify-content: space-between;">
+    <span>Customer:</span>
+    <span>${order.customer_name || 'Guest'}</span>
+  </div>
+</div>
+<div style="border-top: 1px dashed #8B4513; margin: 4px 0;"></div>
+<div style="font-size: 10px; font-weight: bold; margin: 4px 0;">ITEM DETAILS</div>
+<div style="border-top: 1px dashed #8B4513; margin: 4px 0;"></div>
+<div style="display: flex; font-size: 9px; font-weight: bold; margin-bottom: 2px;">
+  <span style="flex: 2;">ITEM</span>
+  <span style="flex: 1; text-align: right;">QTY</span>
+  <span style="flex: 1; text-align: right;">AMT</span>
+</div>
+<div style="border-top: 1px dashed #8B4513; margin: 2px 0;"></div>
+${itemsList}
+<div style="border-top: 1px dashed #8B4513; margin: 4px 0;"></div>
+<div style="border-top: 2px solid #8B4513; margin: 6px 0;"></div>
+<div style="text-align: center; font-size: 14px; font-weight: bold; color: #8B4513; margin: 4px 0;">
+  GRAND TOTAL: Rs${order.total_amount.toFixed(2)}
+</div>
+<div style="border-top: 2px solid #8B4513; margin: 6px 0;"></div>
+<div style="text-align: center; font-size: 10px; margin: 4px 0;">
+  <div>Thank You for Dining!</div>
+  <div>Visit Us Again</div>
+</div>
+<div style="border-top: 1px dashed #8B4513; margin: 4px 0;"></div>
+<div style="text-align: center; font-size: 8px; font-weight: bold; color: #8B4513; margin: 4px 0;">
+  Developed by onethynk techmedia
+</div>
+<div style="border-top: 1px dashed #8B4513; margin: 4px 0;"></div>
 `
 
       // Use browser print directly (works on all platforms including Vercel)
@@ -1613,128 +1691,15 @@ ${order.order_items?.map((item: any) => {
                   }
                 }
                 * {
+                  margin: 0;
+                  padding: 0;
                   box-sizing: border-box;
                 }
                 body {
-                  font-family: 'Courier New', 'Consolas', 'Lucida Console', monospace;
-                  font-size: 12px;
-                  font-weight: bold;
-                  line-height: 1.3;
-                  margin: 0;
-                  padding: 2mm;
-                  text-align: center;
-                  width: 54mm;
-                  max-width: 54mm;
-                  overflow: hidden;
-                  background: white;
-                  color: black;
-                  -webkit-font-smoothing: antialiased;
-                  -moz-osx-font-smoothing: grayscale;
-                  image-rendering: crisp-edges;
-                }
-                .header {
-                  font-size: 18px;
-                  font-weight: 900;
-                  margin-bottom: 1mm;
-                  text-transform: uppercase;
-                  letter-spacing: 1px;
-                }
-                .subheader {
-                  font-size: 13px;
-                  font-weight: bold;
-                  margin-bottom: 1mm;
-                }
-                .divider {
+                  font-family: 'Courier New', Courier, monospace;
                   font-size: 10px;
-                  font-weight: bold;
-                  margin: 1mm 0;
-                  letter-spacing: 1px;
-                }
-                .address {
-                  font-size: 11px;
-                  font-weight: bold;
-                  margin: 0.5mm 0;
-                }
-                .section-title {
-                  font-size: 13px;
-                  font-weight: 900;
-                  margin: 1mm 0;
-                }
-                .spacer {
-                  height: 2mm;
-                }
-                .bill-info {
-                  display: flex;
-                  justify-content: space-between;
-                  font-size: 11px;
-                  font-weight: bold;
-                  margin: 0.5mm 0;
-                }
-                .label {
-                  font-weight: bold;
-                }
-                .value {
-                  font-weight: bold;
-                }
-                .items-table {
-                  width: 100%;
-                  border-collapse: collapse;
-                  margin: 1mm 0;
-                  font-size: 11px;
-                }
-                .items-table th {
-                  border-bottom: 1px solid black;
-                  padding: 1mm 0;
-                  font-weight: 900;
-                  font-size: 11px;
-                }
-                .items-table td {
-                  padding: 0.5mm 0;
-                  font-weight: bold;
-                }
-                .col-item {
-                  text-align: left;
-                  width: 55%;
-                  padding-right: 2mm;
-                }
-                .col-qty {
-                  text-align: center;
-                  width: 15%;
-                }
-                .col-amount {
-                  text-align: right;
-                  width: 30%;
-                }
-                .total-row {
-                  display: flex;
-                  justify-content: space-between;
-                  font-size: 11px;
-                  font-weight: bold;
-                  margin: 1mm 0;
-                }
-                .amount {
-                  font-weight: bold;
-                }
-                .grand-total {
-                  font-size: 16px;
-                  font-weight: 900;
-                  margin: 2mm 0;
-                  text-transform: uppercase;
-                  letter-spacing: 1px;
-                  text-align: center;
-                }
-                .footer {
-                  font-size: 12px;
-                  font-weight: bold;
-                  margin: 1mm 0;
-                  text-align: center;
-                }
-                .developer {
-                  font-size: 9px;
-                  font-weight: bold;
-                  margin-top: 2mm;
-                  opacity: 0.8;
-                  text-align: center;
+                  line-height: 1.2;
+                  color: #000;
                 }
               </style>
             </head>
@@ -2293,21 +2258,30 @@ Visit Us Again<br>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-200">
-                    {orders
-                      .filter(order => {
-                        const matchesSearch = 
-                          searchQuery === '' || 
-                          order.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                          order.tables?.table_number.toString().includes(searchQuery) ||
-                          order.customer_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                          order.users?.name.toLowerCase().includes(searchQuery.toLowerCase())
-                        
-                        const matchesStatus = statusFilter === 'all' || order.status === statusFilter
-                        
-                        return matchesSearch && matchesStatus
-                      })
-                      .slice(0, 10)
-                      .map((order) => (
+                    {(() => {
+                      // Group orders by table and customer
+                      const groupedOrders = groupOrdersByTableAndCustomer(orders)
+                      
+                      // Filter and consolidate
+                      const filteredAndConsolidated = Object.values(groupedOrders)
+                        .filter((tableOrders: any) => {
+                          // Apply search and status filters to the primary order
+                          const primaryOrder = tableOrders[0]
+                          const matchesSearch = 
+                            searchQuery === '' || 
+                            primaryOrder.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                            primaryOrder.tables?.table_number.toString().includes(searchQuery) ||
+                            primaryOrder.customer_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                            primaryOrder.users?.name.toLowerCase().includes(searchQuery.toLowerCase())
+                          
+                          const matchesStatus = statusFilter === 'all' || primaryOrder.status === statusFilter
+                          
+                          return matchesSearch && matchesStatus
+                        })
+                        .map((tableOrders: any) => getConsolidatedOrder(tableOrders))
+                        .slice(0, 10)
+                      
+                      return filteredAndConsolidated.map((order: any) => (
                         <React.Fragment key={order.id}>
                           <tr 
                             className="hover:bg-[#D2B48C] transition-colors cursor-pointer md:cursor-default"
@@ -2320,7 +2294,14 @@ Visit Us Again<br>
                           <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">
                             Table {order.tables?.table_number || '-'}
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">{formatOrderId(order.id)}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">
+                            {formatOrderId(order.id)}
+                            {order.has_extra_orders && (
+                              <span className="ml-2 px-2 py-0.5 bg-[#F5F5DC] text-[#5D3A1A] text-xs font-semibold rounded-full">
+                                +{order.order_count - 1}
+                              </span>
+                            )}
+                          </td>
                           <td className="hidden md:table-cell px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                             {new Date(order.created_at).toLocaleDateString()}
                           </td>
@@ -2338,7 +2319,7 @@ Visit Us Again<br>
                             </span>
                           </td>
                           <td className="hidden md:table-cell px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                            {Array.isArray(order.order_items) ? order.order_items.length : 0} items
+                            {order.total_items} items
                           </td>
                           <td className="hidden md:table-cell px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-900">₹{order.total_amount.toFixed(2)}</td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm">
@@ -2384,7 +2365,7 @@ Visit Us Again<br>
                                 </div>
                                 <div className="flex justify-between">
                                   <span className="text-gray-600">Items:</span>
-                                  <span className="font-semibold text-gray-900">{Array.isArray(order.order_items) ? order.order_items.length : 0} items</span>
+                                  <span className="font-semibold text-gray-900">{order.total_items} items</span>
                                 </div>
                                 <div className="flex justify-between">
                                   <span className="text-gray-600">Total:</span>
@@ -2395,7 +2376,8 @@ Visit Us Again<br>
                           </tr>
                         )}
                         </React.Fragment>
-                      ))}
+                      ))
+                    })()}
                   </tbody>
                 </table>
               </div>
