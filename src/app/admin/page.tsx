@@ -1840,7 +1840,6 @@ Visit Us Again<br>
         activeTab={activeTab} 
         setActiveTab={setActiveTab} 
         user={user} 
-        onLogout={handleLogout} 
       />
 
       <div className="flex-1 lg:ml-72">
