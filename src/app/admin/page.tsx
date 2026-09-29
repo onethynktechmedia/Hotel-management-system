@@ -9,14 +9,14 @@ import WaiterStatus from '@/components/WaiterStatus'
 import Reports from '@/components/Reports'
 import { WebUSBPrinter } from '@/lib/webusb-printer'
 
-// Utility function to format order ID as GGR-XXX
+// Utility function to format order ID as DPK-XXX
 const formatOrderId = (orderId: string) => {
   // Extract a number from the UUID and format it
   const hash = orderId.split('').reduce((acc, char) => {
     return acc + char.charCodeAt(0)
   }, 0)
   const orderNumber = (hash % 999) + 1 // Ensure it's between 1-999
-  return `GGR-${String(orderNumber).padStart(3, '0')}`
+  return `DPK-${String(orderNumber).padStart(3, '0')}`
 }
 
 export default function AdminDashboard() {
@@ -600,9 +600,31 @@ export default function AdminDashboard() {
     try {
       console.log('Generating bill for order:', order.id)
       
-      // Set viewing bill state to show preview modal
-      setViewingBill(order)
-      setBillOrderItems(order.order_items || [])
+      // Fetch all orders for the same table that are not paid/completed (including extra orders)
+      const allTableOrders = orders.filter(o => 
+        o.table_id === order.table_id && 
+        !['paid', 'completed'].includes(o.status)
+      )
+      
+      // Fetch items for all orders
+      const allItems = await Promise.all(
+        allTableOrders.map(async (o) => {
+          const response = await fetch(`/api/orders/${o.id}/items`)
+          if (!response.ok) throw new Error('Failed to fetch order items')
+          const items = await response.json()
+          return items.map((item: any) => ({ ...item, order_id: o.id, order_type: o.order_type }))
+        })
+      )
+      
+      // Flatten all items
+      const mergedItems = allItems.flat()
+      
+      // Calculate total amount from all orders
+      const totalAmount = allTableOrders.reduce((sum, o) => sum + o.total_amount, 0)
+      
+      // Set viewing bill state to show preview modal with merged items and total
+      setViewingBill({ ...order, total_amount: totalAmount })
+      setBillOrderItems(mergedItems)
       setIsEditingBill(false)
       // Reset discount and tax values
       setBillDiscountAmount('')
@@ -706,196 +728,269 @@ export default function AdminDashboard() {
       // Use order_items directly from the order object (already fetched by API)
       const orderItems = billOrderItems
       
-      // Generate ESC/POS commands for direct printing
-      let escposContent = ''
+      // Generate properly formatted plain text bill content for thermal printer
+      // 58mm paper width = approximately 32-35 characters per line
+      const plainText = `
+<strong class="header">GALAXY GARDEN</strong><br>
+Restaurant & Bar<br>
+================================<br>
+123, Main Street<br>
+City, State - 123456<br>
+Phone: +91 98765 43210<br>
+GSTIN: 29ABCDE1234F1Z5<br>
+================================<br>
+BILL / INVOICE<br>
+================================<br>
+<br>
+Bill No: ${formatOrderId(viewingBill.id)}<br>
+Date: ${new Date().toLocaleDateString()}<br>
+Time: ${new Date().toLocaleTimeString()}<br>
+Table: ${viewingBill.tables?.table_number || 'N/A'}<br>
+Waiter: ${viewingBill.users?.name || 'N/A'}<br>
+--------------------------------<br>
+ITEM             QTY  AMOUNT<br>
+--------------------------------<br>
+${orderItems.map((item: any) => {
+  const name = item.dishes?.name || item.dish?.name || 'Unknown'
+  const qty = item.quantity
+  const price = item.dishes?.price || item.dish?.price || item.price || 0
+  const total = (price * qty).toFixed(2)
+  const itemName = name.length > 16 ? name.substring(0, 15) + '.' : name
+  return `${itemName.padEnd(16)} ${qty.toString().padStart(2)}  ${total.padStart(8)}<br>`
+}).join('')}
+--------------------------------<br>
+Subtotal: Rs${calculateBillSubtotal().toFixed(2)}<br>
+${(() => {
+  const discount = calculateBillDiscount()
+  return discount > 0 ? `Discount: -Rs${discount.toFixed(2)}<br>` : ''
+})()}
+${(() => {
+  const discount = calculateBillDiscount()
+  const afterDiscount = calculateBillSubtotal() - discount
+  const cgst = calculateBillTax(afterDiscount, billCGST)
+  const sgst = calculateBillTax(afterDiscount, billSGST)
+  return `CGST (${billCGST}%): Rs${cgst.toFixed(2)}<br>SGST (${billSGST}%): Rs${sgst.toFixed(2)}<br>`
+})()}
+================================<br>
+<strong class="grand-total">*** GRAND TOTAL: Rs${calculateBillGrandTotal().toFixed(2)} ***</strong><br>
+================================<br>
+Thank You for Dining!<br>
+Visit Us Again<br>
+================================<br>
+<span class="developer">Developed by onethynk techmedia</span><br>
+================================
+`
       
-      // Initialize printer
-      escposContent += '\x1B\x40' // Initialize
+      console.log('Bill content generated')
       
-      // Center alignment for header
-      escposContent += '\x1B\x61\x01'
-      
-      // Hotel Name - Large and Bold
-      escposContent += '\x1B\x21\x30' // Double width and height
-      escposContent += 'GALAXY GARDEN\n'
-      escposContent += '\x1B\x21\x00' // Normal
-      escposContent += 'Restaurant & Bar\n'
-      escposContent += '================================\n'
-      
-      // Left align for bill info
-      escposContent += '\x1B\x61\x00'
-      escposContent += `Bill No: ${formatOrderId(viewingBill.id)}\n`
-      escposContent += `Date: ${new Date(viewingBill.created_at).toLocaleDateString()}\n`
-      escposContent += `Time: ${new Date(viewingBill.created_at).toLocaleTimeString()}\n`
-      escposContent += `Table: ${viewingBill.tables?.table_number || 'N/A'}\n`
-      escposContent += `Waiter: ${viewingBill.users?.name || 'N/A'}\n`
-      escposContent += '--------------------------\n'
-      
-      // Items Header
-      escposContent += '\x1B\x21\x08' // Bold
-      escposContent += '  ITEM                  QTY  AMT\n'
-      escposContent += '--------------------------\n'
-      escposContent += '\x1B\x21\x00' // Normal font for items
-      
-      // Items
-      orderItems.forEach((item: any) => {
-        const name = item.dishes?.name || item.dish?.name || 'Unknown'
-        const qty = item.quantity
-        const price = item.dishes?.price || item.dish?.price || item.price || 0
-        const total = (price * qty).toFixed(2)
-        const itemName = name.length > 14 ? name.substring(0, 13) + '.' : name
-        escposContent += `${itemName.padEnd(14)} ${qty.toString().padStart(2)} ${total.padStart(7)}\n`
-      })
-      escposContent += '\x1B\x21\x00' // Ensure normal text
-      
-      escposContent += '--------------------------\n'
-      escposContent += `Subtotal: Rs${calculateBillSubtotal().toFixed(2)}\n`
-      
-      // Discount
-      const discount = calculateBillDiscount()
-      if (discount > 0) {
-        escposContent += `Discount: -Rs${discount.toFixed(2)}\n`
+      // Use browser print directly (works on all platforms including Vercel)
+      const printWindow = window.open('', '_blank')
+      if (printWindow) {
+        printWindow.document.write(`
+          <!DOCTYPE html>
+          <html>
+            <head>
+              <title>Bill Print</title>
+              <meta charset="UTF-8">
+              <style>
+                @page {
+                  size: 58mm auto;
+                  margin: 0;
+                }
+                @media print {
+                  @page {
+                    size: 58mm auto;
+                    margin: 0;
+                  }
+                  @page :left {
+                    margin: 0;
+                  }
+                  @page :right {
+                    margin: 0;
+                  }
+                  body {
+                    margin: 0;
+                    padding: 2mm;
+                    width: 58mm;
+                    -webkit-print-color-adjust: exact;
+                    print-color-adjust: exact;
+                  }
+                  * {
+                    -webkit-print-color-adjust: exact;
+                    print-color-adjust: exact;
+                  }
+                }
+                * {
+                  margin: 0;
+                  padding: 0;
+                  box-sizing: border-box;
+                }
+                .header {
+                  font-size: 16px;
+                  font-weight: bold;
+                  text-align: center;
+                }
+                .grand-total {
+                  font-size: 14px;
+                  font-weight: bold;
+                  text-align: center;
+                }
+                .developer {
+                  font-size: 10px;
+                  font-weight: bold;
+                  text-align: center;
+                }
+              </style>
+            </head>
+            <body>${plainText}</body>
+          </html>
+        `)
+        printWindow.document.close()
+        printWindow.focus()
+        
+        setTimeout(() => {
+          printWindow.print()
+          setTimeout(() => {
+            printWindow.close()
+          }, 1000)
+        }, 750)
+      } else {
+        alert('Please allow popups for printing')
       }
-      
-      // Taxes
-      const afterDiscount = calculateBillSubtotal() - discount
-      const cgst = calculateBillTax(afterDiscount, billCGST)
-      const sgst = calculateBillTax(afterDiscount, billSGST)
-      escposContent += `CGST (${billCGST}%): Rs${cgst.toFixed(2)}\n`
-      escposContent += `SGST (${billSGST}%): Rs${sgst.toFixed(2)}\n`
-      
-      // Grand Total - Centered, Bold and Large
-      escposContent += '\x1B\x61\x01' // Center align
-      escposContent += '================================\n'
-      escposContent += '\x1B\x21\x08' // Bold
-      escposContent += 'GRAND TOTAL\n'
-      escposContent += `Rs ${calculateBillGrandTotal().toFixed(2)}\n`
-      escposContent += '\x1B\x21\x00' // Normal
-      escposContent += '================================\n'
-      escposContent += 'Thank You for Dining!\n'
-      escposContent += 'Visit Us Again\n'
-      escposContent += '================================\n'
-      escposContent += 'Developed by onethynk techmedia\n'
-      escposContent += '================================\n\n'
-      
-      // Cut paper
-      escposContent += '\x1D\x56\x00' // Partial cut
-      
-      console.log('ESC/POS content generated')
-      
-      // Use WebUSB for direct printing (no Chrome dialog)
-      const printer = new WebUSBPrinter()
-      await printer.connect()
-      await printer.print(escposContent)
-      await printer.disconnect()
-      
-      console.log('Bill printed successfully via WebUSB')
-      
-    } catch (error: any) {
-      console.error('Error printing bill:', error)
+    } catch (error) {
+      console.error('Printing failed:', error)
+      alert('Printing failed: ' + (error as Error).message)
     }
   }
 
-  // Direct Print Function using WebUSB for direct thermal printing
+  // Direct Print Function using browser print (works with thermal printers)
   const handleThermalPrint = async () => {
     if (!selectedOrderForBilling) return
     
     try {
       console.log('Starting thermal print...')
       
-      // Generate ESC/POS commands for direct printing
-      let escposContent = ''
+      // Generate properly formatted plain text bill content for thermal printer
+      // 58mm paper width = approximately 32-35 characters per line
+      const plainText = `
+<strong class="header">GALAXY GARDEN</strong><br>
+Restaurant & Bar<br>
+================================<br>
+123, Main Street<br>
+City, State - 123456<br>
+Phone: +91 98765 43210<br>
+GSTIN: 29ABCDE1234F1Z5<br>
+================================<br>
+BILL / INVOICE<br>
+================================<br>
+<br>
+Bill No: ${formatOrderId(selectedOrderForBilling.id)}<br>
+Date: ${new Date().toLocaleDateString()}<br>
+Time: ${new Date().toLocaleTimeString()}<br>
+Table: ${selectedOrderForBilling.tables?.table_number}<br>
+Waiter: ${selectedOrderForBilling.users?.name}<br>
+Customer: ${selectedOrderForBilling.customer_name || 'Guest'}<br>
+--------------------------------<br>
+ITEM             QTY  AMOUNT<br>
+--------------------------------<br>
+${billOrderItems.map((item: any) => {
+  const name = item.dishes?.name || item.dish?.name || 'Unknown'
+  const qty = item.quantity
+  const price = (item.dishes?.price || item.dish?.price || item.price || 0)
+  const total = (price * qty).toFixed(2)
+  const itemName = name.length > 16 ? name.substring(0, 15) + '.' : name
+  return `${itemName.padEnd(16)} ${qty.toString().padStart(2)}  ${total.padStart(8)}<br>`
+}).join('')}
+--------------------------------<br>
+================================<br>
+<strong class="grand-total">*** GRAND TOTAL: Rs${selectedOrderForBilling.total_amount.toFixed(2)} ***</strong><br>
+================================<br>
+Thank You for Dining!<br>
+Visit Us Again<br>
+================================<br>
+<span class="developer">Developed by onethynk techmedia</span><br>
+================================
+`
       
-      // Initialize printer
-      escposContent += '\x1B\x40' // Initialize
+      console.log('Bill content generated')
       
-      // Center alignment for header
-      escposContent += '\x1B\x61\x01'
-      
-      // Hotel Name - Large and Bold
-      escposContent += '\x1B\x21\x30' // Double width and height
-      escposContent += 'GALAXY GARDEN\n'
-      escposContent += '\x1B\x21\x00' // Normal
-      escposContent += 'Restaurant & Bar\n'
-      escposContent += '================================\n'
-      
-      // Address - Centered
-      escposContent += '123, Main Street\n'
-      escposContent += 'City, State - 123456\n'
-      escposContent += 'Phone: +91 98765 43210\n'
-      escposContent += 'GSTIN: 29ABCDE1234F1Z5\n'
-      escposContent += '================================\n'
-      escposContent += '\x1B\x21\x08' // Bold
-      escposContent += 'BILL / INVOICE\n'
-      escposContent += '\x1B\x21\x00' // Normal
-      escposContent += '================================\n\n'
-      
-      // Left align for bill info
-      escposContent += '\x1B\x61\x00'
-      escposContent += `Bill No: ${formatOrderId(selectedOrderForBilling.id)}\n`
-      escposContent += `Date: ${new Date(selectedOrderForBilling.created_at).toLocaleDateString()}\n`
-      escposContent += `Time: ${new Date(selectedOrderForBilling.created_at).toLocaleTimeString()}\n`
-      escposContent += `Table: ${selectedOrderForBilling.tables?.table_number}\n`
-      escposContent += `Waiter: ${selectedOrderForBilling.users?.name}\n`
-      escposContent += `Customer: ${selectedOrderForBilling.customer_name || 'Guest'}\n`
-      escposContent += '--------------------------\n'
-      
-      // Items Header
-      escposContent += '\x1B\x21\x08' // Bold
-      escposContent += '  ITEM                  QTY  AMT\n'
-      escposContent += '--------------------------\n'
-      escposContent += '\x1B\x21\x00' // Normal font for items
-      
-      // Items
-      selectedOrderForBilling.order_items?.forEach((item: any) => {
-        const name = item.dishes?.name || 'Unknown'
-        const qty = item.quantity
-        const price = (item.dishes?.price || item.price || 0)
-        const total = (price * qty).toFixed(2)
-        const itemName = name.length > 14 ? name.substring(0, 13) + '.' : name
-        escposContent += `${itemName.padEnd(14)} ${qty.toString().padStart(2)} ${total.padStart(7)}\n`
-      })
-      escposContent += '\x1B\x21\x00' // Ensure normal text
-      
-      escposContent += '--------------------------\n'
-      escposContent += `Subtotal: Rs${selectedOrderForBilling.total_amount.toFixed(2)}\n`
-      
-      // Discount if applicable
-      const discount = calculateDiscountValue(selectedOrderForBilling.total_amount)
-      if (discount > 0) {
-        escposContent += `Discount: -Rs${discount.toFixed(2)}\n`
+      // Use browser print directly (works on all platforms including Vercel)
+      const printWindow = window.open('', '_blank')
+      if (printWindow) {
+        printWindow.document.write(`
+          <!DOCTYPE html>
+          <html>
+            <head>
+              <title>Bill Print</title>
+              <meta charset="UTF-8">
+              <style>
+                @page {
+                  size: 58mm auto;
+                  margin: 0;
+                }
+                @media print {
+                  @page {
+                    size: 58mm auto;
+                    margin: 0;
+                  }
+                  @page :left {
+                    margin: 0;
+                  }
+                  @page :right {
+                    margin: 0;
+                  }
+                  body {
+                    margin: 0;
+                    padding: 2mm;
+                    width: 58mm;
+                    -webkit-print-color-adjust: exact;
+                    print-color-adjust: exact;
+                  }
+                  * {
+                    -webkit-print-color-adjust: exact;
+                    print-color-adjust: exact;
+                  }
+                }
+                * {
+                  margin: 0;
+                  padding: 0;
+                  box-sizing: border-box;
+                }
+                .header {
+                  font-size: 16px;
+                  font-weight: bold;
+                  text-align: center;
+                }
+                .grand-total {
+                  font-size: 14px;
+                  font-weight: bold;
+                  text-align: center;
+                }
+                .developer {
+                  font-size: 10px;
+                  font-weight: bold;
+                  text-align: center;
+                }
+              </style>
+            </head>
+            <body>${plainText}</body>
+          </html>
+        `)
+        printWindow.document.close()
+        printWindow.focus()
+        
+        setTimeout(() => {
+          printWindow.print()
+          setTimeout(() => {
+            printWindow.close()
+          }, 1000)
+        }, 750)
+      } else {
+        alert('Please allow popups for printing')
       }
-      
-      // Grand Total - Centered, Bold and Large
-      escposContent += '\x1B\x61\x01' // Center align
-      escposContent += '================================\n'
-      escposContent += '\x1B\x21\x08' // Bold
-      escposContent += 'GRAND TOTAL\n'
-      escposContent += `Rs${calculateFinalAmount(selectedOrderForBilling.total_amount).toFixed(2)}\n`
-      escposContent += '\x1B\x21\x00' // Normal
-      escposContent += '================================\n'
-      escposContent += 'Thank You for Dining!\n'
-      escposContent += 'Visit Us Again\n'
-      escposContent += '================================\n'
-      escposContent += 'Developed by onethynk techmedia\n'
-      escposContent += '================================\n\n'
-      
-      // Cut paper
-      escposContent += '\x1D\x56\x00' // Partial cut
-      
-      console.log('ESC/POS content generated')
-      
-      // Use WebUSB for direct printing (no Chrome dialog)
-      const printer = new WebUSBPrinter()
-      await printer.connect()
-      await printer.print(escposContent)
-      await printer.disconnect()
-      
-      console.log('Bill printed successfully via WebUSB')
-      
-    } catch (error: any) {
+    } catch (error) {
       console.error('Printing failed:', error)
-      // Silently log error without alert
+      alert('Printing failed: ' + (error as Error).message)
     }
   }
 

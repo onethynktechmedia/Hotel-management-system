@@ -9,14 +9,14 @@ import { playClickSound, playSuccessSound, playErrorSound, playPrintSound } from
 
 type Step = 'tables' | 'order-options' | 'dishes' | 'cart' | 'success' | 'master' | 'alter-table' | 'master-station-detail' | 'repeat-order' | 'bill-preview' | 'previous-orders'
 
-// Utility function to format order ID as GGR-XXX
+// Utility function to format order ID as DPK-XXX
 const formatOrderId = (orderId: string) => {
   // Extract a number from the UUID and format it
   const hash = orderId.split('').reduce((acc, char) => {
     return acc + char.charCodeAt(0)
   }, 0)
   const orderNumber = (hash % 999) + 1 // Ensure it's between 1-999
-  return `GGR-${String(orderNumber).padStart(3, '0')}`
+  return `DPK-${String(orderNumber).padStart(3, '0')}`
 }
 
 export default function WaiterPage() {

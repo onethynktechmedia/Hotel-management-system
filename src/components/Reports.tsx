@@ -129,18 +129,27 @@ export default function Reports({ orders, payments, dishes }: ReportsProps) {
       { name: 'Pending', value: filteredOrders.filter(o => o.status === 'pending').length, color: '#F5F5DC' },
     ]
 
-    // Hourly sales data - use order data for better accuracy
-    const hourlySales = Array.from({ length: 24 }, (_, i) => ({
-      hour: `${i}:00`,
-      sales: 0,
-      orders: 0
-    }))
+    // Hourly sales data - use order data for better accuracy with 12-hour format
+    const hourlySales = Array.from({ length: 12 }, (_, i) => {
+      const hour = i + 1 // 1-12
+      const period = i < 11 ? 'AM' : 'PM'
+      return {
+        hour: `${hour}:00 ${period}`,
+        sales: 0,
+        orders: 0
+      }
+    })
 
     filteredOrders.forEach(order => {
       if (order.status === 'paid' || order.status === 'completed') {
-        const hour = new Date(order.created_at).getHours()
-        hourlySales[hour].sales += order.total_amount || 0
-        hourlySales[hour].orders += 1
+        const date = new Date(order.created_at)
+        const hour24 = date.getHours()
+        // Convert to 12-hour format
+        const hour12 = hour24 % 12 || 12
+        const period = hour24 < 12 ? 'AM' : 'PM'
+        const hourIndex = hour24 === 0 ? 11 : (hour24 > 12 ? hour24 - 13 : hour24 - 1)
+        hourlySales[hourIndex].sales += order.total_amount || 0
+        hourlySales[hourIndex].orders += 1
       }
     })
 

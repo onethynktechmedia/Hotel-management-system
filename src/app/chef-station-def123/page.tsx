@@ -278,7 +278,7 @@ export default function KitchenPage() {
       case 'ready':
         return 'bg-[#F5F5DC] text-[#5D3A1A] border-[#8B4513]'
       case 'served':
-        return 'bg-[#5D3A1A] text-white border-[#8B4513]'
+        return 'bg-white text-black border-black'
       default:
         return 'bg-gray-100 text-gray-800 border-gray-300'
     }

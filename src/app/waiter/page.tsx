@@ -9,14 +9,14 @@ import { playClickSound, playSuccessSound, playErrorSound, playPrintSound } from
 
 type Step = 'tables' | 'order-options' | 'dishes' | 'cart' | 'success' | 'master' | 'alter-table' | 'master-station-detail' | 'repeat-order' | 'bill-preview' | 'previous-orders'
 
-// Utility function to format order ID as GGR-XXX
+// Utility function to format order ID as DPK-XXX
 const formatOrderId = (orderId: string) => {
   // Extract a number from the UUID and format it
   const hash = orderId.split('').reduce((acc, char) => {
     return acc + char.charCodeAt(0)
   }, 0)
   const orderNumber = (hash % 999) + 1 // Ensure it's between 1-999
-  return `GGR-${String(orderNumber).padStart(3, '0')}`
+  return `DPK-${String(orderNumber).padStart(3, '0')}`
 }
 
 export default function WaiterPage() {
@@ -881,11 +881,31 @@ export default function WaiterPage() {
 
   const handleViewBill = async (order: Order) => {
     try {
-      const response = await fetch(`/api/orders/${order.id}/items`)
-      if (!response.ok) throw new Error('Failed to fetch order items')
-      const items = await response.json()
-      setBillOrderItems(items)
-      setViewingBill(order)
+      // Fetch all orders for the same table that are not paid/completed (including extra orders)
+      const allTableOrders = orders.filter(o => 
+        o.table_id === order.table_id && 
+        !['paid', 'completed'].includes(o.status)
+      )
+      
+      // Fetch items for all orders
+      const allItems = await Promise.all(
+        allTableOrders.map(async (o) => {
+          const response = await fetch(`/api/orders/${o.id}/items`)
+          if (!response.ok) throw new Error('Failed to fetch order items')
+          const items = await response.json()
+          return items.map((item: any) => ({ ...item, order_id: o.id, order_type: o.order_type }))
+        })
+      )
+      
+      // Flatten all items
+      const mergedItems = allItems.flat()
+      
+      // Calculate total amount from all orders
+      const totalAmount = allTableOrders.reduce((sum, o) => sum + o.total_amount, 0)
+      
+      // Set merged items and viewing bill with updated total
+      setBillOrderItems(mergedItems)
+      setViewingBill({ ...order, total_amount: totalAmount })
       setCurrentStep('bill-preview')
     } catch (error) {
       console.error('Error fetching bill:', error)
@@ -973,8 +993,8 @@ BILL / INVOICE<br>
 ================================<br>
 <br>
 Bill No: ${formatOrderId(viewingBill.id)}<br>
-Date: ${new Date(viewingBill.created_at).toLocaleDateString()}<br>
-Time: ${new Date(viewingBill.created_at).toLocaleTimeString()}<br>
+Date: ${new Date().toLocaleDateString()}<br>
+Time: ${new Date().toLocaleTimeString()}<br>
 Table: ${viewingBill.tables?.table_number}<br>
 Waiter: ${viewingBill.users?.name}<br>
 Customer: ${viewingBill.customer_name || 'Guest'}<br>
