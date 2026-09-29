@@ -1012,7 +1012,7 @@ export default function WaiterPage() {
       // 58mm paper width = approximately 32-35 characters per line
       const plainText = `
 <div style="text-align: center; margin-bottom: 8px;">
-  <div style="font-size: 18px; font-weight: bold; color: #8B4513;">GALAXY GARDEN</div>
+  <div style="font-size: 18px; font-weight: bold; color: #8B4513;">Dhole Patil Khanawal</div>
   <div style="font-size: 12px; color: #5D3A1A;">Restaurant & Bar</div>
 </div>
 <div style="border-top: 1px dashed #8B4513; margin: 4px 0;"></div>
