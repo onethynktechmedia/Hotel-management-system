@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { User, Order, Dish, Table, Payment, Notification } from '@/types'
-import { Plus, Edit, Trash2, DollarSign, Users, Utensils, User as UserIcon, Search, Filter, HelpCircle, Bell, LogOut, Download, Printer } from 'lucide-react'
+import { Plus, Edit, Trash2, DollarSign, Users, Utensils, User as UserIcon, Search, Filter, HelpCircle, Bell, LogOut, Download, Printer, Layers } from 'lucide-react'
 import Sidebar from '@/components/Sidebar'
 import WaiterStatus from '@/components/WaiterStatus'
 import Reports from '@/components/Reports'
@@ -55,6 +55,8 @@ export default function AdminDashboard() {
   const [selectedTableForPrebook, setSelectedTableForPrebook] = useState<Table | null>(null)
   const [prebookTime, setPrebookTime] = useState('')
   const [prebookCustomer, setPrebookCustomer] = useState('')
+  const [showMasterTableModal, setShowMasterTableModal] = useState(false)
+  const [selectedTablesForMaster, setSelectedTablesForMaster] = useState<string[]>([])
   const [dishForm, setDishForm] = useState({
     name: '',
     description: '',
@@ -406,6 +408,10 @@ export default function AdminDashboard() {
         price: parseFloat(dishForm.price)
       }
 
+      console.log('=== Saving dish ===')
+      console.log('Editing dish:', editingDish?.id)
+      console.log('Payload:', payload)
+
       const response = await fetch('/api/dishes', {
         method: editingDish ? 'PATCH' : 'POST',
         headers: {
@@ -414,7 +420,16 @@ export default function AdminDashboard() {
         body: JSON.stringify(editingDish ? { ...payload, id: editingDish.id } : payload)
       })
 
-      if (!response.ok) throw new Error('Failed to save dish')
+      console.log('Response status:', response.status)
+
+      if (!response.ok) {
+        const errorText = await response.text()
+        console.error('Server error:', errorText)
+        throw new Error(`Failed to save dish: ${errorText}`)
+      }
+
+      const result = await response.json()
+      console.log('Save result:', result)
 
       setShowDishModal(false)
       fetchData()
@@ -564,7 +579,7 @@ export default function AdminDashboard() {
       
       // Hotel Name - Large and Bold
       escposContent += '\x1B\x21\x30' // Double width and height
-      escposContent += 'GALAXY GARDEN\n'
+      escposContent += 'DHOLE PATIL KHANAWAL\n'
       escposContent += '\x1B\x21\x00' // Normal
       escposContent += 'Restaurant & Bar\n'
       escposContent += '================================\n'
@@ -574,7 +589,7 @@ export default function AdminDashboard() {
       escposContent += `Bill No: ${formatOrderId(viewingBill.id)}\n`
       escposContent += `Date: ${new Date(viewingBill.created_at).toLocaleDateString()}\n`
       escposContent += `Time: ${new Date(viewingBill.created_at).toLocaleTimeString()}\n`
-      escposContent += `Table: ${viewingBill.tables?.table_number || 'N/A'}\n`
+      escposContent += `Table: ${viewingBill.tables?.is_master ? `${viewingBill.tables?.table_number || 'N/A'} (M)` : (viewingBill.tables?.table_number || 'N/A')}\n`
       escposContent += `Waiter: ${viewingBill.users?.name || 'N/A'}\n`
       escposContent += '--------------------------\n'
       
@@ -661,7 +676,7 @@ export default function AdminDashboard() {
       
       // Hotel Name - Large and Bold
       escposContent += '\x1B\x21\x30' // Double width and height
-      escposContent += 'GALAXY GARDEN\n'
+      escposContent += 'DHOLE PATIL KHANAWAL\n'
       escposContent += '\x1B\x21\x00' // Normal
       escposContent += 'Restaurant & Bar\n'
       escposContent += '================================\n'
@@ -681,7 +696,7 @@ export default function AdminDashboard() {
       escposContent += `Bill No: ${formatOrderId(selectedOrderForBilling.id)}\n`
       escposContent += `Date: ${new Date(selectedOrderForBilling.created_at).toLocaleDateString()}\n`
       escposContent += `Time: ${new Date(selectedOrderForBilling.created_at).toLocaleTimeString()}\n`
-      escposContent += `Table: ${selectedOrderForBilling.tables?.table_number}\n`
+      escposContent += `Table: ${selectedOrderForBilling.tables?.is_master ? `${selectedOrderForBilling.tables?.table_number} (M)` : selectedOrderForBilling.tables?.table_number}\n`
       escposContent += `Waiter: ${selectedOrderForBilling.users?.name}\n`
       escposContent += `Customer: ${selectedOrderForBilling.customer_name || 'Guest'}\n`
       escposContent += '--------------------------\n'
@@ -906,6 +921,63 @@ For technical support, contact: support@everycom.com
     } catch (error) {
       console.error('Error saving table:', error)
       alert('Failed to save table')
+    }
+  }
+
+  const handleCreateMasterTable = async () => {
+    if (selectedTablesForMaster.length < 2) {
+      alert('Please select at least 2 tables to create a master table')
+      return
+    }
+
+    try {
+      // Use the first selected table as the master
+      const masterTableId = selectedTablesForMaster[0]
+      const masterTable = tables.find(t => t.id === masterTableId)
+
+      if (!masterTable) {
+        alert('Error: Master table not found')
+        return
+      }
+
+      // Calculate total capacity
+      const totalCapacity = selectedTablesForMaster.reduce((sum, id) => {
+        const table = tables.find(t => t.id === id)
+        return sum + (table?.capacity || 0)
+      }, 0)
+
+      // Update the first table to become master
+      await fetch('/api/tables', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: masterTableId,
+          is_master: true,
+          capacity: totalCapacity
+        })
+      })
+
+      // Update all other selected tables to reference the master table
+      for (let i = 1; i < selectedTablesForMaster.length; i++) {
+        const tableId = selectedTablesForMaster[i]
+        await fetch('/api/tables', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            id: tableId,
+            master_table_id: masterTableId,
+            is_occupied: false
+          })
+        })
+      }
+
+      setShowMasterTableModal(false)
+      setSelectedTablesForMaster([])
+      fetchData()
+      alert(`Table ${masterTable.table_number} is now the master table with ${selectedTablesForMaster.length} tables combined`)
+    } catch (error) {
+      console.error('Error creating master table:', error)
+      alert('Failed to create master table')
     }
   }
 
@@ -1153,7 +1225,7 @@ For technical support, contact: support@everycom.com
   const printOfflineBill = async (order: any) => {
     try {
       const plainText = `
-<div class="header">GALAXY GARDEN</div>
+<div class="header">DHOLE PATIL KHANAWAL</div>
 <div class="subheader">Restaurant & Bar</div>
 <div class="divider">================================</div>
 <div class="address">123, Main Street</div>
@@ -1437,30 +1509,31 @@ ${order.order_items?.map((item: any) => {
     }
     
     const tableNumber = tables.find(t => t.id === selectedTable)?.table_number || 'N/A'
+    const isMasterTable = tables.find(t => t.id === selectedTable)?.is_master || false
     const waiterName = user?.name || 'N/A'
     
     console.log('Table number:', tableNumber)
     console.log('Waiter name:', waiterName)
     
     const plainText = `
-<strong class="header">GALAXY GARDEN</strong><br>
-Restaurant & Bar<br>
+<strong class="header">DHOLE PATIL KHANAWAL</strong><br>
+<strong>Restaurant & Bar</strong><br>
 ================================<br>
-123, Main Street<br>
-City, State - 123456<br>
-Phone: +91 98765 43210<br>
+<strong>123, Main Street</strong><br>
+<strong>City, State - 123456</strong><br>
+<strong>Phone: +91 98765 43210</strong><br>
 ================================<br>
-BILL / INVOICE<br>
+<strong class="section-title">BILL / INVOICE</strong><br>
 ================================<br>
 <br>
-Bill No: OFF-${Date.now()}<br>
-Date: ${new Date().toLocaleDateString()}<br>
-Time: ${new Date().toLocaleTimeString()}<br>
-Table: ${tableNumber}<br>
-Waiter: ${waiterName}<br>
-Customer: ${customerName || 'Guest'}<br>
+<strong>Bill No: OFF-${Date.now()}</strong><br>
+<strong>Date: ${new Date().toLocaleDateString()}</strong><br>
+<strong>Time: ${new Date().toLocaleTimeString()}</strong><br>
+<strong>Table: ${tableNumber}${isMasterTable ? ' (M)' : ''}</strong><br>
+<strong>Waiter: ${waiterName}</strong><br>
+<strong>Customer: ${customerName || 'Guest'}</strong><br>
 --------------------------<br>
-ITEM             QTY  AMOUNT<br>
+<strong class="section-title">ITEM             QTY  AMOUNT</strong><br>
 --------------------------<br>
 ${offlineCart.map((item) => {
   const name = item.name
@@ -1468,10 +1541,10 @@ ${offlineCart.map((item) => {
   const price = item.price
   const total = (price * qty).toFixed(2)
   const itemName = name.length > 16 ? name.substring(0, 15) + '.' : name
-  return `${itemName.padEnd(16)} ${qty.toString().padStart(2)}  ${total.padStart(8)}<br>`
+  return `<strong>${itemName.padEnd(16)} ${qty.toString().padStart(2)}  ${total.padStart(8)}</strong><br>`
 }).join('')}
 --------------------------<br>
-Subtotal:      Rs${getCartTotal().toFixed(2).padStart(8)}<br>
+<strong>Subtotal:      Rs${getCartTotal().toFixed(2).padStart(8)}</strong><br>
 ${(() => {
   const subtotal = getCartTotal()
   let discount = 0
@@ -1480,16 +1553,16 @@ ${(() => {
   } else if (billDiscountType === 'percentage' && billDiscountPercentage) {
     discount = (parseFloat(billDiscountPercentage) / 100) * subtotal
   }
-  return discount > 0 ? `Discount:      Rs${discount.toFixed(2).padStart(8)}<br>` : ''
-})()}CGST (${cgstRate}%):   Rs${calculateTaxes().cgst.toFixed(2).padStart(8)}<br>
-SGST (${sgstRate}%):   Rs${calculateTaxes().sgst.toFixed(2).padStart(8)}<br>
+  return discount > 0 ? `<strong>Discount:      Rs${discount.toFixed(2).padStart(8)}</strong><br>` : ''
+})()}<strong>CGST (${cgstRate}%):   Rs${calculateTaxes().cgst.toFixed(2).padStart(8)}</strong><br>
+<strong>SGST (${sgstRate}%):   Rs${calculateTaxes().sgst.toFixed(2).padStart(8)}</strong><br>
 ================================<br>
 <strong class="grand-total"> GRAND TOTAL: Rs${calculateBillTotal().toFixed(2)} </strong><br>
 ================================<br>
-Thank You for Dining!<br>
-Visit Us Again<br>
+<strong>Thank You for Dining!</strong><br>
+<strong>Visit Us Again</strong><br>
 ================================<br>
-<span class="developer">Developed by onethynk techmedia</span><br>
+<strong class="developer">Developed by onethynk techmedia</strong><br>
 ================================
 `
 
@@ -1672,8 +1745,8 @@ Visit Us Again<br>
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-green-50 to-emerald-50 flex items-center justify-center">
-        <div className="text-2xl font-bold bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">
+      <div className="min-h-screen bg-[#F5F5DC] flex items-center justify-center">
+        <div className="text-2xl font-bold text-[#5D3A1A]">
           Loading...
         </div>
       </div>
@@ -1681,7 +1754,7 @@ Visit Us Again<br>
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-green-50 to-emerald-50 flex">
+    <div className="min-h-screen bg-[#F5F5DC] flex">
       <Sidebar 
         activeTab={activeTab} 
         setActiveTab={setActiveTab} 
@@ -1693,7 +1766,7 @@ Visit Us Again<br>
         <header className="fixed top-0 right-0 left-0 lg:left-72 bg-white/95 backdrop-blur-sm shadow-md z-30 px-4 lg:px-8 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
-              <div className="w-10 h-10 bg-gradient-to-r from-green-600 to-emerald-600 rounded-xl flex items-center justify-center">
+              <div className="w-10 h-10 bg-[#5D3A1A] rounded-xl flex items-center justify-center">
                 <span className="text-white font-bold text-lg">H</span>
               </div>
               <div>
@@ -1706,7 +1779,7 @@ Visit Us Again<br>
               {/* Support Button */}
               <button
                 onClick={() => alert('Support: Contact admin@hotel.com for assistance')}
-                className="p-2 rounded-xl bg-gradient-to-r from-green-100 to-emerald-100 text-green-600 hover:bg-gradient-to-r hover:from-green-200 hover:to-emerald-200 transition-all duration-300"
+                className="p-2 rounded-xl bg-[#F5F5DC] text-[#5D3A1A] hover:bg-[#DEB887] transition-all duration-300"
                 title="Support"
               >
                 <HelpCircle className="w-5 h-5" />
@@ -1716,7 +1789,7 @@ Visit Us Again<br>
               <div className="relative">
                 <button
                   onClick={() => setShowNotifications(!showNotifications)}
-                  className="p-2 rounded-xl bg-gradient-to-r from-green-100 to-emerald-100 text-green-600 hover:bg-gradient-to-r hover:from-green-200 hover:to-emerald-200 transition-all duration-300 relative"
+                  className="p-2 rounded-xl bg-[#F5F5DC] text-[#5D3A1A] hover:bg-[#DEB887] transition-all duration-300 relative"
                   title="Notifications"
                 >
                   <Bell className="w-5 h-5" />
@@ -1743,7 +1816,7 @@ Visit Us Again<br>
                           })
                           setNotifications(notifications.map(n => ({ ...n, is_read: true })))
                         }}
-                        className="text-xs text-green-600 hover:text-green-800 font-semibold"
+                        className="text-xs text-[#5D3A1A] hover:text-green-800 font-semibold"
                       >
                         Mark all read
                       </button>
@@ -1757,7 +1830,7 @@ Visit Us Again<br>
                         {notifications.map((notification) => (
                           <div
                             key={notification.id}
-                            className={`px-4 py-3 hover:bg-green-50 transition-colors cursor-pointer ${!notification.is_read ? 'bg-green-50' : ''}`}
+                            className={`px-4 py-3 hover:bg-amber-50 transition-colors cursor-pointer ${!notification.is_read ? 'bg-amber-50' : ''}`}
                             onClick={() => {
                               fetch(`/api/notifications/${notification.id}`, {
                                 method: 'PATCH',
@@ -1788,9 +1861,9 @@ Visit Us Again<br>
               <div className="relative">
                 <button
                   onClick={() => setShowProfileMenu(!showProfileMenu)}
-                  className="flex items-center gap-2 p-2 rounded-xl bg-gradient-to-r from-green-100 to-emerald-100 hover:bg-gradient-to-r hover:from-green-200 hover:to-emerald-200 transition-all duration-300"
+                  className="flex items-center gap-2 p-2 rounded-xl bg-[#F5F5DC] hover:bg-[#DEB887] transition-all duration-300"
                 >
-                  <div className="w-8 h-8 bg-gradient-to-r from-green-600 to-emerald-600 rounded-full flex items-center justify-center text-white font-bold text-sm">
+                  <div className="w-8 h-8 bg-[#5D3A1A] rounded-full flex items-center justify-center text-white font-bold text-sm">
                     {user?.name?.charAt(0).toUpperCase() || 'A'}
                   </div>
                   <span className="hidden md:block text-sm font-semibold text-gray-900">{user?.name || 'Admin'}</span>
@@ -1805,7 +1878,7 @@ Visit Us Again<br>
                     </div>
                     <button
                       onClick={handleLogout}
-                      className="w-full flex items-center gap-2 px-4 py-2 text-left text-red-600 hover:bg-red-50 transition-colors"
+                      className="w-full flex items-center gap-2 px-4 py-2 text-left text-red-600 hover:text-red-800 font-semibold"
                     >
                       <LogOut className="w-4 h-4" />
                       Logout
@@ -1822,7 +1895,7 @@ Visit Us Again<br>
         {activeTab === 'overview' && (
           <>
             <div className="mb-6 animate-fade-in">
-              <h1 className="text-3xl font-bold bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">
+              <h1 className="text-3xl font-bold text-[#5D3A1A]">
                 Welcome, {user?.name || 'Admin'}!
               </h1>
               <p className="text-gray-600 mt-2 text-sm">
@@ -1834,7 +1907,7 @@ Visit Us Again<br>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
               <div className="bg-white border border-gray-200 rounded-2xl p-4 sm:p-6 text-center shadow-md hover:shadow-lg transition-all duration-300">
                 <div className="flex items-center justify-center mb-3">
-                  <Users className="w-6 h-6 sm:w-7 sm:h-7 text-green-600 mr-2" />
+                  <Users className="w-6 h-6 sm:w-7 sm:h-7 text-[#5D3A1A] mr-2" />
                   <span className="text-2xl sm:text-3xl font-bold text-gray-800">{orders.length}</span>
                 </div>
                 <p className="text-xs sm:text-sm font-bold text-gray-600">Total Orders</p>
@@ -1848,7 +1921,7 @@ Visit Us Again<br>
               </div>
               <div className="bg-white border border-gray-200 rounded-2xl p-4 sm:p-6 text-center shadow-md hover:shadow-lg transition-all duration-300">
                 <div className="flex items-center justify-center mb-3">
-                  <span className="text-green-600 font-bold text-xl sm:text-2xl mr-2">₹</span>
+                  <span className="text-[#5D3A1A] font-bold text-xl sm:text-2xl mr-2">₹</span>
                   <span className="text-2xl sm:text-3xl font-bold text-gray-800">{orders.reduce((sum, o) => sum + (o.total_amount || 0), 0).toFixed(0)}</span>
                 </div>
                 <p className="text-xs sm:text-sm font-bold text-gray-600">Total Revenue</p>
@@ -1863,13 +1936,13 @@ Visit Us Again<br>
             </div>
             {/* Revenue Insights - Recent Orders */}
             <div className="bg-white/95 backdrop-blur-sm rounded-2xl shadow-xl overflow-hidden animate-fade-in">
-              <div className="p-6 border-b border-gray-200 bg-gradient-to-r from-green-50 to-emerald-50">
+              <div className="p-6 border-b border-gray-200 bg-[#F5F5DC]">
                 <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-4">
                   <h3 className="text-xl font-bold text-gray-900">Recent Orders</h3>
                   <div className="flex flex-wrap gap-2">
                     <button
                       onClick={fetchData}
-                      className="flex items-center gap-2 bg-gradient-to-r from-green-600 to-emerald-600 text-white px-4 py-2 rounded-xl font-semibold hover:shadow-lg transition-all duration-300 transform hover:scale-105"
+                      className="flex items-center gap-2 bg-[#5D3A1A] text-white px-4 py-2 rounded-xl font-semibold hover:shadow-lg transition-all duration-300 transform hover:scale-105"
                     >
                       <Search className="w-4 h-4" />
                       Refresh
@@ -1903,7 +1976,7 @@ Visit Us Again<br>
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full">
-                  <thead className="bg-gradient-to-r from-green-100 to-emerald-100">
+                  <thead className="bg-[#F5F5DC]">
                     <tr>
                       <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Table No</th>
                       <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Order ID</th>
@@ -1934,7 +2007,7 @@ Visit Us Again<br>
                       .map((order) => (
                         <React.Fragment key={order.id}>
                           <tr 
-                            className="hover:bg-green-50 transition-colors cursor-pointer md:cursor-default"
+                            className="hover:bg-amber-50 transition-colors cursor-pointer md:cursor-default"
                             onClick={() => {
                               if (window.innerWidth < 768) {
                                 setExpandedOrderId(expandedOrderId === order.id ? null : order.id)
@@ -1942,7 +2015,7 @@ Visit Us Again<br>
                             }}
                           >
                           <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">
-                            Table {order.tables?.table_number || '-'}
+                            {order.tables?.is_master ? `Table ${order.tables?.table_number || '-'} (M)` : `Table ${order.tables?.table_number || '-'}`}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">{formatOrderId(order.id)}</td>
                           <td className="hidden md:table-cell px-6 py-4 whitespace-nowrap text-sm text-gray-900">
@@ -1971,7 +2044,7 @@ Visit Us Again<br>
                                 e.stopPropagation()
                                 handleGenerateBill(order)
                               }}
-                              className="bg-gradient-to-r from-green-600 to-emerald-600 text-white px-3 py-1 rounded-lg text-xs font-semibold hover:shadow-lg transition-all duration-300"
+                              className="bg-[#5D3A1A] text-white px-3 py-1 rounded-lg text-xs font-semibold hover:shadow-lg transition-all duration-300"
                             >
                               Print Bill
                             </button>
@@ -1979,7 +2052,7 @@ Visit Us Again<br>
                         </tr>
                         {/* Mobile expanded details */}
                         {expandedOrderId === order.id && (
-                          <tr key={`expanded-${order.id}`} className="md:hidden bg-green-50">
+                          <tr key={`expanded-${order.id}`} className="md:hidden bg-amber-50">
                             <td colSpan={3} className="px-6 py-4">
                               <div className="space-y-2 text-sm">
                                 <div className="flex justify-between">
@@ -2031,18 +2104,18 @@ Visit Us Again<br>
           <>
             <h2 className="text-2xl font-bold text-gray-900 mb-6">Orders Management</h2>
             <div className="bg-white/95 backdrop-blur-sm rounded-2xl shadow-xl overflow-hidden animate-fade-in">
-              <div className="p-6 border-b border-gray-200 bg-gradient-to-r from-green-50 to-emerald-50 flex justify-between items-center">
+              <div className="p-6 border-b border-gray-200 bg-[#F5F5DC] flex justify-between items-center">
                 <h3 className="text-xl font-bold text-gray-900">All Orders</h3>
               <button
                 onClick={fetchData}
-                className="flex items-center bg-gradient-to-r from-green-600 to-emerald-600 text-white px-4 py-2 rounded-xl font-semibold hover:shadow-lg transition-all duration-300 transform hover:scale-105"
+                className="flex items-center bg-[#5D3A1A] text-white px-4 py-2 rounded-xl font-semibold hover:shadow-lg transition-all duration-300 transform hover:scale-105"
               >
                 🔄 Refresh
               </button>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full">
-                <thead className="bg-gradient-to-r from-green-100 to-emerald-100">
+                <thead className="bg-[#F5F5DC]">
                   <tr>
                     <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Table No</th>
                     <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Order ID</th>
@@ -2060,7 +2133,7 @@ Visit Us Again<br>
                     <>
                       <tr 
                         key={`${order.id}-${index}`} 
-                        className="hover:bg-green-50 transition-colors cursor-pointer md:cursor-default"
+                        className="hover:bg-amber-50 transition-colors cursor-pointer md:cursor-default"
                         onClick={() => {
                           if (window.innerWidth < 768) {
                             setExpandedOrderId(expandedOrderId === order.id ? null : order.id)
@@ -2068,7 +2141,7 @@ Visit Us Again<br>
                         }}
                       >
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">
-                          Table {order.tables?.table_number || '-'}
+                          {order.tables?.is_master ? `Table ${order.tables?.table_number || '-'} (M)` : `Table ${order.tables?.table_number || '-'}`}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">{formatOrderId(order.id)}</td>
                         <td className="hidden md:table-cell px-6 py-4 whitespace-nowrap text-sm text-gray-900">
@@ -2097,7 +2170,7 @@ Visit Us Again<br>
                               e.stopPropagation()
                               handleGenerateBill(order)
                             }}
-                            className="bg-gradient-to-r from-green-600 to-emerald-600 text-white px-3 py-1 rounded-lg text-xs font-semibold hover:shadow-lg transition-all duration-300"
+                            className="bg-[#5D3A1A] text-white px-3 py-1 rounded-lg text-xs font-semibold hover:shadow-lg transition-all duration-300"
                           >
                             Print Bill
                           </button>
@@ -2105,7 +2178,7 @@ Visit Us Again<br>
                       </tr>
                       {/* Mobile expanded details */}
                       {expandedOrderId === order.id && (
-                        <tr className="md:hidden bg-green-50">
+                        <tr className="md:hidden bg-amber-50">
                           <td colSpan={3} className="px-6 py-4">
                             <div className="space-y-2 text-sm">
                               <div className="flex justify-between">
@@ -2157,11 +2230,11 @@ Visit Us Again<br>
           <>
             <h2 className="text-2xl font-bold text-gray-900 mb-6">Menu Management</h2>
             <div className="bg-white/95 backdrop-blur-sm rounded-2xl shadow-xl overflow-hidden animate-fade-in">
-              <div className="p-6 border-b border-gray-200 bg-gradient-to-r from-green-50 to-emerald-50 flex justify-between items-center">
+              <div className="p-6 border-b border-gray-200 bg-[#F5F5DC] flex justify-between items-center">
                 <h3 className="text-xl font-bold text-gray-900">Dishes</h3>
               <button
                 onClick={handleAddDish}
-                className="flex items-center bg-gradient-to-r from-green-600 to-emerald-600 text-white px-4 py-2 rounded-xl font-semibold hover:shadow-lg transition-all duration-300 transform hover:scale-105"
+                className="flex items-center bg-[#5D3A1A] text-white px-4 py-2 rounded-xl font-semibold hover:shadow-lg transition-all duration-300 transform hover:scale-105"
               >
                 <Plus className="w-4 h-4 mr-2" />
                 Add Dish
@@ -2169,7 +2242,7 @@ Visit Us Again<br>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full">
-                <thead className="bg-gradient-to-r from-green-100 to-emerald-100">
+                <thead className="bg-[#F5F5DC]">
                   <tr>
                     <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Name</th>
                     <th className="hidden md:table-cell px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Description</th>
@@ -2181,10 +2254,9 @@ Visit Us Again<br>
                 </thead>
                 <tbody className="divide-y divide-gray-200">
                   {dishes.map((dish) => (
-                    <>
+                    <React.Fragment key={dish.id}>
                       <tr 
-                        key={dish.id} 
-                        className="hover:bg-green-50 transition-colors cursor-pointer md:cursor-default"
+                        className="hover:bg-amber-50 transition-colors cursor-pointer md:cursor-default"
                         onClick={() => {
                           if (window.innerWidth < 768) {
                             setExpandedDishId(expandedDishId === dish.id ? null : dish.id)
@@ -2199,7 +2271,7 @@ Visit Us Again<br>
                           <span className={`px-3 py-1 rounded-full text-xs font-bold ${
                             dish.is_available ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
                           }`}>
-                            {dish.is_available ? '✓ Available' : '✗ Unavailable'}
+                            {dish.is_available ? 'Available' : 'Unavailable'}
                           </span>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm space-x-2">
@@ -2225,7 +2297,7 @@ Visit Us Again<br>
                       </tr>
                       {/* Mobile expanded details */}
                       {expandedDishId === dish.id && (
-                        <tr className="md:hidden bg-green-50">
+                        <tr className="md:hidden bg-amber-50">
                           <td colSpan={2} className="px-6 py-4">
                             <div className="space-y-2 text-sm">
                               <div className="flex justify-between">
@@ -2245,14 +2317,14 @@ Visit Us Again<br>
                                 <span className={`px-3 py-1 rounded-full text-xs font-bold ${
                                   dish.is_available ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
                                 }`}>
-                                  {dish.is_available ? '✓ Available' : '✗ Unavailable'}
+                                  {dish.is_available ? 'Available' : 'Unavailable'}
                                 </span>
                               </div>
                             </div>
                           </td>
                         </tr>
                       )}
-                    </>
+                    </React.Fragment>
                   ))}
                 </tbody>
               </table>
@@ -2265,19 +2337,28 @@ Visit Us Again<br>
           <>
             <h2 className="text-2xl font-bold text-gray-900 mb-6">Table Management</h2>
             <div className="bg-white/95 backdrop-blur-sm rounded-2xl shadow-xl overflow-hidden animate-fade-in">
-              <div className="p-6 border-b border-gray-200 bg-gradient-to-r from-green-50 to-emerald-50 flex justify-between items-center">
+              <div className="p-6 border-b border-gray-200 bg-[#F5F5DC] flex justify-between items-center">
                 <h3 className="text-xl font-bold text-gray-900">Tables</h3>
-                <button
-                  onClick={handleAddTable}
-                  className="flex items-center bg-gradient-to-r from-green-600 to-emerald-600 text-white px-4 py-2 rounded-xl font-semibold hover:shadow-lg transition-all duration-300 transform hover:scale-105"
-                >
-                  <Plus className="w-4 h-4 mr-2" />
-                  Add Table
-                </button>
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setShowMasterTableModal(true)}
+                    className="flex items-center bg-[#8B4513] text-white px-4 py-2 rounded-xl font-semibold hover:shadow-lg transition-all duration-300 transform hover:scale-105"
+                  >
+                    <Layers className="w-4 h-4 mr-2" />
+                    Create Master Table
+                  </button>
+                  <button
+                    onClick={handleAddTable}
+                    className="flex items-center bg-[#5D3A1A] text-white px-4 py-2 rounded-xl font-semibold hover:shadow-lg transition-all duration-300 transform hover:scale-105"
+                  >
+                    <Plus className="w-4 h-4 mr-2" />
+                    Add Table
+                  </button>
+                </div>
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full">
-                  <thead className="bg-gradient-to-r from-green-100 to-emerald-100">
+                  <thead className="bg-[#F5F5DC]">
                     <tr>
                       <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Table Number</th>
                       <th className="hidden md:table-cell px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Capacity</th>
@@ -2289,30 +2370,29 @@ Visit Us Again<br>
                   </thead>
                   <tbody className="divide-y divide-gray-200">
                     {tables.map((table) => (
-                      <>
+                      <React.Fragment key={table.id}>
                         <tr 
-                          key={table.id} 
-                          className="hover:bg-green-50 transition-colors cursor-pointer md:cursor-default"
+                          className="hover:bg-amber-50 transition-colors cursor-pointer md:cursor-default"
                           onClick={() => {
                             if (window.innerWidth < 768) {
                               setExpandedTableId(expandedTableId === table.id ? null : table.id)
                             }
                           }}
                         >
-                          <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-900">Table {table.table_number}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-900">Table {table.table_number}{table.is_master ? ' (M)' : ''}</td>
                           <td className="hidden md:table-cell px-6 py-4 whitespace-nowrap text-sm text-gray-900">{table.capacity} seats</td>
                           <td className="hidden md:table-cell px-6 py-4 whitespace-nowrap">
                             <span className={`px-3 py-1 rounded-full text-xs font-bold ${
                               table.is_occupied ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'
                             }`}>
-                              {table.is_occupied ? '🔴 Occupied' : '🟢 Available'}
+                              {table.is_occupied ? 'Occupied' : 'Available'}
                             </span>
                           </td>
                           <td className="hidden md:table-cell px-6 py-4 whitespace-nowrap">
                             <span className={`px-3 py-1 rounded-full text-xs font-bold ${
-                              table.is_master ? 'bg-purple-100 text-purple-800' : 'bg-gray-100 text-gray-800'
+                              table.is_master ? 'bg-purple-100 text-purple-800' : table.master_table_id ? 'bg-amber-100 text-amber-800' : 'bg-gray-100 text-gray-800'
                             }`}>
-                              {table.is_master ? '✓ Master' : 'Standard'}
+                              {table.is_master ? '✓ Master' : table.master_table_id ? 'Child Table' : 'Standard'}
                             </span>
                           </td>
                           <td className="hidden md:table-cell px-6 py-4 whitespace-nowrap">
@@ -2364,7 +2444,7 @@ Visit Us Again<br>
                                 e.stopPropagation()
                                 handleEditTable(table)
                               }}
-                              className="text-green-600 hover:text-green-800 transition-colors"
+                              className="text-[#5D3A1A] hover:text-green-800 transition-colors"
                               title="Edit"
                             >
                               <Edit className="w-4 h-4 inline" />
@@ -2375,7 +2455,7 @@ Visit Us Again<br>
                                   e.stopPropagation()
                                   handleReleaseTable(table.id)
                                 }}
-                                className="text-green-600 hover:text-green-800 transition-colors font-semibold"
+                                className="text-[#5D3A1A] hover:text-green-800 transition-colors font-semibold"
                                 title="Release Table"
                               >
                                 Release
@@ -2395,9 +2475,13 @@ Visit Us Again<br>
                         </tr>
                         {/* Mobile expanded details */}
                         {expandedTableId === table.id && (
-                          <tr className="md:hidden bg-green-50">
+                          <tr className="md:hidden bg-amber-50">
                             <td colSpan={2} className="px-6 py-4">
                               <div className="space-y-2 text-sm">
+                                <div className="flex justify-between">
+                                  <span className="text-gray-600">Table:</span>
+                                  <span className="font-semibold text-gray-900">Table {table.table_number}{table.is_master ? ' (M)' : ''}</span>
+                                </div>
                                 <div className="flex justify-between">
                                   <span className="text-gray-600">Capacity:</span>
                                   <span className="font-semibold text-gray-900">{table.capacity} seats</span>
@@ -2407,7 +2491,7 @@ Visit Us Again<br>
                                   <span className={`px-3 py-1 rounded-full text-xs font-bold ${
                                     table.is_occupied ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'
                                   }`}>
-                                    {table.is_occupied ? '🔴 Occupied' : '🟢 Available'}
+                                    {table.is_occupied ? 'Occupied' : 'Available'}
                                   </span>
                                 </div>
                                 <div className="flex justify-between items-center">
@@ -2422,7 +2506,7 @@ Visit Us Again<br>
                             </td>
                           </tr>
                         )}
-                      </>
+                      </React.Fragment>
                     ))}
                   </tbody>
                 </table>
@@ -2446,7 +2530,7 @@ Visit Us Again<br>
           <>
             <div className="mb-6 animate-fade-in">
               <div className="flex items-center justify-between mb-4">
-                <h1 className="text-3xl font-bold bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">
+                <h1 className="text-3xl font-bold text-[#5D3A1A]">
                   Offline Orders
                 </h1>
                 <div className="flex items-center gap-2">
@@ -2503,7 +2587,7 @@ Visit Us Again<br>
                         className={`flex items-center gap-4 border-2 rounded-xl p-3 cursor-pointer hover:shadow-lg hover:scale-[1.02] transition-all duration-300 ${
                           addedDishIds.has(dish.id) 
                             ? 'bg-green-100 border-green-500' 
-                            : 'bg-gradient-to-r from-green-50 to-emerald-50 border-green-200'
+                            : 'bg-[#F5F5DC] border-green-200'
                         }`}
                       >
                         {/* Show image only when online */}
@@ -2520,7 +2604,7 @@ Visit Us Again<br>
                         <div className="flex-1 min-w-0">
                           <h3 className="font-semibold text-gray-900 text-sm mb-1 truncate">{dish.name}</h3>
                           <p className="text-xs text-gray-600 mb-1 truncate">{dish.category}</p>
-                          <p className="text-lg font-bold text-green-600">₹{dish.price.toFixed(2)}</p>
+                          <p className="text-lg font-bold text-[#5D3A1A]">₹{dish.price.toFixed(2)}</p>
                         </div>
                         <button className="bg-green-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-green-700 transition-colors">
                           Add
@@ -2607,14 +2691,14 @@ Visit Us Again<br>
                           </p>
                         </div>
                         <div className="text-right">
-                          <p className="text-lg font-bold text-green-600">₹{order.total_amount.toFixed(2)}</p>
+                          <p className="text-lg font-bold text-[#5D3A1A]">₹{order.total_amount.toFixed(2)}</p>
                           <p className="text-xs text-gray-500">{order.order_items?.length} items</p>
                         </div>
                       </div>
                       <div className="flex gap-2">
                         <button
                           onClick={() => printOfflineBill(order)}
-                          className="flex-1 bg-gradient-to-r from-green-600 to-emerald-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:shadow-lg transition-all"
+                          className="flex-1 bg-[#5D3A1A] text-white px-4 py-2 rounded-lg text-sm font-semibold hover:shadow-lg transition-all"
                         >
                           Print Bill
                         </button>
@@ -2666,7 +2750,7 @@ Visit Us Again<br>
               <div className="mb-6 animate-fade-in-down" style={{ animationDelay: '0s' }}>
                 <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-gradient-to-r from-purple-100 to-indigo-100 border border-purple-300 rounded-full">
                   <div className="w-1.5 h-1.5 bg-purple-500 rounded-full animate-pulse" style={{ animationDuration: '2s' }}></div>
-                  <span className="text-purple-700 text-xs font-semibold tracking-wider uppercase">Coming Soon</span>
+                  <span className="text-purple-700 text-xs font-semibold tracking-wide uppercase">Coming Soon</span>
                 </div>
               </div>
 
@@ -2708,7 +2792,7 @@ Visit Us Again<br>
               </div>
 
               {/* Feature cards with premium design */}
-              <div className="max-w-2xl mx-auto space-y-3 w-full">
+              <div className="max-w-2xl mx-auto space-y-3">
                 <div className="group bg-white/80 backdrop-blur-xl border border-purple-200 rounded-2xl p-4 transform hover:scale-[1.02] hover:border-purple-400 transition-all duration-500 shadow-lg hover:shadow-xl animate-slide-in-left" style={{ animationDelay: '3.6s' }}>
                   <div className="flex items-center gap-3">
                     <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-indigo-500 rounded-2xl flex items-center justify-center shadow-md group-hover:shadow-lg transition-shadow duration-300">
@@ -2928,7 +3012,7 @@ Visit Us Again<br>
       {activeTab === 'offline-billing' && offlineCart.length > 0 && (
         <button
           onClick={() => setShowCartModal(true)}
-          className="fixed bottom-8 right-8 bg-green-600 hover:bg-green-800 text-white px-6 py-4 rounded-2xl shadow-2xl flex items-center gap-3 transition-all duration-300 z-40"
+          className="fixed bottom-8 right-8 bg-amber-600 hover:bg-amber-800 text-white px-6 py-4 rounded-2xl shadow-2xl flex items-center gap-3 transition-all duration-300 z-40"
         >
           <div className="relative">
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -2965,7 +3049,7 @@ Visit Us Again<br>
                   <div key={item.id} className={`flex items-center justify-between bg-gray-50 rounded-lg p-3 transition-all duration-300 ${cartAnimation ? 'animate-bounce' : ''}`}>
                     <div className="flex-1">
                       <p className="font-semibold text-gray-900 text-sm">{item.name}</p>
-                      <p className="text-sm text-green-600">₹{item.price.toFixed(2)}</p>
+                      <p className="text-sm text-[#5D3A1A]">₹{item.price.toFixed(2)}</p>
                     </div>
                     <div className="flex items-center gap-2">
                       <button
@@ -2977,7 +3061,7 @@ Visit Us Again<br>
                       <span className="w-8 text-center font-semibold">{item.quantity}</span>
                       <button
                         onClick={() => updateCartQuantity(item.id, item.quantity + 1)}
-                        className="w-8 h-8 rounded-full bg-green-100 text-green-600 hover:bg-green-200 transition-colors"
+                        className="w-8 h-8 rounded-full bg-green-100 text-[#5D3A1A] hover:bg-green-200 transition-colors"
                       >
                         +
                       </button>
@@ -3030,7 +3114,7 @@ Visit Us Again<br>
             <div className="border-t border-gray-200 pt-4">
               <div className="flex justify-between items-center mb-4">
                 <span className="text-lg font-semibold text-gray-900">Total:</span>
-                <span className="text-2xl font-bold text-green-600">₹{getCartTotal().toFixed(2)}</span>
+                <span className="text-2xl font-bold text-[#5D3A1A]">₹{getCartTotal().toFixed(2)}</span>
               </div>
               <button
                 onClick={() => {
@@ -3051,7 +3135,7 @@ Visit Us Again<br>
       {showBillPreview && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 animate-slide-in">
           <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
-            <h2 className="text-2xl font-bold mb-6 bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">
+            <h2 className="text-2xl font-bold mb-6 text-[#5D3A1A]">
               Bill Preview
             </h2>
             
@@ -3095,14 +3179,14 @@ Visit Us Again<br>
                       <p className="font-semibold text-gray-900">{item.name}</p>
                       <p className="text-sm text-gray-600">Qty: {item.quantity} × ₹{item.price.toFixed(2)}</p>
                     </div>
-                    <span className="font-bold text-green-600">₹{(item.price * item.quantity).toFixed(2)}</span>
+                    <span className="font-bold text-[#5D3A1A]">₹{(item.price * item.quantity).toFixed(2)}</span>
                   </div>
                 ))
               )}
             </div>
 
             {/* Discount Section */}
-            <div className="bg-green-50 rounded-xl p-4 mb-6">
+            <div className="bg-amber-50 rounded-xl p-4 mb-6">
               <h3 className="font-semibold text-gray-900 mb-3">Discount</h3>
               <div className="flex gap-2 mb-3">
                 <button
@@ -3175,26 +3259,26 @@ Visit Us Again<br>
             {/* Totals */}
             <div className="space-y-2 mb-6">
               <div className="flex justify-between items-center">
-                <span className="text-gray-600">Subtotal:</span>
-                <span className="font-semibold">₹{getCartTotal().toFixed(2)}</span>
+                <span className="text-lg font-semibold text-gray-900">Subtotal:</span>
+                <span className="font-bold text-[#5D3A1A]">₹{getCartTotal().toFixed(2)}</span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-gray-600">Discount:</span>
-                <span className="font-semibold text-red-600">
+                <span className="text-lg font-semibold text-gray-900">Discount:</span>
+                <span className="font-bold text-red-600">
                   -₹{(getCartTotal() - calculateTaxes().discountedAmount).toFixed(2)}
                 </span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-gray-600">CGST ({cgstRate}%):</span>
-                <span className="font-semibold">₹{calculateTaxes().cgst.toFixed(2)}</span>
+                <span className="text-lg font-semibold text-gray-900">CGST ({cgstRate}%):</span>
+                <span className="font-bold text-[#5D3A1A]">₹{calculateTaxes().cgst.toFixed(2)}</span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-gray-600">SGST ({sgstRate}%):</span>
-                <span className="font-semibold">₹{calculateTaxes().sgst.toFixed(2)}</span>
+                <span className="text-lg font-semibold text-gray-900">SGST ({sgstRate}%):</span>
+                <span className="font-bold text-[#5D3A1A]">₹{calculateTaxes().sgst.toFixed(2)}</span>
               </div>
               <div className="flex justify-between items-center text-xl font-bold border-t border-gray-200 pt-2">
                 <span>Grand Total:</span>
-                <span className="text-green-600">₹{calculateBillTotal().toFixed(2)}</span>
+                <span className="text-[#5D3A1A]">₹{calculateBillTotal().toFixed(2)}</span>
               </div>
             </div>
 
@@ -3212,7 +3296,7 @@ Visit Us Again<br>
               </button>
               <button
                 onClick={handlePrintBill}
-                className="flex-1 bg-gradient-to-r from-green-600 to-emerald-600 text-white px-6 py-3 rounded-xl font-semibold hover:shadow-lg transition-all"
+                className="flex-1 bg-[#5D3A1A] text-white px-6 py-3 rounded-xl font-semibold hover:shadow-lg transition-all"
               >
                 Print Bill
               </button>
@@ -3226,7 +3310,7 @@ Visit Us Again<br>
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-hidden">
             {/* Header */}
-            <div className="bg-gradient-to-r from-green-600 to-emerald-600 p-6 text-center">
+            <div className="bg-[#5D3A1A] p-6 text-center">
               <h2 className="text-2xl font-bold text-white mb-1">Bill Preview</h2>
               <p className="text-green-100 text-sm">Order #{formatOrderId(viewingBill.id)}</p>
             </div>
@@ -3236,32 +3320,31 @@ Visit Us Again<br>
               <div className="border-b-2 border-dashed border-gray-300 pb-4 mb-4">
                 <div className="flex justify-between items-center mb-3">
                   <div>
-                    <p className="text-xs text-gray-500 uppercase tracking-wide">Bill No</p>
-                    <p className="font-bold text-gray-900">{formatOrderId(viewingBill.id)}</p>
+                    <p className="font-bold text-gray-900">Bill No</p>
+                    <p className="text-sm text-gray-600">Table: {viewingBill.tables?.table_number}</p>
                   </div>
                   <div className="text-right">
-                    <p className="text-xs text-gray-500 uppercase tracking-wide">Date</p>
-                    <p className="font-bold text-gray-900">{new Date(viewingBill.created_at).toLocaleDateString()}</p>
+                    <p className="font-bold text-gray-900">{formatOrderId(viewingBill.id)}</p>
+                    <p className="text-sm text-gray-600">{new Date(viewingBill.created_at).toLocaleDateString()}</p>
                   </div>
                 </div>
                 <div className="flex justify-between items-center mb-3">
                   <div>
-                    <p className="text-xs text-gray-500 uppercase tracking-wide">Table</p>
-                    <p className="font-bold text-gray-900">{viewingBill.tables?.table_number}</p>
+                    <p className="font-bold text-gray-900">Waiter</p>
+                    <p className="text-sm text-gray-600">{viewingBill.users?.name}</p>
                   </div>
                   <div className="text-right">
-                    <p className="text-xs text-gray-500 uppercase tracking-wide">Time</p>
-                    <p className="font-bold text-gray-900">{new Date(viewingBill.created_at).toLocaleTimeString()}</p>
+                    <p className="font-bold text-gray-900">{viewingBill.customer_name || 'Guest'}</p>
+                    <p className="text-sm text-gray-600">{new Date(viewingBill.created_at).toLocaleTimeString()}</p>
                   </div>
                 </div>
                 <div className="flex justify-between items-center">
                   <div>
-                    <p className="text-xs text-gray-500 uppercase tracking-wide">Waiter</p>
-                    <p className="font-bold text-gray-900">{viewingBill.users?.name}</p>
+                    <p className="font-bold text-gray-900">Status</p>
+                    <p className="text-sm text-gray-600">{viewingBill.status}</p>
                   </div>
                   <div className="text-right">
-                    <p className="text-xs text-gray-500 uppercase tracking-wide">Status</p>
-                    <span className={`px-2 py-1 rounded-full text-xs font-bold ${
+                    <span className={`px-3 py-1 rounded-full text-xs font-bold ${
                       viewingBill.status === 'paid' ? 'bg-green-100 text-green-800' :
                       viewingBill.status === 'ready' ? 'bg-blue-100 text-blue-800' :
                       viewingBill.status === 'preparing' ? 'bg-yellow-100 text-yellow-800' :
@@ -3287,9 +3370,9 @@ Visit Us Again<br>
                 ) : (
                   <div className="space-y-2">
                     {billOrderItems.map((item) => (
-                      <div key={item.id} className="flex items-center justify-between py-2 border-b border-gray-100">
-                        <div className="flex-1">
-                          <p className="font-semibold text-gray-900 text-sm">{item.dishes?.name || item.dish?.name}</p>
+                      <div key={item.id} className="flex justify-between items-center py-2 border-b border-gray-100">
+                        <div>
+                          <p className="font-semibold text-gray-900">{item.dishes?.name || item.dish?.name}</p>
                           {isEditingBill && (
                             <input
                               type="number"
@@ -3320,8 +3403,8 @@ Visit Us Again<br>
               <div className="border-t-2 border-dashed border-gray-300 pt-4 mt-4">
                 <div className="space-y-3">
                   <div className="flex justify-between items-center">
-                    <span className="text-sm font-semibold text-gray-700">Subtotal</span>
-                    <span className="text-lg font-bold text-gray-900">
+                    <span className="text-lg font-bold text-gray-700">Subtotal</span>
+                    <span className="text-xl font-bold text-gray-900">
                       ₹{calculateBillSubtotal().toFixed(2)}
                     </span>
                   </div>
@@ -3405,8 +3488,8 @@ Visit Us Again<br>
 
                   {/* Grand Total */}
                   <div className="flex justify-between items-center pt-3 border-t-2 border-gray-300">
-                    <span className="text-lg font-bold text-gray-700">GRAND TOTAL</span>
-                    <span className="text-3xl font-bold text-green-600">
+                    <span className="text-xl font-bold text-gray-700">GRAND TOTAL</span>
+                    <span className="text-3xl font-bold text-[#5D3A1A]">
                       ₹{calculateBillGrandTotal().toFixed(2)}
                     </span>
                   </div>
@@ -3471,7 +3554,7 @@ Visit Us Again<br>
       {showPrebookModal && selectedTableForPrebook && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 animate-slide-in">
           <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md mx-4">
-            <h2 className="text-2xl font-bold mb-6 bg-gradient-to-r from-orange-600 to-amber-600 bg-clip-text text-transparent">
+            <h2 className="text-2xl font-bold mb-6 text-[#5D3A1A]">
               Pre-book Table {selectedTableForPrebook.table_number}
             </h2>
             <div className="space-y-4">
@@ -3490,7 +3573,7 @@ Visit Us Again<br>
                   type="text"
                   value={prebookCustomer}
                   onChange={(e) => setPrebookCustomer(e.target.value)}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:outline-none transition-colors"
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:outline-none transition-colors placeholder-gray-400"
                   placeholder="Enter customer name"
                 />
               </div>
@@ -3509,7 +3592,7 @@ Visit Us Again<br>
               </button>
               <button
                 onClick={handleSavePrebook}
-                className="flex-1 px-6 py-3 bg-gradient-to-r from-orange-600 to-amber-600 text-white rounded-xl font-semibold hover:shadow-lg transition-all duration-300 transform hover:scale-105"
+                className="flex-1 px-6 py-3 bg-[#5D3A1A] text-white rounded-xl font-semibold hover:shadow-lg transition-all duration-300 transform hover:scale-105"
               >
                 Confirm Pre-book
               </button>
@@ -3522,7 +3605,7 @@ Visit Us Again<br>
       {showDishModal && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 animate-slide-in">
           <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md mx-4">
-            <h2 className="text-2xl font-bold mb-6 bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">
+            <h2 className="text-2xl font-bold mb-6 text-[#5D3A1A]">
               {editingDish ? 'Edit Dish' : 'Add New Dish'}
             </h2>
             <div className="space-y-4">
@@ -3604,7 +3687,7 @@ Visit Us Again<br>
                   id="isAvailable"
                   checked={dishForm.is_available}
                   onChange={(e) => setDishForm({ ...dishForm, is_available: e.target.checked })}
-                  className="w-5 h-5 text-green-600 rounded focus:ring-green-500"
+                  className="w-5 h-5 text-[#5D3A1A] rounded focus:ring-green-500"
                 />
                 <label htmlFor="isAvailable" className="text-sm font-semibold text-gray-700">Available</label>
               </div>
@@ -3618,7 +3701,7 @@ Visit Us Again<br>
               </button>
               <button
                 onClick={handleSaveDish}
-                className="flex-1 px-6 py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-xl font-semibold hover:shadow-lg transition-all duration-300 transform hover:scale-105"
+                className="flex-1 px-6 py-3 bg-[#5D3A1A] text-white rounded-xl font-semibold hover:shadow-lg transition-all duration-300 transform hover:scale-105"
               >
                 {editingDish ? 'Update' : 'Add'}
               </button>
@@ -3631,7 +3714,7 @@ Visit Us Again<br>
       {showTableModal && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 animate-slide-in">
           <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md mx-4">
-            <h2 className="text-2xl font-bold mb-6 bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">
+            <h2 className="text-2xl font-bold mb-6 text-[#5D3A1A]">
               {editingTable ? 'Edit Table' : 'Add New Table'}
             </h2>
             <div className="space-y-4">
@@ -3665,9 +3748,66 @@ Visit Us Again<br>
               </button>
               <button
                 onClick={handleSaveTable}
-                className="flex-1 px-6 py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-xl font-semibold hover:shadow-lg transition-all duration-300 transform hover:scale-105"
+                className="flex-1 px-6 py-3 bg-[#5D3A1A] text-white rounded-xl font-semibold hover:shadow-lg transition-all duration-300 transform hover:scale-105"
               >
                 {editingTable ? 'Update' : 'Add'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Master Table Modal */}
+      {showMasterTableModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 animate-slide-in">
+          <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-2xl mx-4 max-h[80vh] overflow-y-auto">
+            <h2 className="text-2xl font-bold mb-6 text-[#5D3A1A]">Create Master Table</h2>
+            <p className="text-gray-600 mb-4">Select 2 or more tables to combine into a master table. The first selected table will become the master.</p>
+            {selectedTablesForMaster.length > 0 && (
+              <div className="mb-4 p-3 bg-[#F5F5DC] rounded-lg">
+                <p className="font-semibold text-[#5D3A1A]">
+                  Master Table: Table {tables.find(t => t.id === selectedTablesForMaster[0])?.table_number}
+                </p>
+              </div>
+            )}
+            <div className="space-y-2 max-h-96 overflow-y-auto">
+              {tables.filter(t => !t.is_master && !t.master_table_id).map(table => (
+                <label key={table.id} className="flex items-center p-3 border-2 border-gray-200 rounded-xl hover:border-[#8B4513] cursor-pointer transition-colors">
+                  <input
+                    type="checkbox"
+                    checked={selectedTablesForMaster.includes(table.id)}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setSelectedTablesForMaster([...selectedTablesForMaster, table.id])
+                      } else {
+                        setSelectedTablesForMaster(selectedTablesForMaster.filter(id => id !== table.id))
+                      }
+                    }}
+                    className="w-5 h-5 text-[#8B4513] rounded focus:ring-[#8B4513]"
+                  />
+                  <span className="ml-3 font-semibold text-gray-900">Table {table.table_number}</span>
+                  <span className="ml-3 text-gray-500">(Capacity: {table.capacity})</span>
+                  {selectedTablesForMaster.length > 0 && selectedTablesForMaster[0] === table.id && (
+                    <span className="ml-3 px-2 py-1 bg-[#8B4513] text-white text-xs rounded-full">Master</span>
+                  )}
+                </label>
+              ))}
+            </div>
+            <div className="flex gap-3 mt-8">
+              <button
+                onClick={() => {
+                  setShowMasterTableModal(false)
+                  setSelectedTablesForMaster([])
+                }}
+                className="flex-1 px-6 py-3 border-2 border-gray-300 text-gray-700 rounded-xl font-semibold hover:bg-gray-50 transition-all duration-300"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleCreateMasterTable}
+                className="flex-1 px-6 py-3 bg-[#8B4513] text-white rounded-xl font-semibold hover:shadow-lg transition-all duration-300 transform hover:scale-105"
+              >
+                Create Master Table
               </button>
             </div>
           </div>
@@ -3679,7 +3819,7 @@ Visit Us Again<br>
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 animate-slide-in">
           <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-4xl mx-4 max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center mb-6">
-              <h2 className="text-2xl font-bold bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">
+              <h2 className="text-2xl font-bold text-[#5D3A1A]">
                 Table Orders
               </h2>
               <button
@@ -3698,7 +3838,7 @@ Visit Us Again<br>
               <div className="space-y-4">
                 {selectedTableOrders.map((order, index) => (
                   <div key={`${order.id}-${index}`} className="border-2 border-gray-200 rounded-xl overflow-hidden">
-                    <div className="p-4 bg-gradient-to-r from-green-50 to-emerald-50 flex justify-between items-center">
+                    <div className="p-4 bg-[#F5F5DC] flex justify-between items-center">
                       <div>
                         <p className="font-bold text-gray-900">Order #{formatOrderId(order.id)}</p>
                         <p className="text-sm text-gray-600">Waiter: {order.users?.name}</p>
@@ -3724,7 +3864,7 @@ Visit Us Again<br>
                         </thead>
                         <tbody className="divide-y divide-gray-200">
                           {order.order_items?.map((item: any) => (
-                            <tr key={item.id} className="hover:bg-green-50">
+                            <tr key={item.id} className="hover:bg-amber-50">
                               <td className="px-4 py-2 text-sm font-semibold text-gray-900">{item.dishes?.name}</td>
                               <td className="px-4 py-2 text-sm text-gray-600">
                                 {item.quantity}
@@ -3742,7 +3882,7 @@ Visit Us Again<br>
                       </table>
                       <div className="mt-4 pt-4 border-t border-gray-200 flex justify-between items-center">
                         <span className="font-bold text-gray-700">Total Amount:</span>
-                        <span className="text-2xl font-bold bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">
+                        <span className="text-2xl font-bold text-[#5D3A1A]">
                           ₹{order.total_amount.toFixed(2)}
                         </span>
                       </div>
@@ -3758,7 +3898,7 @@ Visit Us Again<br>
       {/* Billing Modal */}
       {selectedOrderForBilling && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 animate-slide-in">
-          <div id="bill-modal" className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-2xl shadow-2xl p-8 w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto text-center">
+          <div id="bill-modal" className="bg-[#F5F5DC] rounded-2xl shadow-2xl p-8 w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto text-center">
             <div className="flex justify-between items-center mb-6 no-print">
               <h2 className="text-2xl font-bold text-green-700">
                 Print Bill
@@ -3775,7 +3915,7 @@ Visit Us Again<br>
               {/* Header */}
               <div className="text-center mb-6 pb-4 border-b-2 border-dashed border-green-300">
                 <h1 className="text-3xl font-bold text-green-700 mb-1">
-                  Galaxy Garden
+                  Dhole Patil Khanawal
                 </h1>
                 <p className="text-sm font-semibold text-gray-700 mb-1">Restaurant & Bar</p>
                 <div className="text-xs text-gray-600 space-y-1">
@@ -3787,17 +3927,17 @@ Visit Us Again<br>
               </div>
 
               {/* Print-only header with hotel details */}
-              <div className="print-only text-center mb-2 pb-2 border-b border-dashed border-black">
-                <h1 className="text-sm font-bold text-black mb-1 uppercase tracking-wide">GALAXY GARDEN</h1>
+              <div className="print-only text-center mb-2 pb-2 border-b border-gray-300">
+                <h1 className="text-sm font-bold text-black mb-1 uppercase tracking-wide">DHOLE PATIL KHANAWAL</h1>
                 <p className="text-xs font-semibold text-black mb-1">Restaurant & Bar</p>
                 <p className="text-xs text-black mb-1">123, Main Street, City, State - 123456</p>
                 <p className="text-xs text-black mb-1">Phone: +91 98765 43210</p>
                 <p className="text-xs text-black mb-1">GSTIN: 29ABCDE1234F1Z5</p>
-                <p className="text-xs font-bold text-black mt-2 border-t border-dashed border-black pt-2 uppercase">BILL / INVOICE</p>
+                <p className="text-xs font-bold text-black mt-2 border-t border-dashed border-gray-300 pt-2 uppercase">BILL / INVOICE</p>
               </div>
 
               {/* Print-only order details */}
-              <div className="print-only mb-2 pb-2 border-b border-dashed border-black">
+              <div className="print-only mb-2 pb-2 border-b border-gray-300">
                 <div className="flex justify-between text-xs text-black">
                   <span>Bill No: {formatOrderId(selectedOrderForBilling.id)}</span>
                   <span>Date: {new Date(selectedOrderForBilling.created_at).toLocaleDateString()}</span>
@@ -3813,7 +3953,7 @@ Visit Us Again<br>
               </div>
 
               {/* Order Info */}
-              <div className="grid grid-cols-2 gap-4 mb-6 p-4 bg-gradient-to-r from-green-100 to-emerald-100 rounded-xl no-print border border-green-200">
+              <div className="grid grid-cols-2 gap-4 mb-6 p-4 bg-[#F5F5DC] rounded-xl no-print border border-green-200">
                 <div>
                   <p className="text-sm font-semibold text-green-800">Bill No</p>
                   <p className="text-lg font-bold text-green-900">{formatOrderId(selectedOrderForBilling.id)}</p>
@@ -3835,7 +3975,7 @@ Visit Us Again<br>
               {/* Items */}
               <div className="mb-6">
                 <table className="w-full">
-                  <thead className="bg-gradient-to-r from-green-500 to-emerald-500">
+                  <thead className="bg-[#5D3A1A]">
                     <tr>
                       <th className="px-3 py-2 text-left text-xs font-bold text-white uppercase w-1/2">Item</th>
                       <th className="px-3 py-2 text-center text-xs font-bold text-white uppercase w-16">Qty</th>
@@ -3877,7 +4017,7 @@ Visit Us Again<br>
               </div>
 
               {/* Discount Section (no-print) */}
-              <div className="mb-6 p-4 bg-gradient-to-r from-green-100 to-emerald-100 rounded-xl no-print border border-green-200">
+              <div className="mb-6 p-4 bg-[#F5F5DC] rounded-xl no-print border border-green-200">
                 <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-3">
                   <label className="text-sm font-semibold text-green-800">Discount Type:</label>
                   <div className="flex gap-2 flex-wrap">
@@ -3885,7 +4025,7 @@ Visit Us Again<br>
                       onClick={() => setDiscountType('amount')}
                       className={`px-3 py-1.5 rounded-lg text-xs sm:text-sm font-semibold transition-all ${
                         discountType === 'amount'
-                          ? 'bg-gradient-to-r from-green-600 to-emerald-600 text-white shadow-md'
+                          ? 'bg-[#5D3A1A] text-white shadow-md'
                           : 'bg-white text-green-700 border-2 border-green-300 hover:border-green-500'
                       }`}
                     >
@@ -3895,7 +4035,7 @@ Visit Us Again<br>
                       onClick={() => setDiscountType('percentage')}
                       className={`px-3 py-1.5 rounded-lg text-xs sm:text-sm font-semibold transition-all ${
                         discountType === 'percentage'
-                          ? 'bg-gradient-to-r from-green-600 to-emerald-600 text-white shadow-md'
+                          ? 'bg-[#5D3A1A] text-white shadow-md'
                           : 'bg-white text-green-700 border-2 border-green-300 hover:border-green-500'
                       }`}
                     >
@@ -3931,7 +4071,7 @@ Visit Us Again<br>
               </div>
 
               {/* Order Details (for screen view) */}
-              <div className="grid grid-cols-2 gap-4 p-4 bg-gradient-to-r from-green-100 to-emerald-100 rounded-xl no-print border border-green-200">
+              <div className="grid grid-cols-2 gap-4 p-4 bg-[#F5F5DC] rounded-xl no-print border border-green-200">
                 <div>
                   <p className="text-sm font-semibold text-green-800">Table</p>
                   <p className="text-lg font-bold text-green-900">Table {selectedOrderForBilling.tables?.table_number}</p>
@@ -4010,19 +4150,19 @@ Visit Us Again<br>
             <div className="flex gap-3 no-print mt-6">
               <button
                 onClick={() => setSelectedOrderForBilling(null)}
-                className="flex-1 px-6 py-3 border-2 border-green-300 text-green-700 rounded-xl font-semibold hover:bg-green-50 transition-all duration-300"
+                className="flex-1 px-6 py-3 border-2 border-green-300 text-green-700 rounded-xl font-semibold hover:bg-amber-50 transition-all duration-300"
               >
                 Close
               </button>
               <button
                 onClick={handleThermalPrint}
-                className="flex-1 px-6 py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-xl font-semibold hover:shadow-lg transition-all duration-300"
+                className="flex-1 px-6 py-3 bg-[#5D3A1A] text-white rounded-xl font-semibold hover:shadow-lg transition-all duration-300"
               >
                 Print Bill
               </button>
               <button
                 onClick={() => handleMarkAsPaid(selectedOrderForBilling)}
-                className="flex-1 px-6 py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-xl font-semibold hover:shadow-lg transition-all duration-300"
+                className="flex-1 px-6 py-3 bg-[#5D3A1A] text-white rounded-xl font-semibold hover:shadow-lg transition-all duration-300"
               >
                 Mark as Paid
               </button>

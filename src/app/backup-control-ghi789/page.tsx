@@ -249,7 +249,7 @@ export default function OfflineAdminPage() {
       escposContent += '\x1B\x40'
       escposContent += '\x1B\x61\x01'
       escposContent += '\x1B\x21\x30'
-      escposContent += 'DHOLE PATIL HOTEL\n'
+      escposContent += 'DHOLE PATIL KHANAWAL\n'
       escposContent += '\x1B\x21\x00'
       escposContent += 'Restaurant & Bar\n'
       escposContent += '================================\n'

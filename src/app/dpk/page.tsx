@@ -52,7 +52,7 @@ export default function LoginPage() {
       // Redirect based on role to secure routes
       switch (data.user.role) {
         case 'admin':
-          router.push('/admin')
+          router.push('/secure-dashboard-xyz789')
           break
         case 'waiter':
           router.push('/staff-portal-abc456')

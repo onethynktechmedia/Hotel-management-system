@@ -12,6 +12,7 @@ export interface Table {
   capacity: number
   is_occupied: boolean
   is_master: boolean
+  master_table_id?: string
   is_prebooked?: boolean
   prebooked_by?: string
   prebooked_time?: string

@@ -3,82 +3,15 @@ import supabase from '@/lib/db'
 
 export async function GET() {
   try {
-    console.log('=== Fetching dishes from Supabase ===')
-    console.log('Supabase URL:', 'https://qthtkmlvoarafrxyjdpe.supabase.co')
-    
     const { data: dishes, error } = await supabase
       .from('dishes')
       .select('*')
       .order('name')
     
-    if (error) {
-      console.error('Supabase error details:', {
-        message: error.message,
-        code: error.code,
-        details: error.details,
-        hint: error.hint
-      })
-      throw error
-    }
-    
-    console.log('Dishes fetched successfully:', dishes?.length || 0)
-    
-    const formattedDishes = dishes?.map((dish: any) => ({
-      ...dish,
-      price: parseFloat(dish.price)
-    })) || []
-    
-    return NextResponse.json(formattedDishes)
-  } catch (error: any) {
-    console.error('=== Supabase failed, returning mock data ===')
-    console.error('Error:', error?.message || error)
-    
-    // Return mock data as fallback so the app works
-    const mockDishes = [
-      {
-        id: '1',
-        name: 'Butter Chicken',
-        description: 'Creamy tomato-based curry with tender chicken',
-        price: 250,
-        category: 'Main Course',
-        image_url: '',
-        is_available: true,
-        created_at: new Date().toISOString()
-      },
-      {
-        id: '2',
-        name: 'Paneer Tikka',
-        description: 'Grilled cottage cheese with spices',
-        price: 200,
-        category: 'Starters',
-        image_url: '',
-        is_available: true,
-        created_at: new Date().toISOString()
-      },
-      {
-        id: '3',
-        name: 'Dal Makhani',
-        description: 'Creamy black lentils cooked overnight',
-        price: 180,
-        category: 'Main Course',
-        image_url: '',
-        is_available: true,
-        created_at: new Date().toISOString()
-      },
-      {
-        id: '4',
-        name: 'Naan',
-        description: 'Traditional Indian bread',
-        price: 30,
-        category: 'Bread',
-        image_url: '',
-        is_available: true,
-        created_at: new Date().toISOString()
-      }
-    ]
-    
-    console.log('Returning mock dishes:', mockDishes.length)
-    return NextResponse.json(mockDishes)
+    if (error) throw error
+    return NextResponse.json(dishes || [])
+  } catch (error) {
+    return NextResponse.json({ error: 'Failed to fetch dishes' }, { status: 500 })
   }
 }
 
@@ -99,41 +32,11 @@ export async function POST(request: NextRequest) {
       })
       .select()
       .single()
-    
+
     if (error) throw error
-    
-    dish.price = parseFloat(dish.price)
     return NextResponse.json(dish)
   } catch (error) {
     return NextResponse.json({ error: 'Failed to create dish' }, { status: 500 })
-  }
-}
-
-export async function PATCH(request: NextRequest) {
-  try {
-    const body = await request.json()
-    const { id, name, description, price, category, image_url, is_available } = body
-    
-    const { data: dish, error } = await supabase
-      .from('dishes')
-      .update({
-        name,
-        description,
-        price,
-        category,
-        image_url,
-        is_available
-      })
-      .eq('id', id)
-      .select()
-      .single()
-    
-    if (error) throw error
-    
-    dish.price = parseFloat(dish.price)
-    return NextResponse.json(dish)
-  } catch (error) {
-    return NextResponse.json({ error: 'Failed to update dish' }, { status: 500 })
   }
 }
 
@@ -141,16 +44,73 @@ export async function DELETE(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
     const id = searchParams.get('id')
-    
+
+    if (!id) {
+      return NextResponse.json({ error: 'Dish ID is required' }, { status: 400 })
+    }
+
     const { error } = await supabase
       .from('dishes')
       .delete()
       .eq('id', id)
-    
+
     if (error) throw error
-    
+
     return NextResponse.json({ success: true })
   } catch (error) {
+    console.error('Error in DELETE request:', error)
     return NextResponse.json({ error: 'Failed to delete dish' }, { status: 500 })
+  }
+}
+
+export async function PATCH(request: NextRequest) {
+  try {
+    const body = await request.json()
+    const { id, name, description, price, category, image_url, is_available } = body
+
+    console.log('=== PATCH dishes request ===')
+    console.log('Full body:', body)
+    console.log('Dish ID:', id)
+
+    // First check if dish exists
+    const { data: existingDish, error: checkError } = await supabase
+      .from('dishes')
+      .select('id')
+      .eq('id', id)
+      .single()
+
+    if (checkError || !existingDish) {
+      console.error('Dish not found:', checkError)
+      return NextResponse.json({ error: 'Dish not found' }, { status: 404 })
+    }
+
+    const updateData: any = {}
+    if (name !== undefined && name !== null) updateData.name = name
+    if (description !== undefined && description !== null) updateData.description = description
+    if (price !== undefined && price !== null) updateData.price = price
+    if (category !== undefined && category !== null) updateData.category = category
+    if (image_url !== undefined && image_url !== null) updateData.image_url = image_url
+    if (is_available !== undefined && is_available !== null) updateData.is_available = is_available
+
+    console.log('Update data:', updateData)
+
+    const { data: dish, error } = await supabase
+      .from('dishes')
+      .update(updateData)
+      .eq('id', id)
+      .select()
+      .single()
+
+    if (error) {
+      console.error('Supabase error:', error)
+      throw error
+    }
+
+    console.log('Updated dish result:', dish)
+    console.log('=== PATCH complete ===')
+    return NextResponse.json(dish)
+  } catch (error: any) {
+    console.error('PATCH error:', error)
+    return NextResponse.json({ error: error.message || 'Failed to update dish' }, { status: 500 })
   }
 }

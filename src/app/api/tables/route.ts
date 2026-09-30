@@ -93,11 +93,15 @@ export async function DELETE(request: NextRequest) {
 export async function PATCH(request: NextRequest) {
   try {
     const body = await request.json()
-    const { id, is_occupied, is_master } = body
+    const { id, is_occupied, is_master, master_table_id, is_prebooked, prebooked_by, prebooked_time } = body
 
     const updateData: any = {}
     if (is_occupied !== undefined) updateData.is_occupied = is_occupied
     if (is_master !== undefined) updateData.is_master = is_master
+    if (master_table_id !== undefined) updateData.master_table_id = master_table_id
+    if (is_prebooked !== undefined) updateData.is_prebooked = is_prebooked
+    if (prebooked_by !== undefined) updateData.prebooked_by = prebooked_by
+    if (prebooked_time !== undefined) updateData.prebooked_time = prebooked_time
 
     if (Object.keys(updateData).length === 0) {
       return NextResponse.json({ error: 'No fields to update' }, { status: 400 })

@@ -131,88 +131,107 @@ export default function KitchenPage() {
   }
 
 
-  // Thermal Print Function for Kitchen Bill using WebUSB direct printing
+  // Thermal Print Function for Kitchen Bill using browser print
   const handleThermalPrint = async () => {
     if (!selectedOrderForBill) return
     
     try {
       console.log('Starting thermal print for kitchen order...')
       
-      // Generate ESC/POS commands for direct printing
-      let escposContent = ''
-      
-      // Initialize printer
-      escposContent += '\x1B\x40' // Initialize
-      
-      // Center alignment
-      escposContent += '\x1B\x61\x01'
-      
-      // Table Number - Large and Bold
-      escposContent += '\x1B\x21\x30' // Double width and height
-      escposContent += `TABLE ${selectedOrderForBill.tables?.table_number}\n`
-      escposContent += '\x1B\x21\x00' // Normal
-      escposContent += '=============================\n\n'
-      
-      // Kitchen Order - Bold and Centered
-      escposContent += '\x1B\x21\x08' // Bold
-      escposContent += 'KITCHEN ORDER\n'
-      escposContent += '\x1B\x21\x00' // Normal
-      escposContent += '--------------------------\n\n'
-      
-      // Order Info - Left aligned
-      escposContent += '\x1B\x61\x00' // Left align
-      escposContent += `Order: ${formatOrderId(selectedOrderForBill.id)}\n`
-      escposContent += `Date: ${new Date(selectedOrderForBill.created_at).toLocaleDateString()}\n`
-      escposContent += `Time: ${new Date(selectedOrderForBill.created_at).toLocaleTimeString()}\n`
-      escposContent += `Waiter: ${selectedOrderForBill.users?.name}\n`
-      escposContent += '--------------------------\n\n'
-      
-      // Items Header
-      escposContent += '\x1B\x21\x08' // Bold
-      escposContent += '  ITEM                  QTY  TYPE\n'
-      escposContent += '--------------------------\n'
-      escposContent += '\x1B\x21\x00' // Normal font for items
-      
-      // Items
-      selectedOrderForBill.order_items?.forEach((item: any) => {
+      // Generate items list
+      const itemsList = selectedOrderForBill.order_items?.map((item: any) => {
         const name = item.dishes?.name || 'Unknown'
         const qty = item.quantity
         const dishType = item.dish_type || '-'
         const itemName = name.length > 14 ? name.substring(0, 13) + '.' : name
-        escposContent += `${itemName.padEnd(14)} ${qty.toString().padStart(2)} ${dishType.padEnd(4)}\n`
-      })
-      escposContent += '\x1B\x21\x00' // Ensure normal text
+        return `${itemName.padEnd(14)} ${qty.toString().padStart(2)} ${dishType.padEnd(4)}<br>`
+      }).join('') || ''
       
-      escposContent += '--------------------------\n'
+      // Generate HTML bill content for browser print
+      const plainText = `
+<strong>TABLE ${selectedOrderForBill.tables?.table_number}</strong><br>
+================================<br>
+<strong>KITCHEN ORDER</strong><br>
+--------------------------------<br>
+<strong>Order: ${formatOrderId(selectedOrderForBill.id)}</strong><br>
+<strong>Date: ${new Date(selectedOrderForBill.created_at).toLocaleDateString()}</strong><br>
+<strong>Time: ${new Date(selectedOrderForBill.created_at).toLocaleTimeString()}</strong><br>
+<strong>Waiter: ${selectedOrderForBill.users?.name}</strong><br>
+--------------------------------<br>
+<strong>ITEM                  QTY  TYPE</strong><br>
+--------------------------------<br>
+${itemsList}
+--------------------------------<br>
+<strong>Status: ${selectedOrderForBill.status.toUpperCase()}</strong><br>
+================================<br>
+<strong>Developed by onethynk</strong><br>
+================================
+`
       
-      // Status
-      escposContent += `Status: ${selectedOrderForBill.status.toUpperCase()}\n`
+      console.log('Bill content generated')
       
-      escposContent += '\n\n'
+      // Use browser print directly (works on all platforms)
+      const printWindow = window.open('', '_blank')
+      if (printWindow) {
+        printWindow.document.write(`
+          <!DOCTYPE html>
+          <html>
+            <head>
+              <title>Kitchen Order Print</title>
+              <meta charset="UTF-8">
+              <style>
+                @page {
+                  size: 58mm auto;
+                  margin: 0;
+                }
+                @media print {
+                  @page {
+                    size: 58mm auto;
+                    margin: 0;
+                  }
+                  body {
+                    margin: 0;
+                    padding: 2mm;
+                    width: 58mm;
+                    -webkit-print-color-adjust: exact;
+                    print-color-adjust: exact;
+                  }
+                  * {
+                    -webkit-print-color-adjust: exact;
+                    print-color-adjust: exact;
+                  }
+                }
+                * {
+                  margin: 0;
+                  padding: 0;
+                  box-sizing: border-box;
+                  font-weight: bold;
+                }
+                body {
+                  font-family: 'Courier New', Courier, monospace;
+                  font-size: 10px;
+                  line-height: 1.2;
+                  color: #000;
+                  font-weight: bold;
+                }
+                strong {
+                  font-weight: bold;
+                }
+              </style>
+            </head>
+            <body onload="window.print(); window.close();">${plainText}</body>
+          </html>
+        `)
+        printWindow.document.close()
+      } else {
+        alert('Please allow popups for printing')
+      }
       
-      // Footer - Centered
-      escposContent += '\x1b\x61\x01' // Center align
-      escposContent += '=============================\n'
-      escposContent += 'Developed by onethynk\n'
-      escposContent += '=============================\n'
-      escposContent += '\n \n'
-      
-      // Cut paper
-      escposContent += '\x1D\x56\x00' // Partial cut
-      
-      console.log('ESC/POS content generated')
-      
-      // Use WebUSB for direct printing (no Chrome dialog)
-      const printer = new WebUSBPrinter()
-      await printer.connect()
-      await printer.print(escposContent)
-      await printer.disconnect()
-      
-      console.log('Kitchen order printed successfully via WebUSB')
+      console.log('Kitchen order printed successfully')
       
     } catch (error: any) {
       console.error('Error printing kitchen order:', error)
-      // Silently log error without alert
+      alert('Printing failed: ' + error.message)
     }
   }
 

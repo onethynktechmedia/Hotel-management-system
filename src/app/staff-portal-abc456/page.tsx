@@ -35,6 +35,8 @@ export default function WaiterPage() {
   const [newTableId, setNewTableId] = useState<string | null>(null)
   const [selectedMasterTable, setSelectedMasterTable] = useState<Table | null>(null)
   const [masterTableCart, setMasterTableCart] = useState<CartItem[]>([])
+  const [showMasterTableModal, setShowMasterTableModal] = useState(false)
+  const [selectedTablesForMaster, setSelectedTablesForMaster] = useState<string[]>([])
   const [confirmingOrder, setConfirmingOrder] = useState(false)
   const [viewingOrderItems, setViewingOrderItems] = useState<Order | null>(null)
   const [orderItems, setOrderItems] = useState<any[]>([])
@@ -46,6 +48,8 @@ export default function WaiterPage() {
   const [billOrderItems, setBillOrderItems] = useState<any[]>([])
   const [tableOrders, setTableOrders] = useState<Order[]>([])
   const [selectedItemsToRepeat, setSelectedItemsToRepeat] = useState<any[]>([])
+  const [customerName, setCustomerName] = useState('')
+  const [customerMobile, setCustomerMobile] = useState('')
 
   const dishTypes = ['Normal', 'Medium', 'Spicy', 'Extra Spicy']
 
@@ -352,7 +356,9 @@ export default function WaiterPage() {
           table_id: selectedTable?.id,
           waiter_id: userId,
           status: 'pending',
-          total_amount: getCartTotal()
+          total_amount: getCartTotal(),
+          customer_name: customerName || null,
+          customer_mobile: customerMobile || null
         })
       })
 
@@ -451,36 +457,67 @@ export default function WaiterPage() {
     router.push('/')
   }
 
-  const handleCreateMasterTable = async (tableNumber: number, capacity: number) => {
+  const handleCreateMasterTable = async () => {
+    if (selectedTablesForMaster.length < 2) {
+      alert('Please select at least 2 tables to create a master table')
+      return
+    }
+
     try {
-      // Find the table by table_number
-      const table = tables.find(t => t.table_number === tableNumber)
-      if (!table) {
-        alert('Table not found')
+      // Use the first selected table as the master
+      const masterTableId = selectedTablesForMaster[0]
+      const masterTable = tables.find(t => t.id === masterTableId)
+
+      if (!masterTable) {
+        alert('Error: Master table not found')
         return
       }
 
-      const response = await fetch('/api/tables', {
+      // Calculate total capacity
+      const totalCapacity = selectedTablesForMaster.reduce((sum, id) => {
+        const table = tables.find(t => t.id === id)
+        return sum + (table?.capacity || 0)
+      }, 0)
+
+      // Update the first table to become master
+      await fetch('/api/tables', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          id: table.id,
-          is_master: true
+          id: masterTableId,
+          is_master: true,
+          capacity: totalCapacity
         })
       })
 
-      if (!response.ok) throw new Error('Failed to convert table to master')
+      // Update all other selected tables to reference the master table
+      for (let i = 1; i < selectedTablesForMaster.length; i++) {
+        const tableId = selectedTablesForMaster[i]
+        await fetch('/api/tables', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            id: tableId,
+            master_table_id: masterTableId,
+            is_occupied: false
+          })
+        })
+      }
 
-      await fetchData()
-      alert(`Table ${tableNumber} converted to master table successfully!`)
+      setShowMasterTableModal(false)
+      setSelectedTablesForMaster([])
+      fetchData()
+      playSuccessSound()
+      alert(`Table ${masterTable.table_number} is now the master table with ${selectedTablesForMaster.length} tables combined`)
     } catch (error) {
-      console.error('Error converting table to master:', error)
-      alert('Failed to convert table to master')
+      console.error('Error creating master table:', error)
+      playErrorSound()
+      alert('Failed to create master table')
     }
   }
 
   const handleSelectMasterTableNumber = (number: number) => {
-    handleCreateMasterTable(number, 10)
+    // This function is no longer needed with the new modal approach
   }
 
   const handleAlterTable = async () => {
@@ -924,8 +961,9 @@ export default function WaiterPage() {
     escpos += '\x1B\x61\x00' // Left align
     
     // Order details
+    const isMasterTable = viewingBill.tables?.is_master || false
     escpos += `Order #: ${formatOrderId(viewingBill.id)}\n`
-    escpos += `Table: ${viewingBill.tables?.table_number}\n`
+    escpos += `Table: ${viewingBill.tables?.table_number}${isMasterTable ? ' (M)' : ''}\n`
     escpos += `Date: ${new Date(viewingBill.created_at).toLocaleString()}\n`
     escpos += `Waiter: ${viewingBill.users?.name}\n`
     escpos += '====================\n'
@@ -1003,51 +1041,52 @@ export default function WaiterPage() {
 
       // Generate properly formatted plain text bill content for thermal printer
       // 58mm paper width = approximately 32-35 characters per line
+      const isMasterTable = viewingBill.tables?.is_master || false
       const plainText = `
 <div style="text-align: center; margin-bottom: 8px;">
-  <div style="font-size: 18px; font-weight: bold; color: #8B4513;">Dhole Patil Khanawal</div>
-  <div style="font-size: 12px; color: #5D3A1A;">Restaurant & Bar</div>
+  <div style="font-size: 18px; font-weight: 900; color: #8B4513;">DHOLE PATIL KHANAWAL</div>
+  <div style="font-size: 12px; font-weight: bold; color: #5D3A1A;">RESTAURANT & BAR</div>
 </div>
 <div style="border-top: 1px dashed #8B4513; margin: 4px 0;"></div>
-<div style="text-align: center; font-size: 10px; margin-bottom: 4px;">
-  <div>123, Main Street</div>
-  <div>City, State - 123456.</div>
-  <div>Phone: +91 98765 43210</div>
-  <div style="font-weight: bold;">GSTIN: 29ABCDE1234F1Z5</div>
+<div style="text-align: center; font-size: 10px; margin-bottom: 4px; font-weight: bold;">
+  <div>123, MAIN STREET</div>
+  <div>CITY, STATE - 123456.</div>
+  <div>PHONE: +91 98765 43210</div>
+  <div>GSTIN: 29ABCDE1234F1Z5</div>
 </div>
 <div style="border-top: 1px dashed #8B4513; margin: 4px 0;"></div>
-<div style="text-align: center; font-size: 12px; font-weight: bold; margin: 4px 0;">BILL / INVOICE</div>
+<div style="text-align: center; font-size: 12px; font-weight: 900; margin: 4px 0;">BILL / INVOICE</div>
 <div style="border-top: 1px dashed #8B4513; margin: 4px 0;"></div>
-<div style="margin: 4px 0; font-size: 10px;">
+<div style="margin: 4px 0; font-size: 10px; font-weight: bold;">
   <div style="display: flex; justify-content: space-between;">
-    <span>Bill No:</span>
-    <span style="font-weight: bold;">${formatOrderId(viewingBill.id)}</span>
+    <span>BILL NO:</span>
+    <span>${formatOrderId(viewingBill.id)}</span>
   </div>
   <div style="display: flex; justify-content: space-between;">
-    <span>Date:</span>
+    <span>DATE:</span>
     <span>${new Date().toLocaleDateString()}</span>
   </div>
   <div style="display: flex; justify-content: space-between;">
-    <span>Time:</span>
+    <span>TIME:</span>
     <span>${new Date().toLocaleTimeString()}</span>
   </div>
   <div style="display: flex; justify-content: space-between;">
-    <span>Table:</span>
-    <span style="font-weight: bold;">${viewingBill.tables?.table_number}</span>
+    <span>TABLE:</span>
+    <span>${viewingBill.tables?.table_number}${isMasterTable ? ' (M)' : ''}</span>
   </div>
   <div style="display: flex; justify-content: space-between;">
-    <span>Waiter:</span>
+    <span>WAITER:</span>
     <span>${viewingBill.users?.name}</span>
   </div>
   <div style="display: flex; justify-content: space-between;">
-    <span>Customer:</span>
-    <span>${viewingBill.customer_name || 'Guest'}</span>
+    <span>CUSTOMER:</span>
+    <span>${viewingBill.customer_name || 'GUEST'}</span>
   </div>
 </div>
 <div style="border-top: 1px dashed #8B4513; margin: 4px 0;"></div>
-<div style="font-size: 10px; font-weight: bold; margin: 4px 0;">ITEM DETAILS</div>
+<div style="font-size: 10px; font-weight: 900; margin: 4px 0;">ITEM DETAILS</div>
 <div style="border-top: 1px dashed #8B4513; margin: 4px 0;"></div>
-<div style="display: flex; font-size: 9px; font-weight: bold; margin-bottom: 2px;">
+<div style="display: flex; font-size: 9px; font-weight: 900; margin-bottom: 2px;">
   <span style="flex: 2;">ITEM</span>
   <span style="flex: 1; text-align: right;">QTY</span>
   <span style="flex: 1; text-align: right;">AMT</span>
@@ -1056,17 +1095,17 @@ export default function WaiterPage() {
 ${itemsList}
 <div style="border-top: 1px dashed #8B4513; margin: 4px 0;"></div>
 <div style="border-top: 2px solid #8B4513; margin: 6px 0;"></div>
-<div style="text-align: center; font-size: 14px; font-weight: bold; color: #8B4513; margin: 4px 0;">
-  GRAND TOTAL: Rs${viewingBill.total_amount.toFixed(2)}
+<div style="text-align: center; font-size: 14px; font-weight: 900; color: #8B4513; margin: 4px 0;">
+  GRAND TOTAL: RS${viewingBill.total_amount.toFixed(2)}
 </div>
 <div style="border-top: 2px solid #8B4513; margin: 6px 0;"></div>
-<div style="text-align: center; font-size: 10px; margin: 4px 0;">
-  <div>Thank You for Dining!</div>
-  <div>Visit Us Again</div>
+<div style="text-align: center; font-size: 10px; margin: 4px 0; font-weight: bold;">
+  <div>THANK YOU FOR DINING!</div>
+  <div>VISIT US AGAIN</div>
 </div>
 <div style="border-top: 1px dashed #8B4513; margin: 4px 0;"></div>
-<div style="text-align: center; font-size: 8px; font-weight: bold; color: #8B4513; margin: 4px 0;">
-  Developed by onethynk techmedia
+<div style="text-align: center; font-size: 8px; font-weight: 900; color: #8B4513; margin: 4px 0;">
+  DEVELOPED BY ONETHYNK TECHMEDIA
 </div>
 <div style="border-top: 1px dashed #8B4513; margin: 4px 0;"></div>
 `
@@ -1396,7 +1435,7 @@ ${itemsList}
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
-              {tables.map((table) => (
+              {tables.filter(t => !t.master_table_id).map((table) => (
                 <div
                   key={table.id}
                   className={`p-4 sm:p-6 rounded-2xl border-2 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 text-left relative ${
@@ -1433,12 +1472,19 @@ ${itemsList}
                           ? 'bg-red-100 text-red-800' 
                           : 'bg-[#F5F5DC] text-[#5D3A1A]'
                       }`}>
-                        {table.is_occupied ? '🔴 Occupied' : '🟢 Available'}
+                        {table.is_occupied ? 'Occupied' : 'Available'}
                       </span>
                     </div>
-                    <h3 className="text-lg sm:text-xl font-bold text-gray-900 mb-2">Table {table.table_number}</h3>
+                    <h3 className="text-lg sm:text-xl font-bold text-gray-900 mb-2">
+                      {table.is_master ? `Table ${table.table_number} (M)` : `Table ${table.table_number}`}
+                    </h3>
                     <p className="text-xs sm:text-sm font-semibold text-gray-600 mb-1">Capacity: {table.capacity} seats</p>
-                    {table.is_occupied && (
+                    {table.is_master && (
+                      <p className="text-xs text-purple-600 font-semibold mt-2">
+                        {tables.filter(t => t.master_table_id === table.id).length} tables combined
+                      </p>
+                    )}
+                    {table.is_occupied && !table.is_master && (
                       <p className="text-xs text-red-600 font-semibold mt-2">
                         This table is currently occupied
                       </p>
@@ -2074,6 +2120,32 @@ ${itemsList}
                 </div>
               )}
 
+              {/* Customer Details (Optional) */}
+              <div className="p-4 sm:p-6 bg-white border-t border-gray-200">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Customer Name (Optional)</label>
+                    <input
+                      type="text"
+                      value={customerName}
+                      onChange={(e) => setCustomerName(e.target.value)}
+                      placeholder="Enter customer name"
+                      className="w-full px-4 py-2 border-2 border-gray-200 rounded-xl focus:border-amber-500 focus:outline-none text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Mobile Number (Optional)</label>
+                    <input
+                      type="tel"
+                      value={customerMobile}
+                      onChange={(e) => setCustomerMobile(e.target.value)}
+                      placeholder="Enter mobile number"
+                      className="w-full px-4 py-2 border-2 border-gray-200 rounded-xl focus:border-amber-500 focus:outline-none text-sm"
+                    />
+                  </div>
+                </div>
+              </div>
+
               <div className="p-4 sm:p-6 bg-[#F5F5DC]">
                 <div className="flex justify-between items-center">
                   <span className="text-lg sm:text-xl font-bold text-gray-700">Total Amount</span>
@@ -2133,23 +2205,29 @@ ${itemsList}
 
             {/* Available Tables to Convert */}
             <div className="mb-8">
-              <h3 className="text-xl font-bold text-gray-900 mb-4">Available Tables to Convert</h3>
-              {tables.filter(t => !t.is_master).length === 0 ? (
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-xl font-bold text-gray-900">Available Tables to Convert</h3>
+                <button
+                  onClick={() => setShowMasterTableModal(true)}
+                  className="px-4 py-2 bg-[#8B4513] text-white rounded-xl font-semibold hover:bg-[#5D3A1A] transition-colors"
+                >
+                  Create Master Table
+                </button>
+              </div>
+              {tables.filter(t => !t.is_master && !t.master_table_id).length === 0 ? (
                 <div className="text-center py-8 bg-gray-50 rounded-xl">
                   <Users className="w-12 h-12 text-gray-300 mx-auto mb-3" />
                   <p className="text-gray-500 font-semibold">No available tables to convert</p>
                 </div>
               ) : (
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
-                  {tables.filter(t => !t.is_master).map((table) => (
-                    <button
+                  {tables.filter(t => !t.is_master && !t.master_table_id).map((table) => (
+                    <div
                       key={table.id}
-                      onClick={() => { playClickSound(); handleCreateMasterTable(table.table_number, table.capacity) }}
-                      disabled={table.is_occupied}
-                      className={`p-6 rounded-2xl border-2 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 text-center ${
+                      className={`p-6 rounded-2xl border-2 shadow-lg text-center ${
                         table.is_occupied 
-                          ? 'border-red-300 bg-red-50 cursor-not-allowed opacity-60' 
-                          : 'border-[#8B4513] bg-white hover:border-[#5D3A1A] hover:bg-[#F5F5DC]'
+                          ? 'border-red-300 bg-red-50 opacity-60' 
+                          : 'border-[#8B4513] bg-white'
                       }`}
                     >
                       <div className="bg-[#F5F5DC] p-3 rounded-xl mx-auto mb-3 w-fit">
@@ -2162,12 +2240,9 @@ ${itemsList}
                           ? 'bg-red-100 text-red-800' 
                           : 'bg-[#F5F5DC] text-[#5D3A1A]'
                       }`}>
-                        {table.is_occupied ? '🔴 Occupied' : '🟢 Available'}
+                        {table.is_occupied ? 'Occupied' : 'Available'}
                       </span>
-                      {!table.is_occupied && (
-                        <p className="text-xs text-purple-600 font-semibold mt-2">Click to convert to master</p>
-                      )}
-                    </button>
+                    </div>
                   ))}
                 </div>
               )}
@@ -2215,7 +2290,7 @@ ${itemsList}
                           ? 'bg-red-100 text-red-800' 
                           : 'bg-[#F5F5DC] text-[#5D3A1A]'
                       }`}>
-                        {table.is_occupied ? '🔴 Occupied' : '🟢 Available'}
+                        {table.is_occupied ? 'Occupied' : 'Available'}
                       </span>
                       <p className="text-xs text-purple-600 font-semibold mt-2">Click to take orders</p>
                     </button>
@@ -2255,7 +2330,7 @@ ${itemsList}
                               ? 'bg-red-100 text-red-800' 
                               : 'bg-[#F5F5DC] text-[#5D3A1A]'
                           }`}>
-                            {table.is_occupied ? '🔴 Occupied' : '🟢 Available'}
+                            {table.is_occupied ? 'Occupied' : 'Available'}
                           </span>
                         </div>
                         {tableOrders.length === 0 ? (
@@ -2596,7 +2671,7 @@ ${itemsList}
                         <Users className="w-5 h-5 sm:w-6 sm:h-6 text-[#5D3A1A]" />
                       </div>
                       <span className="px-2 sm:px-3 py-1 rounded-full text-xs font-bold bg-[#F5F5DC] text-[#5D3A1A]">
-                        🟢 Available
+                        Available
                       </span>
                     </div>
                     <h3 className="text-lg sm:text-xl font-bold text-gray-900 mb-2">Table {table.table_number}</h3>
@@ -2833,7 +2908,7 @@ ${itemsList}
                     <div className="text-right">
                       <p className="text-xs text-gray-500 uppercase tracking-wide">Status</p>
                       <span className={`px-2 py-1 rounded-full text-xs font-bold ${
-                        viewingBill.status === 'paid' ? 'bg-green-100 text-green-800' :
+                        viewingBill.status === 'paid' ? 'bg-amber-100 text-amber-900' :
                         viewingBill.status === 'ready' ? 'bg-blue-100 text-blue-800' :
                         viewingBill.status === 'preparing' ? 'bg-yellow-100 text-yellow-800' :
                         'bg-gray-100 text-gray-800'
@@ -3070,6 +3145,63 @@ ${itemsList}
           </div>
         )}
       </div>
+
+      {/* Master Table Modal */}
+      {showMasterTableModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 animate-slide-in">
+          <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-2xl mx-4 max-h[80vh] overflow-y-auto">
+            <h2 className="text-2xl font-bold mb-6 text-[#5D3A1A]">Create Master Table</h2>
+            <p className="text-gray-600 mb-4">Select 2 or more tables to combine into a master table. The first selected table will become the master.</p>
+            {selectedTablesForMaster.length > 0 && (
+              <div className="mb-4 p-3 bg-[#F5F5DC] rounded-lg">
+                <p className="font-semibold text-[#5D3A1A]">
+                  Master Table: Table {tables.find(t => t.id === selectedTablesForMaster[0])?.table_number}
+                </p>
+              </div>
+            )}
+            <div className="space-y-2 max-h-96 overflow-y-auto">
+              {tables.filter(t => !t.is_master && !t.master_table_id).map(table => (
+                <label key={table.id} className="flex items-center p-3 border-2 border-gray-200 rounded-xl hover:border-[#8B4513] cursor-pointer transition-colors">
+                  <input
+                    type="checkbox"
+                    checked={selectedTablesForMaster.includes(table.id)}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setSelectedTablesForMaster([...selectedTablesForMaster, table.id])
+                      } else {
+                        setSelectedTablesForMaster(selectedTablesForMaster.filter(id => id !== table.id))
+                      }
+                    }}
+                    className="w-5 h-5 text-[#8B4513] rounded focus:ring-[#8B4513]"
+                  />
+                  <span className="ml-3 font-semibold text-gray-900">Table {table.table_number}</span>
+                  <span className="ml-3 text-gray-500">(Capacity: {table.capacity})</span>
+                  {selectedTablesForMaster.length > 0 && selectedTablesForMaster[0] === table.id && (
+                    <span className="ml-3 px-2 py-1 bg-[#8B4513] text-white text-xs rounded-full">Master</span>
+                  )}
+                </label>
+              ))}
+            </div>
+            <div className="flex gap-3 mt-8">
+              <button
+                onClick={() => {
+                  setShowMasterTableModal(false)
+                  setSelectedTablesForMaster([])
+                }}
+                className="flex-1 px-6 py-3 border-2 border-gray-300 text-gray-700 rounded-xl font-semibold hover:bg-gray-50 transition-all duration-300"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleCreateMasterTable}
+                className="flex-1 px-6 py-3 bg-[#8B4513] text-white rounded-xl font-semibold hover:shadow-lg transition-all duration-300 transform hover:scale-105"
+              >
+                Create Master Table
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

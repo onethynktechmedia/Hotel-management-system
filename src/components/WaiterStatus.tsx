@@ -205,16 +205,26 @@ export default function WaiterStatus() {
     if (!newPassword) return
 
     try {
-      const { error } = await supabase
-        .from('users')
-        .update({ password: newPassword })
-        .eq('id', waiterId)
+      // Call the password change API to initiate email verification
+      const response = await fetch('/api/password-change', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          waiter_id: waiterId,
+          new_password: newPassword
+        })
+      })
 
-      if (error) throw error
-      alert('Password reset successfully')
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to initiate password change')
+      }
+
+      alert(`Password change verification email sent to waiter. They need to confirm it to complete the change.\n\nVerification Link: ${data.verificationLink}`)
     } catch (error) {
-      console.error('Error resetting password:', error)
-      alert('Failed to reset password')
+      console.error('Error initiating password change:', error)
+      alert('Failed to initiate password change: ' + (error as Error).message)
     }
   }
 
