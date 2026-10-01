@@ -1567,10 +1567,15 @@ ${(() => {
     console.log('Bill content generated:', plainText)
 
     try {
-      // Use browser print directly (works on all platforms including Vercel)
-      const printWindow = window.open('', '_blank')
-      if (printWindow) {
-        printWindow.document.write(`
+      // Create a hidden iframe for printing to avoid popup blockers
+      const printFrame = document.createElement('iframe')
+      printFrame.style.display = 'none'
+      document.body.appendChild(printFrame)
+      
+      const printDoc = printFrame.contentDocument || printFrame.contentWindow?.document
+      if (printDoc) {
+        printDoc.open()
+        printDoc.write(`
           <!DOCTYPE html>
           <html>
             <head>
@@ -1672,34 +1677,10 @@ ${(() => {
                 .items-table th {
                   border-bottom: 1px solid black;
                   padding: 1mm 0;
-                  font-weight: 900;
-                  font-size: 10px;
+                  font-weight: bold;
                 }
                 .items-table td {
                   padding: 0.5mm 0;
-                  font-weight: bold;
-                }
-                .col-item {
-                  text-align: left;
-                  width: 55%;
-                  padding-right: 2mm;
-                }
-                .col-qty {
-                  text-align: center;
-                  width: 15%;
-                }
-                .col-amount {
-                  text-align: right;
-                  width: 30%;
-                }
-                .total-row {
-                  display: flex;
-                  justify-content: space-between;
-                  font-size: 10px;
-                  font-weight: bold;
-                  margin: 1mm 0;
-                }
-                .amount {
                   font-weight: bold;
                 }
                 .grand-total {
@@ -1707,36 +1688,40 @@ ${(() => {
                   font-weight: 900;
                   margin: 2mm 0;
                   text-transform: uppercase;
-                  letter-spacing: 1px;
-                  text-align: center;
-                }
-                .footer {
-                  font-size: 11px;
-                  font-weight: bold;
-                  margin: 1mm 0;
-                  text-align: center;
+                  letter-spacing: 0.5px;
                 }
                 .developer {
                   font-size: 8px;
-                  font-weight: bold;
+                  font-weight: 900;
                   margin-top: 2mm;
-                  opacity: 0.8;
-                  text-align: center;
+                  letter-spacing: 0.3px;
                 }
-                br {
-                  line-height: 1.2;
+                strong {
+                  font-weight: bold;
                 }
               </style>
             </head>
-            <body onload="window.print(); window.close();">${plainText}</body>
+            <body>${plainText}</body>
           </html>
         `)
-        printWindow.document.close()
+        printDoc.close()
+        
+        // Wait for content to load, then print
+        setTimeout(() => {
+          printFrame.contentWindow?.focus()
+          printFrame.contentWindow?.print()
+          
+          // Remove iframe after printing
+          setTimeout(() => {
+            document.body.removeChild(printFrame)
+          }, 1000)
+        }, 250)
       } else {
-        alert('Please allow popups for printing')
+        alert('Failed to prepare print document')
+        document.body.removeChild(printFrame)
       }
     } catch (error) {
-      console.error('Printing error:', error)
+      console.error('Printing failed:', error)
       alert('Printing failed: ' + (error as Error).message)
     }
   }
@@ -3294,7 +3279,7 @@ ${(() => {
               </button>
               <button
                 onClick={handlePrintBill}
-                className="flex-1 bg-[#5D3A1A] text-white px-6 py-3 rounded-xl font-semibold hover:shadow-lg transition-all"
+                className="flex-1 bg-green-600 text-white px-6 py-3 rounded-xl font-semibold hover:bg-green-700 transition-all"
               >
                 Print Bill
               </button>
@@ -4154,7 +4139,7 @@ ${(() => {
               </button>
               <button
                 onClick={handleThermalPrint}
-                className="flex-1 px-6 py-3 bg-[#5D3A1A] text-white rounded-xl font-semibold hover:shadow-lg transition-all duration-300"
+                className="flex-1 px-6 py-3 bg-green-600 text-white rounded-xl font-semibold hover:bg-green-700 transition-all duration-300"
               >
                 Print Bill
               </button>

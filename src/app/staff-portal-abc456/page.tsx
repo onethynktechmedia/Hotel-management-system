@@ -1009,6 +1009,9 @@ export default function WaiterPage() {
   const handleThermalPrint = async () => {
     if (!viewingBill) return
     
+    playClickSound()
+    playPrintSound()
+    
     try {
       // Group items by dish name and combine quantities
       const groupedItems: { [key: string]: { name: string, qty: number, total: number, isExtra: boolean } } = {}
@@ -1045,20 +1048,20 @@ export default function WaiterPage() {
       const isMasterTable = viewingBill.tables?.is_master || false
       const plainText = `
 <div style="text-align: center; margin-bottom: 8px;">
-  <div style="font-size: 18px; font-weight: 900; color: #8B4513;">DHOLE PATIL KHANAWAL</div>
-  <div style="font-size: 12px; font-weight: bold; color: #5D3A1A;">RESTAURANT & BAR</div>
+  <div style="font-size: 18px; font-weight: 900; color: #000;">DHOLE PATIL KHANAWAL</div>
+  <div style="font-size: 12px; font-weight: bold; color: #000;">RESTAURANT & BAR</div>
 </div>
-<div style="border-top: 1px dashed #8B4513; margin: 4px 0;"></div>
-<div style="text-align: center; font-size: 10px; margin-bottom: 4px; font-weight: bold;">
+<div style="border-top: 1px dashed #000; margin: 4px 0;"></div>
+<div style="text-align: center; font-size: 10px; margin-bottom: 4px; font-weight: bold; color: #000;">
   <div>123, MAIN STREET</div>
   <div>CITY, STATE - 123456</div>
   <div>PHONE: +91 98765 43210</div>
   <div>GSTIN: 29ABCDE1234F1Z5</div>
 </div>
-<div style="border-top: 1px dashed #8B4513; margin: 4px 0;"></div>
-<div style="text-align: center; font-size: 12px; font-weight: 900; margin: 4px 0;">BILL / INVOICE</div>
-<div style="border-top: 1px dashed #8B4513; margin: 4px 0;"></div>
-<div style="margin: 4px 0; font-size: 10px; font-weight: bold;">
+<div style="border-top: 1px dashed #000; margin: 4px 0;"></div>
+<div style="text-align: center; font-size: 12px; font-weight: 900; margin: 4px 0; color: #000;">BILL / INVOICE</div>
+<div style="border-top: 1px dashed #000; margin: 4px 0;"></div>
+<div style="margin: 4px 0; font-size: 10px; font-weight: bold; color: #000;">
   <div style="display: flex; justify-content: space-between;">
     <span>BILL NO:</span>
     <span>${formatOrderId(viewingBill.id)}</span>
@@ -1084,39 +1087,44 @@ export default function WaiterPage() {
     <span>${viewingBill.customer_name || 'GUEST'}</span>
   </div>
 </div>
-<div style="border-top: 1px dashed #8B4513; margin: 4px 0;"></div>
-<div style="font-size: 10px; font-weight: 900; margin: 4px 0;">ITEM DETAILS</div>
-<div style="border-top: 1px dashed #8B4513; margin: 4px 0;"></div>
-<div style="display: flex; font-size: 9px; font-weight: 900; margin-bottom: 2px;">
+<div style="border-top: 1px dashed #000; margin: 4px 0;"></div>
+<div style="font-size: 10px; font-weight: 900; margin: 4px 0; color: #000;">ITEM DETAILS</div>
+<div style="border-top: 1px dashed #000; margin: 4px 0;"></div>
+<div style="display: flex; font-size: 9px; font-weight: 900; margin-bottom: 2px; color: #000;">
   <span style="flex: 2;">ITEM</span>
   <span style="flex: 1; text-align: right;">QTY</span>
   <span style="flex: 1; text-align: right;">AMT</span>
 </div>
-<div style="border-top: 1px dashed #8B4513; margin: 2px 0;"></div>
+<div style="border-top: 1px dashed #000; margin: 2px 0;"></div>
 ${itemsList}
-<div style="border-top: 1px dashed #8B4513; margin: 4px 0;"></div>
-<div style="border-top: 2px solid #8B4513; margin: 6px 0;"></div>
-<div style="text-align: center; font-size: 14px; font-weight: 900; color: #8B4513; margin: 4px 0;">
+<div style="border-top: 1px dashed #000; margin: 4px 0;"></div>
+<div style="border-top: 2px solid #000; margin: 6px 0;"></div>
+<div style="text-align: center; font-size: 14px; font-weight: 900; color: #000; margin: 4px 0;">
   GRAND TOTAL: RS${viewingBill.total_amount.toFixed(2)}
 </div>
-<div style="border-top: 2px solid #8B4513; margin: 6px 0;"></div>
-<div style="text-align: center; font-size: 10px; margin: 4px 0; font-weight: bold;">
+<div style="border-top: 2px solid #000; margin: 6px 0;"></div>
+<div style="text-align: center; font-size: 10px; margin: 4px 0; font-weight: bold; color: #000;">
   <div>THANK YOU FOR DINING!</div>
   <div>VISIT US AGAIN</div>
 </div>
-<div style="border-top: 1px dashed #8B4513; margin: 4px 0;"></div>
-<div style="text-align: center; font-size: 8px; font-weight: 900; color: #8B4513; margin: 4px 0;">
+<div style="border-top: 1px dashed #000; margin: 4px 0;"></div>
+<div style="text-align: center; font-size: 8px; font-weight: 900; color: #000; margin: 4px 0;">
   DEVELOPED BY ONETHYNK TECHMEDIA
 </div>
-<div style="border-top: 1px dashed #8B4513; margin: 4px 0;"></div>
+<div style="border-top: 1px dashed #000; margin: 4px 0;"></div>
 `
       
       console.log('Bill content generated')
       
-      // Use browser print directly (works on all platforms including Vercel)
-      const printWindow = window.open('', '_blank')
-      if (printWindow) {
-        printWindow.document.write(`
+      // Create a hidden iframe for printing to avoid popup blockers
+      const printFrame = document.createElement('iframe')
+      printFrame.style.display = 'none'
+      document.body.appendChild(printFrame)
+      
+      const printDoc = printFrame.contentDocument || printFrame.contentWindow?.document
+      if (printDoc) {
+        printDoc.open()
+        printDoc.write(`
           <!DOCTYPE html>
           <html>
             <head>
@@ -1132,20 +1140,10 @@ ${itemsList}
                     size: 58mm auto;
                     margin: 0;
                   }
-                  @page :left {
-                    margin: 0;
-                  }
-                  @page :right {
-                    margin: 0;
-                  }
                   body {
                     margin: 0;
                     padding: 2mm;
                     width: 58mm;
-                    -webkit-print-color-adjust: exact;
-                    print-color-adjust: exact;
-                  }
-                  * {
                     -webkit-print-color-adjust: exact;
                     print-color-adjust: exact;
                   }
@@ -1154,46 +1152,42 @@ ${itemsList}
                   margin: 0;
                   padding: 0;
                   box-sizing: border-box;
+                  font-weight: bold;
                 }
                 body {
                   font-family: 'Courier New', Courier, monospace;
                   font-size: 10px;
                   line-height: 1.2;
                   color: #000;
+                  font-weight: bold;
+                }
+                strong {
+                  font-weight: bold;
                 }
               </style>
             </head>
             <body>${plainText}</body>
           </html>
         `)
-        printWindow.document.close()
-        printWindow.focus()
+        printDoc.close()
         
+        // Wait for content to load, then print
         setTimeout(() => {
-          printWindow.print()
+          printFrame.contentWindow?.focus()
+          printFrame.contentWindow?.print()
+          
+          // Remove iframe after printing
           setTimeout(() => {
-            printWindow.close()
+            document.body.removeChild(printFrame)
+            
             // Update order status to completed after printing
-            // This will hide it from waiter and kitchen but keep it in admin
             const updateOrderStatus = async () => {
               try {
-                // Update all orders for this table and customer to completed
-                const allTableOrders = orders.filter(o => 
-                  o.table_id === viewingBill.table_id && 
-                  o.customer_name === viewingBill.customer_name &&
-                  !['paid', 'completed'].includes(o.status)
-                )
-                
-                await Promise.all(
-                  allTableOrders.map(async (order) => {
-                    await fetch(`/api/orders/${order.id}`, {
-                      method: 'PATCH',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ status: 'completed' })
-                    })
-                  })
-                )
-                
+                await fetch(`/api/orders/${viewingBill.id}`, {
+                  method: 'PATCH',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ status: 'completed' })
+                })
                 // Refresh orders
                 fetchData()
                 playSuccessSound()
@@ -2990,7 +2984,7 @@ ${itemsList}
                 <div className="mt-6 space-y-3">
                   <button
                     onClick={handleThermalPrint}
-                    className="w-full flex items-center justify-center gap-2 bg-[#5D3A1A] text-white px-6 py-3 rounded-xl font-semibold hover:bg-[#8B4513] transition-all duration-300"
+                    className="w-full flex items-center justify-center gap-2 bg-green-600 text-white px-6 py-3 rounded-xl font-semibold hover:bg-green-700 transition-all duration-300"
                   >
                     <Printer className="w-5 h-5" />
                     Print Bill
