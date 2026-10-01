@@ -143,45 +143,85 @@ export default function KitchenPage() {
         const name = item.dishes?.name || 'Unknown'
         const qty = item.quantity
         const dishType = item.dish_type || '-'
-        const itemName = name.length > 14 ? name.substring(0, 13) + '.' : name
-        return `${itemName.padEnd(14)} ${qty.toString().padStart(2)} ${dishType.padEnd(4)}<br>`
+        const itemName = name.length > 20 ? name.substring(0, 19) + '.' : name
+        return `<div style="display: flex; font-size: 9px; margin: 2px 0;">
+  <span style="flex: 2;">${itemName}</span>
+  <span style="flex: 1; text-align: right;">${qty}</span>
+  <span style="flex: 1; text-align: right;">${dishType}</span>
+</div>`
       }).join('') || ''
       
       // Generate HTML bill content for browser print
       const plainText = `
-<strong>TABLE ${selectedOrderForBill.tables?.table_number}</strong><br>
-================================<br>
-<strong>DHOLE PATIL KHANAWAL</strong><br>
-<strong>RESTAURANT & BAR</strong><br>
-================================<br>
-<strong>KITCHEN ORDER</strong><br>
---------------------------------<br>
-<strong>ORDER: ${formatOrderId(selectedOrderForBill.id)}</strong><br>
-<strong>DATE: ${new Date(selectedOrderForBill.created_at).toLocaleDateString()}</strong><br>
-<strong>TIME: ${new Date(selectedOrderForBill.created_at).toLocaleTimeString()}</strong><br>
-<strong>WAITER: ${selectedOrderForBill.users?.name}</strong><br>
---------------------------------<br>
-<strong>ITEM                  QTY  TYPE</strong><br>
---------------------------------<br>
+<div style="text-align: center; margin-bottom: 8px;">
+  <div style="font-size: 18px; font-weight: 900; color: #000;">DHOLE PATIL KHANAWAL</div>
+  <div style="font-size: 12px; font-weight: bold; color: #000;">RESTAURANT & BAR</div>
+</div>
+<div style="border-top: 1px dashed #000; margin: 4px 0;"></div>
+<div style="text-align: center; font-size: 12px; font-weight: 900; margin: 4px 0; color: #000;">KITCHEN ORDER</div>
+<div style="border-top: 1px dashed #000; margin: 4px 0;"></div>
+<div style="margin: 4px 0; font-size: 10px; font-weight: bold; color: #000;">
+  <div style="display: flex; justify-content: space-between;">
+    <span>ORDER:</span>
+    <span>${formatOrderId(selectedOrderForBill.id)}</span>
+  </div>
+  <div style="display: flex; justify-content: space-between;">
+    <span>TABLE:</span>
+    <span>${selectedOrderForBill.tables?.table_number}</span>
+  </div>
+  <div style="display: flex; justify-content: space-between;">
+    <span>DATE:</span>
+    <span>${new Date(selectedOrderForBill.created_at).toLocaleDateString()}</span>
+  </div>
+  <div style="display: flex; justify-content: space-between;">
+    <span>TIME:</span>
+    <span>${new Date(selectedOrderForBill.created_at).toLocaleTimeString()}</span>
+  </div>
+  <div style="display: flex; justify-content: space-between;">
+    <span>WAITER:</span>
+    <span>${selectedOrderForBill.users?.name}</span>
+  </div>
+</div>
+<div style="border-top: 1px dashed #000; margin: 4px 0;"></div>
+<div style="font-size: 10px; font-weight: 900; margin: 4px 0; color: #000;">ITEM DETAILS</div>
+<div style="border-top: 1px dashed #000; margin: 4px 0;"></div>
+<div style="display: flex; font-size: 9px; font-weight: 900; margin-bottom: 2px; color: #000;">
+  <span style="flex: 2;">ITEM</span>
+  <span style="flex: 1; text-align: right;">QTY</span>
+  <span style="flex: 1; text-align: right;">TYPE</span>
+</div>
+<div style="border-top: 1px dashed #000; margin: 2px 0;"></div>
 ${itemsList}
---------------------------------<br>
-<strong>STATUS: ${selectedOrderForBill.status.toUpperCase()}</strong><br>
-================================<br>
-<strong>DEVELOPED BY ONETHYNK TECHMEDIA</strong><br>
-================================
+<div style="border-top: 1px dashed #000; margin: 4px 0;"></div>
+<div style="margin: 4px 0; font-size: 10px; font-weight: bold; color: #000;">
+  <div style="display: flex; justify-content: space-between;">
+    <span>STATUS:</span>
+    <span>${selectedOrderForBill.status.toUpperCase()}</span>
+  </div>
+</div>
+<div style="border-top: 1px dashed #000; margin: 4px 0;"></div>
+<div style="text-align: center; font-size: 8px; font-weight: bold; margin: 2px 0; color: #000;">
+  DEVELOPED BY ONETHYNK TECHMEDIA
+</div>
 `
       
       console.log('Bill content generated')
       
-      // Use browser print directly (works on all platforms)
-      const printWindow = window.open('', '_blank')
-      if (printWindow) {
-        printWindow.document.write(`
+      // Create a hidden iframe for printing to avoid popup blockers
+      const printFrame = document.createElement('iframe')
+      printFrame.style.display = 'none'
+      document.body.appendChild(printFrame)
+      
+      const printDoc = printFrame.contentDocument || printFrame.contentWindow?.document
+      if (printDoc) {
+        printDoc.open()
+        printDoc.write(`
           <!DOCTYPE html>
           <html>
             <head>
               <title>Kitchen Order Print</title>
               <meta charset="UTF-8">
+              <meta name="viewport" content="width=device-width, initial-scale=1.0">
               <style>
                 @page {
                   size: 58mm auto;
@@ -199,35 +239,36 @@ ${itemsList}
                     -webkit-print-color-adjust: exact;
                     print-color-adjust: exact;
                   }
-                  * {
-                    -webkit-print-color-adjust: exact;
-                    print-color-adjust: exact;
-                  }
                 }
                 * {
                   margin: 0;
                   padding: 0;
                   box-sizing: border-box;
-                  font-weight: bold;
                 }
                 body {
-                  font-family: 'Courier New', Courier, monospace;
+                  font-family: monospace;
                   font-size: 10px;
                   line-height: 1.2;
                   color: #000;
-                  font-weight: bold;
-                }
-                strong {
-                  font-weight: bold;
                 }
               </style>
             </head>
-            <body onload="window.print(); window.close();">${plainText}</body>
+            <body>${plainText}</body>
           </html>
         `)
-        printWindow.document.close()
+        printDoc.close()
+        
+        setTimeout(() => {
+          printFrame.contentWindow?.focus()
+          printFrame.contentWindow?.print()
+          
+          setTimeout(() => {
+            document.body.removeChild(printFrame)
+          }, 1000)
+        }, 250)
       } else {
-        alert('Please allow popups for printing')
+        alert('Failed to prepare print document')
+        document.body.removeChild(printFrame)
       }
       
       console.log('Kitchen order printed successfully')

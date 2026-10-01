@@ -646,7 +646,173 @@ export default function AdminDashboard() {
       console.log('Bill printed successfully via WebUSB')
       
     } catch (error: any) {
-      console.error('Error printing bill:', error)
+      console.error('USB printing failed:', error)
+      console.log('Falling back to browser printing...')
+      
+      // Fallback to browser printing using iframe
+      try {
+        const isMasterTable = viewingBill.tables?.is_master || false
+        const plainText = `
+<div style="text-align: center; margin-bottom: 8px;">
+  <div style="font-size: 18px; font-weight: 900; color: #000;">DHOLE PATIL KHANAWAL</div>
+  <div style="font-size: 12px; font-weight: bold; color: #000;">RESTAURANT & BAR</div>
+</div>
+<div style="border-top: 1px dashed #000; margin: 4px 0;"></div>
+<div style="text-align: center; font-size: 10px; margin-bottom: 4px; font-weight: bold; color: #000;">
+  <div>123, MAIN STREET</div>
+  <div>CITY, STATE - 123456</div>
+  <div>PHONE: +91 98765 43210</div>
+  <div>GSTIN: 29ABCDE1234F1Z5</div>
+</div>
+<div style="border-top: 1px dashed #000; margin: 4px 0;"></div>
+<div style="text-align: center; font-size: 12px; font-weight: 900; margin: 4px 0; color: #000;">BILL / INVOICE</div>
+<div style="border-top: 1px dashed #000; margin: 4px 0;"></div>
+<div style="margin: 4px 0; font-size: 10px; font-weight: bold; color: #000;">
+  <div style="display: flex; justify-content: space-between;">
+    <span>BILL NO:</span>
+    <span>${formatOrderId(viewingBill.id)}</span>
+  </div>
+  <div style="display: flex; justify-content: space-between;">
+    <span>DATE:</span>
+    <span>${new Date(viewingBill.created_at).toLocaleDateString()}</span>
+  </div>
+  <div style="display: flex; justify-content: space-between;">
+    <span>TIME:</span>
+    <span>${new Date(viewingBill.created_at).toLocaleTimeString()}</span>
+  </div>
+  <div style="display: flex; justify-content: space-between;">
+    <span>TABLE:</span>
+    <span>${viewingBill.tables?.table_number}${isMasterTable ? ' (M)' : ''}</span>
+  </div>
+  <div style="display: flex; justify-content: space-between;">
+    <span>WAITER:</span>
+    <span>${viewingBill.users?.name}</span>
+  </div>
+  <div style="display: flex; justify-content: space-between;">
+    <span>CUSTOMER:</span>
+    <span>${viewingBill.customer_name || 'GUEST'}</span>
+  </div>
+</div>
+<div style="border-top: 1px dashed #000; margin: 4px 0;"></div>
+<div style="font-size: 10px; font-weight: 900; margin: 4px 0; color: #000;">ITEM DETAILS</div>
+<div style="border-top: 1px dashed #000; margin: 4px 0;"></div>
+<div style="display: flex; font-size: 9px; font-weight: 900; margin-bottom: 2px; color: #000;">
+  <span style="flex: 2;">ITEM</span>
+  <span style="flex: 1; text-align: right;">QTY</span>
+  <span style="flex: 1; text-align: right;">AMT</span>
+</div>
+<div style="border-top: 1px dashed #000; margin: 2px 0;"></div>
+${billOrderItems.map((item: any) => {
+  const name = item.dishes?.name || 'Unknown'
+  const qty = item.quantity
+  const price = (item.dishes?.price || item.price || 0)
+  const total = price * qty
+  const itemName = name.length > 20 ? name.substring(0, 19) + '.' : name
+  return `<div style="display: flex; font-size: 9px; margin: 2px 0;">
+  <span style="flex: 2;">${itemName}</span>
+  <span style="flex: 1; text-align: right;">${qty}</span>
+  <span style="flex: 1; text-align: right;">${total.toFixed(2)}</span>
+</div>`
+}).join('')}
+<div style="border-top: 1px dashed #000; margin: 4px 0;"></div>
+<div style="margin: 4px 0; font-size: 10px; font-weight: bold; color: #000;">
+  <div style="display: flex; justify-content: space-between;">
+    <span>SUBTOTAL:</span>
+    <span>₹${calculateBillSubtotal().toFixed(2)}</span>
+  </div>
+  ${calculateBillDiscount() > 0 ? `
+  <div style="display: flex; justify-content: space-between;">
+    <span>DISCOUNT:</span>
+    <span>-₹${calculateBillDiscount().toFixed(2)}</span>
+  </div>` : ''}
+  <div style="display: flex; justify-content: space-between;">
+    <span>CGST (${billCGST}%):</span>
+    <span>₹${calculateBillTax(calculateBillSubtotal() - calculateBillDiscount(), billCGST).toFixed(2)}</span>
+  </div>
+  <div style="display: flex; justify-content: space-between;">
+    <span>SGST (${billSGST}%):</span>
+    <span>₹${calculateBillTax(calculateBillSubtotal() - calculateBillDiscount(), billSGST).toFixed(2)}</span>
+  </div>
+</div>
+<div style="border-top: 1px dashed #000; margin: 4px 0;"></div>
+<div style="text-align: center; font-size: 12px; font-weight: 900; margin: 4px 0; color: #000;">
+  GRAND TOTAL: ₹${calculateBillGrandTotal().toFixed(2)}
+</div>
+<div style="border-top: 1px dashed #000; margin: 4px 0;"></div>
+<div style="text-align: center; font-size: 10px; margin: 4px 0; color: #000;">
+  <div>THANK YOU FOR DINING!</div>
+  <div>VISIT US AGAIN</div>
+</div>
+<div style="border-top: 1px dashed #000; margin: 4px 0;"></div>
+<div style="text-align: center; font-size: 8px; font-weight: bold; margin: 2px 0; color: #000;">
+  DEVELOPED BY ONETHYNK TECHMEDIA
+</div>
+`
+        
+        const printFrame = document.createElement('iframe')
+        printFrame.style.display = 'none'
+        document.body.appendChild(printFrame)
+        
+        const printDoc = printFrame.contentDocument || printFrame.contentWindow?.document
+        if (printDoc) {
+          printDoc.open()
+          printDoc.write(`
+            <!DOCTYPE html>
+            <html>
+              <head>
+                <title>Bill Print</title>
+                <meta charset="UTF-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <style>
+                  @page {
+                    size: 58mm auto;
+                    margin: 0;
+                  }
+                  @media print {
+                    @page {
+                      size: 58mm auto;
+                      margin: 0;
+                    }
+                    body {
+                      margin: 0;
+                      padding: 2mm;
+                      width: 58mm;
+                      -webkit-print-color-adjust: exact;
+                      print-color-adjust: exact;
+                    }
+                  }
+                  * {
+                    margin: 0;
+                    padding: 0;
+                    box-sizing: border-box;
+                  }
+                  body {
+                    font-family: monospace;
+                    font-size: 10px;
+                    line-height: 1.2;
+                  }
+                </style>
+              </head>
+              <body>${plainText}</body>
+            </html>
+          `)
+          printDoc.close()
+          
+          setTimeout(() => {
+            printFrame.contentWindow?.focus()
+            printFrame.contentWindow?.print()
+            
+            setTimeout(() => {
+              document.body.removeChild(printFrame)
+            }, 1000)
+          }, 250)
+        } else {
+          alert('Failed to prepare print document')
+          document.body.removeChild(printFrame)
+        }
+      } catch (fallbackError) {
+        console.error('Browser printing also failed:', fallbackError)
+      }
     }
   }
 
@@ -747,8 +913,173 @@ export default function AdminDashboard() {
       console.log('Bill printed successfully via WebUSB')
       
     } catch (error: any) {
-      console.error('Printing failed:', error)
-      // Silently log error without alert
+      console.error('USB printing failed:', error)
+      console.log('Falling back to browser printing...')
+      
+      // Fallback to browser printing using iframe
+      try {
+        const isMasterTable = selectedOrderForBilling.tables?.is_master || false
+        const plainText = `
+<div style="text-align: center; margin-bottom: 8px;">
+  <div style="font-size: 18px; font-weight: 900; color: #000;">DHOLE PATIL KHANAWAL</div>
+  <div style="font-size: 12px; font-weight: bold; color: #000;">RESTAURANT & BAR</div>
+</div>
+<div style="border-top: 1px dashed #000; margin: 4px 0;"></div>
+<div style="text-align: center; font-size: 10px; margin-bottom: 4px; font-weight: bold; color: #000;">
+  <div>123, MAIN STREET</div>
+  <div>CITY, STATE - 123456</div>
+  <div>PHONE: +91 98765 43210</div>
+  <div>GSTIN: 29ABCDE1234F1Z5</div>
+</div>
+<div style="border-top: 1px dashed #000; margin: 4px 0;"></div>
+<div style="text-align: center; font-size: 12px; font-weight: 900; margin: 4px 0; color: #000;">BILL / INVOICE</div>
+<div style="border-top: 1px dashed #000; margin: 4px 0;"></div>
+<div style="margin: 4px 0; font-size: 10px; font-weight: bold; color: #000;">
+  <div style="display: flex; justify-content: space-between;">
+    <span>BILL NO:</span>
+    <span>${formatOrderId(selectedOrderForBilling.id)}</span>
+  </div>
+  <div style="display: flex; justify-content: space-between;">
+    <span>DATE:</span>
+    <span>${new Date(selectedOrderForBilling.created_at).toLocaleDateString()}</span>
+  </div>
+  <div style="display: flex; justify-content: space-between;">
+    <span>TIME:</span>
+    <span>${new Date(selectedOrderForBilling.created_at).toLocaleTimeString()}</span>
+  </div>
+  <div style="display: flex; justify-content: space-between;">
+    <span>TABLE:</span>
+    <span>${selectedOrderForBilling.tables?.table_number}${isMasterTable ? ' (M)' : ''}</span>
+  </div>
+  <div style="display: flex; justify-content: space-between;">
+    <span>WAITER:</span>
+    <span>${selectedOrderForBilling.users?.name}</span>
+  </div>
+  <div style="display: flex; justify-content: space-between;">
+    <span>CUSTOMER:</span>
+    <span>${selectedOrderForBilling.customer_name || 'GUEST'}</span>
+  </div>
+</div>
+<div style="border-top: 1px dashed #000; margin: 4px 0;"></div>
+<div style="font-size: 10px; font-weight: 900; margin: 4px 0; color: #000;">ITEM DETAILS</div>
+<div style="border-top: 1px dashed #000; margin: 4px 0;"></div>
+<div style="display: flex; font-size: 9px; font-weight: 900; margin-bottom: 2px; color: #000;">
+  <span style="flex: 2;">ITEM</span>
+  <span style="flex: 1; text-align: right;">QTY</span>
+  <span style="flex: 1; text-align: right;">AMT</span>
+</div>
+<div style="border-top: 1px dashed #000; margin: 2px 0;"></div>
+${selectedOrderForBilling.order_items?.map((item: any) => {
+  const name = item.dishes?.name || 'Unknown'
+  const qty = item.quantity
+  const price = (item.dishes?.price || item.price || 0)
+  const total = price * qty
+  const itemName = name.length > 20 ? name.substring(0, 19) + '.' : name
+  return `<div style="display: flex; font-size: 9px; margin: 2px 0;">
+  <span style="flex: 2;">${itemName}</span>
+  <span style="flex: 1; text-align: right;">${qty}</span>
+  <span style="flex: 1; text-align: right;">${total.toFixed(2)}</span>
+</div>`
+}).join('')}
+<div style="border-top: 1px dashed #000; margin: 4px 0;"></div>
+<div style="margin: 4px 0; font-size: 10px; font-weight: bold; color: #000;">
+  <div style="display: flex; justify-content: space-between;">
+    <span>SUBTOTAL:</span>
+    <span>₹${selectedOrderForBilling.total_amount.toFixed(2)}</span>
+  </div>
+  ${calculateDiscountValue(selectedOrderForBilling.total_amount) > 0 ? `
+  <div style="display: flex; justify-content: space-between;">
+    <span>DISCOUNT:</span>
+    <span>-₹${calculateDiscountValue(selectedOrderForBilling.total_amount).toFixed(2)}</span>
+  </div>` : ''}
+  <div style="display: flex; justify-content: space-between;">
+    <span>CGST (${cgstRate}%):</span>
+    <span>₹${calculateBillTax(selectedOrderForBilling.total_amount - calculateDiscountValue(selectedOrderForBilling.total_amount), cgstRate).toFixed(2)}</span>
+  </div>
+  <div style="display: flex; justify-content: space-between;">
+    <span>SGST (${sgstRate}%):</span>
+    <span>₹${calculateBillTax(selectedOrderForBilling.total_amount - calculateDiscountValue(selectedOrderForBilling.total_amount), sgstRate).toFixed(2)}</span>
+  </div>
+</div>
+<div style="border-top: 1px dashed #000; margin: 4px 0;"></div>
+<div style="text-align: center; font-size: 12px; font-weight: 900; margin: 4px 0; color: #000;">
+  GRAND TOTAL: ₹${calculateFinalAmount(selectedOrderForBilling.total_amount).toFixed(2)}
+</div>
+<div style="border-top: 1px dashed #000; margin: 4px 0;"></div>
+<div style="text-align: center; font-size: 10px; margin: 4px 0; color: #000;">
+  <div>THANK YOU FOR DINING!</div>
+  <div>VISIT US AGAIN</div>
+</div>
+<div style="border-top: 1px dashed #000; margin: 4px 0;"></div>
+<div style="text-align: center; font-size: 8px; font-weight: bold; margin: 2px 0; color: #000;">
+  DEVELOPED BY ONETHYNK TECHMEDIA
+</div>
+`
+        
+        const printFrame = document.createElement('iframe')
+        printFrame.style.display = 'none'
+        document.body.appendChild(printFrame)
+        
+        const printDoc = printFrame.contentDocument || printFrame.contentWindow?.document
+        if (printDoc) {
+          printDoc.open()
+          printDoc.write(`
+            <!DOCTYPE html>
+            <html>
+              <head>
+                <title>Bill Print</title>
+                <meta charset="UTF-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <style>
+                  @page {
+                    size: 58mm auto;
+                    margin: 0;
+                  }
+                  @media print {
+                    @page {
+                      size: 58mm auto;
+                      margin: 0;
+                    }
+                    body {
+                      margin: 0;
+                      padding: 2mm;
+                      width: 58mm;
+                      -webkit-print-color-adjust: exact;
+                      print-color-adjust: exact;
+                    }
+                  }
+                  * {
+                    margin: 0;
+                    padding: 0;
+                    box-sizing: border-box;
+                  }
+                  body {
+                    font-family: monospace;
+                    font-size: 10px;
+                    line-height: 1.2;
+                  }
+                </style>
+              </head>
+              <body>${plainText}</body>
+            </html>
+          `)
+          printDoc.close()
+          
+          setTimeout(() => {
+            printFrame.contentWindow?.focus()
+            printFrame.contentWindow?.print()
+            
+            setTimeout(() => {
+              document.body.removeChild(printFrame)
+            }, 1000)
+          }, 250)
+        } else {
+          alert('Failed to prepare print document')
+          document.body.removeChild(printFrame)
+        }
+      } catch (fallbackError) {
+        console.error('Browser printing also failed:', fallbackError)
+      }
     }
   }
 
