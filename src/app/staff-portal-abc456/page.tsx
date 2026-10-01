@@ -2864,12 +2864,16 @@ ${itemsList}
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-hidden">
               {/* Header */}
-              <div className="bg-[#5D3A1A] p-6 text-center">
-                <div className="mb-3">
-                  <img src="/logo.png" alt="Dhole Patil Hotel Logo" className="w-20 h-20 mx-auto rounded-full object-cover border-4 border-white" />
+              <div className="bg-gradient-to-r from-[#5D3A1A] to-[#8B5A2B] p-6 rounded-t-2xl">
+                <div className="text-center">
+                  <h2 className="text-3xl font-bold text-white mb-1">DHOLE PATIL KHANAWAL</h2>
+                  <p className="text-[#F5F5DC] text-sm font-semibold">RESTAURANT & BAR</p>
+                  <div className="mt-2 text-[#F5F5DC] text-xs space-y-1">
+                    <p>123, MAIN STREET, CITY, STATE - 123456</p>
+                    <p>PHONE: +91 98765 43210</p>
+                    <p>GSTIN: 29ABCDE1234F1Z5</p>
+                  </div>
                 </div>
-                <h2 className="text-2xl font-bold text-white mb-1">Dhole Patil Hotel</h2>
-                <p className="text-[#F5F5DC] text-sm">Authentic Maharashtrian Cuisine</p>
               </div>
 
               <div className="p-6 overflow-y-auto max-h-[calc(90vh-250px)]">
@@ -2984,7 +2988,7 @@ ${itemsList}
                 <div className="mt-6 space-y-3">
                   <button
                     onClick={handleThermalPrint}
-                    className="w-full flex items-center justify-center gap-2 bg-green-600 text-white px-6 py-3 rounded-xl font-semibold hover:bg-green-700 transition-all duration-300"
+                    className="w-full flex items-center justify-center gap-2 bg-[#5D3A1A] text-white px-6 py-3 rounded-xl font-semibold hover:bg-[#8B4513] transition-all duration-300"
                   >
                     <Printer className="w-5 h-5" />
                     Print Bill

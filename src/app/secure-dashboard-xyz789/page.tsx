@@ -2027,7 +2027,7 @@ ${(() => {
                                 e.stopPropagation()
                                 handleGenerateBill(order)
                               }}
-                              className="bg-[#5D3A1A] text-white px-3 py-1 rounded-lg text-xs font-semibold hover:shadow-lg transition-all duration-300"
+                              className="bg-[#5D3A1A] text-white px-3 py-1 rounded-lg text-xs font-semibold hover:bg-[#8B4513] transition-all duration-300"
                             >
                               Print Bill
                             </button>
@@ -2153,7 +2153,7 @@ ${(() => {
                               e.stopPropagation()
                               handleGenerateBill(order)
                             }}
-                            className="bg-[#5D3A1A] text-white px-3 py-1 rounded-lg text-xs font-semibold hover:shadow-lg transition-all duration-300"
+                            className="bg-[#5D3A1A] text-white px-3 py-1 rounded-lg text-xs font-semibold hover:bg-[#8B4513] transition-all duration-300"
                           >
                             Print Bill
                           </button>
@@ -2681,7 +2681,7 @@ ${(() => {
                       <div className="flex gap-2">
                         <button
                           onClick={() => printOfflineBill(order)}
-                          className="flex-1 bg-[#5D3A1A] text-white px-4 py-2 rounded-lg text-sm font-semibold hover:shadow-lg transition-all"
+                          className="flex-1 bg-[#5D3A1A] text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-[#8B4513] transition-all"
                         >
                           Print Bill
                         </button>
@@ -3279,7 +3279,7 @@ ${(() => {
               </button>
               <button
                 onClick={handlePrintBill}
-                className="flex-1 bg-green-600 text-white px-6 py-3 rounded-xl font-semibold hover:bg-green-700 transition-all"
+                className="flex-1 bg-[#5D3A1A] text-white px-6 py-3 rounded-xl font-semibold hover:bg-[#8B4513] transition-all"
               >
                 Print Bill
               </button>
@@ -3293,9 +3293,16 @@ ${(() => {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-hidden">
             {/* Header */}
-            <div className="bg-[#5D3A1A] p-6 text-center">
-              <h2 className="text-2xl font-bold text-white mb-1">Bill Preview</h2>
-              <p className="text-green-100 text-sm">Order #{formatOrderId(viewingBill.id)}</p>
+            <div className="bg-gradient-to-r from-[#5D3A1A] to-[#8B5A2B] p-6 rounded-t-2xl">
+              <div className="text-center">
+                <h2 className="text-3xl font-bold text-white mb-1">DHOLE PATIL KHANAWAL</h2>
+                <p className="text-[#F5F5DC] text-sm font-semibold">RESTAURANT & BAR</p>
+                <div className="mt-2 text-[#F5F5DC] text-xs space-y-1">
+                  <p>123, MAIN STREET, CITY, STATE - 123456</p>
+                  <p>PHONE: +91 98765 43210</p>
+                  <p>GSTIN: 29ABCDE1234F1Z5</p>
+                </div>
+              </div>
             </div>
 
             <div className="p-6 overflow-y-auto max-h-[calc(90vh-200px)]">
@@ -3492,14 +3499,14 @@ ${(() => {
                   <>
                     <button
                       onClick={() => setIsEditingBill(true)}
-                      className="w-full flex items-center justify-center gap-2 bg-blue-600 text-white px-6 py-3 rounded-xl font-semibold hover:bg-blue-700 transition-all duration-300"
+                      className="w-full flex items-center justify-center gap-2 bg-gray-500 text-white px-6 py-3 rounded-xl font-semibold hover:bg-gray-600 transition-all duration-300"
                     >
                       <Edit className="w-5 h-5" />
                       Edit Bill
                     </button>
                     <button
                       onClick={handlePrintPreviewBill}
-                      className="w-full flex items-center justify-center gap-2 bg-green-600 text-white px-6 py-3 rounded-xl font-semibold hover:bg-green-700 transition-all duration-300"
+                      className="w-full flex items-center justify-center gap-2 bg-[#5D3A1A] text-white px-6 py-3 rounded-xl font-semibold hover:bg-[#8B4513] transition-all duration-300"
                     >
                       <Printer className="w-5 h-5" />
                       Print Bill
@@ -3509,7 +3516,7 @@ ${(() => {
                   <>
                     <button
                       onClick={handleSaveBillEdits}
-                      className="w-full flex items-center justify-center gap-2 bg-green-600 text-white px-6 py-3 rounded-xl font-semibold hover:bg-green-700 transition-all duration-300"
+                      className="w-full flex items-center justify-center gap-2 bg-[#5D3A1A] text-white px-6 py-3 rounded-xl font-semibold hover:bg-[#8B4513] transition-all duration-300"
                     >
                       Save Changes
                     </button>
@@ -3897,16 +3904,16 @@ ${(() => {
             <div className="border-2 border-green-300 rounded-xl p-6 bg-white shadow-lg">
               {/* Header */}
               <div className="text-center mb-6 pb-4 border-b-2 border-dashed border-green-300">
-                <h1 className="text-3xl font-bold text-green-700 mb-1">
-                  Dhole Patil Khanawal
+                <h1 className="text-3xl font-bold text-green-700 mb-1 uppercase">
+                  DHOLE PATIL KHANAWAL
                 </h1>
-                <p className="text-sm font-semibold text-gray-700 mb-1">Restaurant & Bar</p>
+                <p className="text-sm font-semibold text-gray-700 mb-1 uppercase">RESTAURANT & BAR</p>
                 <div className="text-xs text-gray-600 space-y-1">
-                  <p>123, Main Street, City, State - 123456</p>
-                  <p>Phone: +91 98765 43210</p>
+                  <p>123, MAIN STREET, CITY, STATE - 123456</p>
+                  <p>PHONE: +91 98765 43210</p>
                   <p>GSTIN: 29ABCDE1234F1Z5</p>
                 </div>
-                <p className="text-sm font-bold text-green-700 mt-3 border-t border-dashed border-green-300 pt-2">BILL / INVOICE</p>
+                <p className="text-sm font-bold text-green-700 mt-3 border-t border-dashed border-green-300 pt-2 uppercase">BILL / INVOICE</p>
               </div>
 
               {/* Print-only header with hotel details */}
@@ -4139,7 +4146,7 @@ ${(() => {
               </button>
               <button
                 onClick={handleThermalPrint}
-                className="flex-1 px-6 py-3 bg-green-600 text-white rounded-xl font-semibold hover:bg-green-700 transition-all duration-300"
+                className="flex-1 px-6 py-3 bg-[#5D3A1A] text-white rounded-xl font-semibold hover:bg-[#8B4513] transition-all duration-300"
               >
                 Print Bill
               </button>
