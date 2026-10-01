@@ -69,9 +69,9 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { table_id, waiter_id, status, total_amount } = body
+    const { table_id, waiter_id, status, total_amount, customer_name, customer_mobile } = body
 
-    console.log('Creating order with:', { table_id, waiter_id, status, total_amount })
+    console.log('Creating order with:', { table_id, waiter_id, status, total_amount, customer_name, customer_mobile })
 
     const { data: order, error } = await supabase
       .from('orders')
@@ -79,7 +79,9 @@ export async function POST(request: NextRequest) {
         table_id,
         waiter_id,
         status,
-        total_amount
+        total_amount,
+        customer_name: customer_name || null,
+        customer_mobile: customer_mobile || null
       })
       .select()
       .single()

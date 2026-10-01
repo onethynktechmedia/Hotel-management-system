@@ -11,7 +11,7 @@ import Sidebar from '@/components/Sidebar'
 const formatOrderId = (orderId: string) => {
   const hash = orderId.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0)
   const orderNumber = (hash % 999) + 1
-  return `GGR-${String(orderNumber).padStart(3, '0')}`
+  return `DPK-${String(orderNumber).padStart(3, '0')}`
 }
 
 export default function OfflineAdminPage() {
@@ -251,22 +251,23 @@ export default function OfflineAdminPage() {
       escposContent += '\x1B\x21\x30'
       escposContent += 'DHOLE PATIL KHANAWAL\n'
       escposContent += '\x1B\x21\x00'
-      escposContent += 'Restaurant & Bar\n'
+      escposContent += 'RESTAURANT & BAR\n'
       escposContent += '================================\n'
-      escposContent += '123, Main Street\n'
-      escposContent += 'City, State - 123456\n'
-      escposContent += 'Phone: +91 98765 43210\n'
+      escposContent += '123, MAIN STREET\n'
+      escposContent += 'CITY, STATE - 123456\n'
+      escposContent += 'PHONE: +91 98765 43210\n'
+      escposContent += 'GSTIN: 29ABCDE1234F1Z5\n'
       escposContent += '================================\n'
       escposContent += '\x1B\x21\x08'
       escposContent += 'BILL / INVOICE\n'
       escposContent += '\x1B\x21\x00'
       escposContent += '================================\n\n'
       escposContent += '\x1B\x61\x00'
-      escposContent += `Bill No: OFF-${Date.now()}\n`
+      escposContent += `Bill No: DPK-${String((Date.now() % 999) + 1).padStart(3, '0')}\n`
       escposContent += `Date: ${new Date().toLocaleDateString()}\n`
       escposContent += `Time: ${new Date().toLocaleTimeString()}\n`
       escposContent += `Table: ${tableNumber}\n`
-      escposContent += `Customer: ${customerName || 'Guest'}\n`
+      escposContent += `Customer: ${customerName || 'GUEST'}\n`
       escposContent += '--------------------------\n'
       escposContent += '\x1B\x21\x08'
       escposContent += '  ITEM                  QTY  AMT\n'
@@ -283,7 +284,7 @@ export default function OfflineAdminPage() {
       })
       
       escposContent += '--------------------------\n'
-      escposContent += `Subtotal: Rs${getCartTotal().toFixed(2)}\n`
+      escposContent += `Subtotal: RS${getCartTotal().toFixed(2)}\n`
       
       const subtotal = getCartTotal()
       let discount = 0
@@ -293,20 +294,21 @@ export default function OfflineAdminPage() {
         discount = (parseFloat(billDiscountPercentage) / 100) * subtotal
       }
       if (discount > 0) {
-        escposContent += `Discount: Rs${discount.toFixed(2)}\n`
+        escposContent += `Discount: RS${discount.toFixed(2)}\n`
       }
       
       escposContent += '\x1B\x61\x01'
       escposContent += '================================\n'
       escposContent += '\x1B\x21\x08'
       escposContent += 'GRAND TOTAL\n'
-      escposContent += `Rs${calculateBillTotal().toFixed(2)}\n`
+      escposContent += `RS${calculateBillTotal().toFixed(2)}\n`
       escposContent += '\x1B\x21\x00'
       escposContent += '================================\n'
-      escposContent += 'Thank You for Dining!\n'
-      escposContent += 'Visit Us Again\n'
+      escposContent += 'THANK YOU FOR DINING!\n'
+      escposContent += 'VISIT US AGAIN\n'
       escposContent += '================================\n'
-      escposContent += 'Dhole Patil Hotel\n'
+      escposContent += 'DEVELOPED BY ONETHYNK TECHMEDIA\n'
+      escposContent += '================================\n\n'
       escposContent += '================================\n\n'
       escposContent += '\x1D\x56\x00'
       

@@ -10,14 +10,14 @@ import NotificationSystem from '@/components/NotificationSystem'
 import { WebUSBPrinter } from '@/lib/webusb-printer'
 import { playClickSound, playSuccessSound, playErrorSound } from '@/lib/sound-effects'
 
-// Utility function to format order ID as GGR-XXX
+// Utility function to format order ID as DPK-XXX
 const formatOrderId = (orderId: string) => {
   // Extract a number from the UUID and format it
   const hash = orderId.split('').reduce((acc, char) => {
     return acc + char.charCodeAt(0)
   }, 0)
   const orderNumber = (hash % 999) + 1 // Ensure it's between 1-999
-  return `GGR-${String(orderNumber).padStart(3, '0')}`
+  return `DPK-${String(orderNumber).padStart(3, '0')}`
 }
 
 export default function KitchenPage() {
@@ -151,20 +151,23 @@ export default function KitchenPage() {
       const plainText = `
 <strong>TABLE ${selectedOrderForBill.tables?.table_number}</strong><br>
 ================================<br>
+<strong>DHOLE PATIL KHANAWAL</strong><br>
+<strong>RESTAURANT & BAR</strong><br>
+================================<br>
 <strong>KITCHEN ORDER</strong><br>
 --------------------------------<br>
-<strong>Order: ${formatOrderId(selectedOrderForBill.id)}</strong><br>
-<strong>Date: ${new Date(selectedOrderForBill.created_at).toLocaleDateString()}</strong><br>
-<strong>Time: ${new Date(selectedOrderForBill.created_at).toLocaleTimeString()}</strong><br>
-<strong>Waiter: ${selectedOrderForBill.users?.name}</strong><br>
+<strong>ORDER: ${formatOrderId(selectedOrderForBill.id)}</strong><br>
+<strong>DATE: ${new Date(selectedOrderForBill.created_at).toLocaleDateString()}</strong><br>
+<strong>TIME: ${new Date(selectedOrderForBill.created_at).toLocaleTimeString()}</strong><br>
+<strong>WAITER: ${selectedOrderForBill.users?.name}</strong><br>
 --------------------------------<br>
 <strong>ITEM                  QTY  TYPE</strong><br>
 --------------------------------<br>
 ${itemsList}
 --------------------------------<br>
-<strong>Status: ${selectedOrderForBill.status.toUpperCase()}</strong><br>
+<strong>STATUS: ${selectedOrderForBill.status.toUpperCase()}</strong><br>
 ================================<br>
-<strong>Developed by onethynk</strong><br>
+<strong>DEVELOPED BY ONETHYNK TECHMEDIA</strong><br>
 ================================
 `
       

@@ -706,7 +706,7 @@ export default function WaiterPage() {
     if (!confirm('Are you sure you want to delete this order? This action cannot be undone.')) return
 
     try {
-      const response = await fetch(`/api/orders?id=${orderId}`, {
+      const response = await fetch(`/api/orders/${orderId}`, {
         method: 'DELETE'
       })
 
@@ -954,9 +954,10 @@ export default function WaiterPage() {
     
     // Header - Double height, double width
     escpos += '\x1D\x21\x11' // Double height, double width
-    escpos += 'GGR RESTAURANT\n'
+    escpos += 'DHOLE PATIL KHANAWAL\n'
     escpos += '\x1D\x21\x00' // Normal size
     
+    escpos += 'RESTAURANT & BAR\n'
     escpos += '====================\n'
     escpos += '\x1B\x61\x00' // Left align
     
@@ -1050,7 +1051,7 @@ export default function WaiterPage() {
 <div style="border-top: 1px dashed #8B4513; margin: 4px 0;"></div>
 <div style="text-align: center; font-size: 10px; margin-bottom: 4px; font-weight: bold;">
   <div>123, MAIN STREET</div>
-  <div>CITY, STATE - 123456.</div>
+  <div>CITY, STATE - 123456</div>
   <div>PHONE: +91 98765 43210</div>
   <div>GSTIN: 29ABCDE1234F1Z5</div>
 </div>

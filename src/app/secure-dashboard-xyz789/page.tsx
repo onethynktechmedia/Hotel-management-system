@@ -9,14 +9,14 @@ import WaiterStatus from '@/components/WaiterStatus'
 import Reports from '@/components/Reports'
 import { WebUSBPrinter } from '@/lib/webusb-printer'
 
-// Utility function to format order ID as GGR-XXX
+// Utility function to format order ID as DPK-XXX
 const formatOrderId = (orderId: string) => {
   // Extract a number from the UUID and format it
   const hash = orderId.split('').reduce((acc, char) => {
     return acc + char.charCodeAt(0)
   }, 0)
-  const orderNumber = (hash % 999) + 1 // Ensure it's between 1-999
-  return `GGR-${String(orderNumber).padStart(3, '0')}`
+  const orderNumber = (hash % 999) + 1
+  return `DPK-${String(orderNumber).padStart(3, '0')}`
 }
 
 export default function AdminDashboard() {
@@ -388,7 +388,7 @@ export default function AdminDashboard() {
     if (!confirm('Are you sure you want to delete this dish?')) return
 
     try {
-      const response = await fetch(`/api/dishes?id=${id}`, {
+      const response = await fetch(`/api/dishes/${id}`, {
         method: 'DELETE'
       })
 
@@ -412,7 +412,8 @@ export default function AdminDashboard() {
       console.log('Editing dish:', editingDish?.id)
       console.log('Payload:', payload)
 
-      const response = await fetch('/api/dishes', {
+      const url = editingDish ? `/api/dishes/${editingDish.id}` : '/api/dishes'
+      const response = await fetch(url, {
         method: editingDish ? 'PATCH' : 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -420,16 +421,7 @@ export default function AdminDashboard() {
         body: JSON.stringify(editingDish ? { ...payload, id: editingDish.id } : payload)
       })
 
-      console.log('Response status:', response.status)
-
-      if (!response.ok) {
-        const errorText = await response.text()
-        console.error('Server error:', errorText)
-        throw new Error(`Failed to save dish: ${errorText}`)
-      }
-
-      const result = await response.json()
-      console.log('Save result:', result)
+      if (!response.ok) throw new Error('Failed to save dish')
 
       setShowDishModal(false)
       fetchData()
@@ -884,7 +876,12 @@ For technical support, contact: support@everycom.com
     if (!confirm('Are you sure you want to delete this table?')) return
 
     try {
-      await fetch(`/api/tables?id=${id}`, { method: 'DELETE' })
+      const response = await fetch(`/api/tables/${id}`, {
+        method: 'DELETE'
+      })
+
+      if (!response.ok) throw new Error('Failed to delete table')
+
       fetchData()
     } catch (error) {
       console.error('Error deleting table:', error)
@@ -901,10 +898,10 @@ For technical support, contact: support@everycom.com
       }
 
       if (editingTable) {
-        await fetch(`/api/tables`, {
+        await fetch(`/api/tables/${editingTable.id}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ id: editingTable.id, ...payload })
+          body: JSON.stringify(payload)
         })
       } else {
         await fetch('/api/tables', {
@@ -1517,21 +1514,22 @@ ${order.order_items?.map((item: any) => {
     
     const plainText = `
 <strong class="header">DHOLE PATIL KHANAWAL</strong><br>
-<strong>Restaurant & Bar</strong><br>
+<strong>RESTAURANT & BAR</strong><br>
 ================================<br>
-<strong>123, Main Street</strong><br>
-<strong>City, State - 123456</strong><br>
-<strong>Phone: +91 98765 43210</strong><br>
+<strong>123, MAIN STREET</strong><br>
+<strong>CITY, STATE - 123456</strong><br>
+<strong>PHONE: +91 98765 43210</strong><br>
+<strong>GSTIN: 29ABCDE1234F1Z5</strong><br>
 ================================<br>
 <strong class="section-title">BILL / INVOICE</strong><br>
 ================================<br>
 <br>
-<strong>Bill No: OFF-${Date.now()}</strong><br>
-<strong>Date: ${new Date().toLocaleDateString()}</strong><br>
-<strong>Time: ${new Date().toLocaleTimeString()}</strong><br>
-<strong>Table: ${tableNumber}${isMasterTable ? ' (M)' : ''}</strong><br>
-<strong>Waiter: ${waiterName}</strong><br>
-<strong>Customer: ${customerName || 'Guest'}</strong><br>
+<strong>BILL NO: DPK-${String((Date.now() % 999) + 1).padStart(3, '0')}</strong><br>
+<strong>DATE: ${new Date().toLocaleDateString()}</strong><br>
+<strong>TIME: ${new Date().toLocaleTimeString()}</strong><br>
+<strong>TABLE: ${tableNumber}${isMasterTable ? ' (M)' : ''}</strong><br>
+<strong>WAITER: ${waiterName}</strong><br>
+<strong>CUSTOMER: ${customerName || 'GUEST'}</strong><br>
 --------------------------<br>
 <strong class="section-title">ITEM             QTY  AMOUNT</strong><br>
 --------------------------<br>
@@ -1544,7 +1542,7 @@ ${offlineCart.map((item) => {
   return `<strong>${itemName.padEnd(16)} ${qty.toString().padStart(2)}  ${total.padStart(8)}</strong><br>`
 }).join('')}
 --------------------------<br>
-<strong>Subtotal:      Rs${getCartTotal().toFixed(2).padStart(8)}</strong><br>
+<strong>SUBTOTAL:      RS${getCartTotal().toFixed(2).padStart(8)}</strong><br>
 ${(() => {
   const subtotal = getCartTotal()
   let discount = 0
@@ -1553,16 +1551,16 @@ ${(() => {
   } else if (billDiscountType === 'percentage' && billDiscountPercentage) {
     discount = (parseFloat(billDiscountPercentage) / 100) * subtotal
   }
-  return discount > 0 ? `<strong>Discount:      Rs${discount.toFixed(2).padStart(8)}</strong><br>` : ''
-})()}<strong>CGST (${cgstRate}%):   Rs${calculateTaxes().cgst.toFixed(2).padStart(8)}</strong><br>
-<strong>SGST (${sgstRate}%):   Rs${calculateTaxes().sgst.toFixed(2).padStart(8)}</strong><br>
+  return discount > 0 ? `<strong>DISCOUNT:      RS${discount.toFixed(2).padStart(8)}</strong><br>` : ''
+})()}<strong>CGST (${cgstRate}%):   RS${calculateTaxes().cgst.toFixed(2).padStart(8)}</strong><br>
+<strong>SGST (${sgstRate}%):   RS${calculateTaxes().sgst.toFixed(2).padStart(8)}</strong><br>
 ================================<br>
-<strong class="grand-total"> GRAND TOTAL: Rs${calculateBillTotal().toFixed(2)} </strong><br>
+<strong class="grand-total"> GRAND TOTAL: RS${calculateBillTotal().toFixed(2)} </strong><br>
 ================================<br>
-<strong>Thank You for Dining!</strong><br>
-<strong>Visit Us Again</strong><br>
+<strong>THANK YOU FOR DINING!</strong><br>
+<strong>VISIT US AGAIN</strong><br>
 ================================<br>
-<strong class="developer">Developed by onethynk techmedia</strong><br>
+<strong class="developer">DEVELOPED BY ONETHYNK TECHMEDIA</strong><br>
 ================================
 `
 
