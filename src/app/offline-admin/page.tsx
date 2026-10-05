@@ -29,7 +29,7 @@ export default function OfflineAdminPage() {
   const [discountAmount, setDiscountAmount] = useState('')
   const [discountPercentage, setDiscountPercentage] = useState('')
   const [discountType, setDiscountType] = useState<'amount' | 'percentage'>('amount')
-  const [newDish, setNewDish] = useState({ name: '', price: '', category: '', is_available: true })
+  const [newDish, setNewDish] = useState({ name: '', price: '', category: '', food_type: 'veg' as 'veg' | 'nonveg' | 'custom' | 'parcel', is_available: true })
   const [newTable, setNewTable] = useState({ table_number: '', capacity: '', is_available: true })
   
   // Cart state for offline billing UI
@@ -358,7 +358,7 @@ export default function OfflineAdminPage() {
       // Generate properly formatted plain text bill content for thermal printer
       // 58mm paper width = approximately 32-35 characters per line
       const plainText = `
-<strong class="header">DHOLE PATIL HOTEL</strong><br>
+<strong class="header">DHOLE PATIL Khanawal</strong><br>
 Restaurant & Bar<br>
 ================================<br>
 123, Main Street<br>
@@ -396,7 +396,7 @@ ${(() => {
 Thank You for Dining!<br>
 Visit Us Again<br>
 ================================<br>
-<span class="developer">Dhole Patil Hotel</span><br>
+<span class="developer">Dhole Patil Khanawal</span><br>
 ================================
 `
       
@@ -421,12 +421,35 @@ Visit Us Again<br>
     alert('Order marked as paid!')
   }
 
+  const getFoodTypeIcon = (foodType?: string) => {
+    if (foodType === 'veg') {
+      return (
+        <div className="w-5 h-5 flex items-center justify-center border-2 border-green-600 bg-green-50 rounded-sm">
+          <div className="w-2.5 h-2.5 bg-green-600 rounded-full"></div>
+        </div>
+      )
+    } else if (foodType === 'nonveg') {
+      return (
+        <div className="w-5 h-5 flex items-center justify-center border-2 border-red-600 bg-red-50 rounded-sm">
+          <div className="w-2.5 h-2.5 bg-red-600 rounded-full"></div>
+        </div>
+      )
+    } else if (foodType === 'custom' || foodType === 'parcel') {
+      return (
+        <div className="w-5 h-5 flex items-center justify-center border-2 border-blue-600 bg-blue-50 rounded-sm">
+          <span className="text-xs font-bold text-blue-600">C</span>
+        </div>
+      )
+    }
+    return null
+  }
+
   const handleAddDish = () => {
     playClickSound()
     if (!newDish.name || !newDish.price || !newDish.category) { playErrorSound(); alert('Please fill all fields'); return }
-    localStorageDB.addDish({ id: Date.now().toString(), name: newDish.name, price: parseFloat(newDish.price), category: newDish.category, is_available: true })
+    localStorageDB.addDish({ id: Date.now().toString(), name: newDish.name, price: parseFloat(newDish.price), category: newDish.category, food_type: newDish.food_type, is_available: true })
     loadOfflineData()
-    setNewDish({ name: '', price: '', category: '', is_available: true })
+    setNewDish({ name: '', price: '', category: '', food_type: 'veg', is_available: true })
     playSuccessSound()
   }
 
@@ -897,10 +920,16 @@ Visit Us Again<br>
           {activeTab === 'dishes' && (
             <div className="bg-white rounded-xl shadow-lg p-6">
               <h2 className="text-xl font-bold text-gray-900 mb-4">Menu Management</h2>
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+              <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
                 <input type="text" placeholder="Dish Name" value={newDish.name} onChange={(e) => setNewDish({ ...newDish, name: e.target.value })} className="px-4 py-2 border border-gray-300 rounded-lg" />
                 <input type="number" placeholder="Price" value={newDish.price} onChange={(e) => setNewDish({ ...newDish, price: e.target.value })} className="px-4 py-2 border border-gray-300 rounded-lg" />
                 <input type="text" placeholder="Category" value={newDish.category} onChange={(e) => setNewDish({ ...newDish, category: e.target.value })} className="px-4 py-2 border border-gray-300 rounded-lg" />
+                <select value={newDish.food_type} onChange={(e) => setNewDish({ ...newDish, food_type: e.target.value as 'veg' | 'nonveg' | 'custom' | 'parcel' })} className="px-4 py-2 border border-gray-300 rounded-lg">
+                  <option value="veg">Veg</option>
+                  <option value="nonveg">Non-Veg</option>
+                  <option value="custom">Custom</option>
+                  <option value="parcel">Parcel</option>
+                </select>
                 <button onClick={() => {
                         playClickSound()
                         handleAddDish()
@@ -910,8 +939,11 @@ Visit Us Again<br>
                 {dishes.map((dish) => (
                   <div key={dish.id} className="border border-gray-200 rounded-lg p-4">
                     <div className="flex justify-between">
-                      <div>
-                        <h4 className="font-semibold">{dish.name}</h4>
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          {getFoodTypeIcon(dish.food_type)}
+                          <h4 className="font-semibold">{dish.name}</h4>
+                        </div>
                         <p className="text-sm text-gray-600">{dish.category}</p>
                         <p className="text-lg font-bold text-[#5D3A1A]">₹{dish.price}</p>
                       </div>

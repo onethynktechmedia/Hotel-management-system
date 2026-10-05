@@ -8,6 +8,7 @@ import Sidebar from '@/components/Sidebar'
 import WaiterStatus from '@/components/WaiterStatus'
 import Reports from '@/components/Reports'
 import { WebUSBPrinter } from '@/lib/webusb-printer'
+import { playNotificationSound } from '@/lib/sound-effects'
 
 // Utility function to format order ID as DPK-XXX
 const formatOrderId = (orderId: string) => {
@@ -17,6 +18,30 @@ const formatOrderId = (orderId: string) => {
   }, 0)
   const orderNumber = (hash % 999) + 1
   return `DPK-${String(orderNumber).padStart(3, '0')}`
+}
+
+// Get food type icon
+const getFoodTypeIcon = (foodType?: string) => {
+  if (foodType === 'veg') {
+    return (
+      <div className="w-5 h-5 flex items-center justify-center border-2 border-green-600 bg-green-50 rounded-sm">
+        <div className="w-2.5 h-2.5 bg-green-600 rounded-full"></div>
+      </div>
+    )
+  } else if (foodType === 'nonveg') {
+    return (
+      <div className="w-5 h-5 flex items-center justify-center border-2 border-red-600 bg-red-50 rounded-sm">
+        <div className="w-2.5 h-2.5 bg-red-600 rounded-full"></div>
+      </div>
+    )
+  } else if (foodType === 'custom' || foodType === 'parcel') {
+    return (
+      <div className="w-5 h-5 flex items-center justify-center border-2 border-blue-600 bg-blue-50 rounded-sm">
+        <span className="text-xs font-bold text-blue-600">C</span>
+      </div>
+    )
+  }
+  return null
 }
 
 export default function AdminDashboard() {
@@ -63,6 +88,7 @@ export default function AdminDashboard() {
     price: '',
     category: '',
     image_url: '',
+    food_type: 'veg' as 'veg' | 'nonveg' | 'custom' | 'parcel',
     is_available: true
   } as {
     name: string
@@ -70,6 +96,7 @@ export default function AdminDashboard() {
     price: string
     category: string
     image_url: string
+    food_type: 'veg' | 'nonveg' | 'custom' | 'parcel'
     is_available: boolean
   })
   const [selectedOrderForBilling, setSelectedOrderForBilling] = useState<Order | null>(null)
@@ -82,6 +109,7 @@ export default function AdminDashboard() {
   const [showProfileMenu, setShowProfileMenu] = useState(false)
   const [cartAnimation, setCartAnimation] = useState(false)
   const [orderAnimation, setOrderAnimation] = useState<string | null>(null)
+  const [previousOrderCount, setPreviousOrderCount] = useState(0)
   
   // Offline Orders State
   const [offlineCart, setOfflineCart] = useState<any[]>([])
@@ -318,6 +346,12 @@ export default function AdminDashboard() {
         index === self.findIndex((o: any) => o.id === order.id)
       )
 
+      // Play notification sound if new orders detected
+      if (uniqueOrders.length > previousOrderCount && previousOrderCount > 0) {
+        playNotificationSound()
+      }
+      setPreviousOrderCount(uniqueOrders.length)
+
       // Only update state if data was successfully fetched
       if (uniqueOrders && uniqueOrders.length > 0) {
         setOrders(uniqueOrders)
@@ -366,6 +400,7 @@ export default function AdminDashboard() {
       price: '',
       category: '',
       image_url: '',
+      food_type: 'veg',
       is_available: true
     })
     setShowDishModal(true)
@@ -379,6 +414,7 @@ export default function AdminDashboard() {
       price: dish.price.toString(),
       category: dish.category,
       image_url: dish.image_url ?? '',
+      food_type: dish.food_type ?? 'veg',
       is_available: dish.is_available
     })
     setShowDishModal(true)
@@ -398,6 +434,23 @@ export default function AdminDashboard() {
     } catch (error) {
       console.error('Error deleting dish:', error)
       alert('Failed to delete dish')
+    }
+  }
+
+  const handleToggleDishAvailability = async (dish: Dish) => {
+    try {
+      const response = await fetch(`/api/dishes/${dish.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ is_available: !dish.is_available })
+      })
+
+      if (!response.ok) throw new Error('Failed to update dish availability')
+
+      fetchData()
+    } catch (error) {
+      console.error('Error toggling dish availability:', error)
+      alert('Failed to update dish availability')
     }
   }
 
@@ -1154,6 +1207,35 @@ For technical support, contact: support@everycom.com
         body: JSON.stringify({ id: order.id, status: 'paid' })
       })
 
+      // Check if this is a master table
+      const table = tables.find(t => t.id === order.table_id)
+      
+      if (table?.is_master) {
+        // Release all child tables
+        const childTables = tables.filter(t => t.master_table_id === order.table_id)
+        for (const childTable of childTables) {
+          await fetch('/api/tables', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              id: childTable.id,
+              is_occupied: false,
+              master_table_id: null
+            })
+          })
+        }
+
+        // Remove master status from the table
+        await fetch('/api/tables', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            id: order.table_id,
+            is_master: false
+          })
+        })
+      }
+
       // Release the table
       await fetch('/api/tables', {
         method: 'PATCH',
@@ -1204,9 +1286,29 @@ For technical support, contact: support@everycom.com
   }
 
   const handleDeleteTable = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this table?')) return
+    const table = tables.find(t => t.id === id)
+
+    if (!confirm(table?.is_master
+      ? 'Are you sure you want to delete this master table? This will also release and unlink all child tables.'
+      : 'Are you sure you want to delete this table?')) return
 
     try {
+      // If this is a master table, release and unlink all child tables first
+      if (table?.is_master) {
+        const childTables = tables.filter(t => t.master_table_id === id)
+        for (const childTable of childTables) {
+          await fetch('/api/tables', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              id: childTable.id,
+              is_occupied: false,
+              master_table_id: null
+            })
+          })
+        }
+      }
+
       const response = await fetch(`/api/tables/${id}`, {
         method: 'DELETE'
       })
@@ -1274,18 +1376,20 @@ For technical support, contact: support@everycom.com
         return sum + (table?.capacity || 0)
       }, 0)
 
-      // Update the first table to become master
+      // Update the first table to become master and mark as occupied
       await fetch('/api/tables', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           id: masterTableId,
           is_master: true,
-          capacity: totalCapacity
+          capacity: totalCapacity,
+          is_occupied: true
         })
       })
 
-      // Update all other selected tables to reference the master table
+      // Update all other selected tables to reference the master table and mark as occupied
+      // (Child tables should be occupied to prevent others from using them)
       for (let i = 1; i < selectedTablesForMaster.length; i++) {
         const tableId = selectedTablesForMaster[i]
         await fetch('/api/tables', {
@@ -1294,7 +1398,7 @@ For technical support, contact: support@everycom.com
           body: JSON.stringify({
             id: tableId,
             master_table_id: masterTableId,
-            is_occupied: false
+            is_occupied: true
           })
         })
       }
@@ -1302,7 +1406,7 @@ For technical support, contact: support@everycom.com
       setShowMasterTableModal(false)
       setSelectedTablesForMaster([])
       fetchData()
-      alert(`Table ${masterTable.table_number} is now the master table with ${selectedTablesForMaster.length} tables combined`)
+      alert(`Table ${masterTable.table_number} is now the master table with ${selectedTablesForMaster.length} tables combined. All tables are now occupied and reserved.`)
     } catch (error) {
       console.error('Error creating master table:', error)
       alert('Failed to create master table')
@@ -1329,16 +1433,48 @@ For technical support, contact: support@everycom.com
   }
 
   const handleReleaseTable = async (tableId: string) => {
-    if (!confirm('Are you sure you want to release this table?')) return
+    const table = tables.find(t => t.id === tableId)
+
+    if (!confirm(table?.is_master
+      ? 'Are you sure you want to release this master table? This will also release all child tables.'
+      : 'Are you sure you want to release this table?')) return
 
     try {
-      const response = await fetch('/api/tables', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: tableId, is_occupied: false })
-      })
+      // If this is a master table, release all child tables first
+      if (table?.is_master) {
+        const childTables = tables.filter(t => t.master_table_id === tableId)
+        for (const childTable of childTables) {
+          await fetch('/api/tables', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              id: childTable.id,
+              is_occupied: false,
+              master_table_id: null
+            })
+          })
+        }
 
-      if (!response.ok) throw new Error('Failed to release table')
+        // Also release the master table and remove master status
+        await fetch('/api/tables', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            id: tableId,
+            is_occupied: false,
+            is_master: false
+          })
+        })
+      } else {
+        // Regular table release
+        const response = await fetch('/api/tables', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: tableId, is_occupied: false })
+        })
+
+        if (!response.ok) throw new Error('Failed to release table')
+      }
 
       fetchData()
     } catch (error) {
@@ -1436,6 +1572,14 @@ For technical support, contact: support@everycom.com
   }
 
   const removeFromCart = (cartItemId: string) => {
+    const item = offlineCart.find(i => i.id === cartItemId)
+    if (item) {
+      setAddedDishIds(prev => {
+        const newSet = new Set(prev)
+        newSet.delete(item.dish_id)
+        return newSet
+      })
+    }
     setOfflineCart(offlineCart.filter(item => item.id !== cartItemId))
   }
 
@@ -1453,48 +1597,6 @@ For technical support, contact: support@everycom.com
 
   const getCartTotal = () => {
     return offlineCart.reduce((sum, item) => sum + (item.price * item.quantity), 0)
-  }
-
-  // Notification sound function
-  const playNotificationSound = (type: 'cart' | 'order' | 'success') => {
-    try {
-      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)()
-      const oscillator = audioContext.createOscillator()
-      const gainNode = audioContext.createGain()
-      
-      oscillator.connect(gainNode)
-      gainNode.connect(audioContext.destination)
-      
-      if (type === 'cart') {
-        // Cart add sound - pleasant ding
-        oscillator.frequency.setValueAtTime(523.25, audioContext.currentTime) // C5
-        oscillator.frequency.setValueAtTime(659.25, audioContext.currentTime + 0.1) // E5
-        gainNode.gain.setValueAtTime(0.2, audioContext.currentTime)
-        gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3)
-        oscillator.start(audioContext.currentTime)
-        oscillator.stop(audioContext.currentTime + 0.3)
-      } else if (type === 'order') {
-        // Order created sound - ascending
-        oscillator.frequency.setValueAtTime(440, audioContext.currentTime)
-        oscillator.frequency.setValueAtTime(554, audioContext.currentTime + 0.1)
-        oscillator.frequency.setValueAtTime(659, audioContext.currentTime + 0.2)
-        gainNode.gain.setValueAtTime(0.25, audioContext.currentTime)
-        gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.4)
-        oscillator.start(audioContext.currentTime)
-        oscillator.stop(audioContext.currentTime + 0.4)
-      } else if (type === 'success') {
-        // Success sound - major chord
-        oscillator.frequency.setValueAtTime(523.25, audioContext.currentTime)
-        oscillator.frequency.setValueAtTime(659.25, audioContext.currentTime + 0.15)
-        oscillator.frequency.setValueAtTime(783.99, audioContext.currentTime + 0.3)
-        gainNode.gain.setValueAtTime(0.3, audioContext.currentTime)
-        gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5)
-        oscillator.start(audioContext.currentTime)
-        oscillator.stop(audioContext.currentTime + 0.5)
-      }
-    } catch (error) {
-      console.error('Error playing notification sound:', error)
-    }
   }
 
   const createOfflineOrder = async () => {
@@ -2130,7 +2232,7 @@ ${(() => {
                           })
                           setNotifications(notifications.map(n => ({ ...n, is_read: true })))
                         }}
-                        className="text-xs text-[#5D3A1A] hover:text-green-800 font-semibold"
+                        className="text-xs text-[#5D3A1A] hover:text-[#8B4513] font-semibold"
                       >
                         Mark all read
                       </button>
@@ -2155,7 +2257,7 @@ ${(() => {
                             }}
                           >
                             <div className="flex items-start gap-3">
-                              <div className={`w-2 h-2 rounded-full mt-2 ${!notification.is_read ? 'bg-green-600' : 'bg-gray-300'}`} />
+                              <div className={`w-2 h-2 rounded-full mt-2 ${!notification.is_read ? 'bg-[#8B4513]' : 'bg-gray-300'}`} />
                               <div className="flex-1">
                                 <p className="text-sm font-semibold text-gray-900">{notification.message}</p>
                                 <p className="text-xs text-gray-500 mt-1">
@@ -2271,13 +2373,13 @@ ${(() => {
                       placeholder="Search by order ID, table, customer, waiter..."
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
-                      className="w-full pl-10 pr-4 py-2 border-2 border-gray-200 rounded-xl focus:border-green-500 focus:outline-none transition-colors text-sm"
+                      className="w-full pl-10 pr-4 py-2 border-2 border-gray-200 rounded-xl focus:border-[#8B4513] focus:outline-none transition-colors text-sm"
                     />
                   </div>
                   <select
                     value={statusFilter}
                     onChange={(e) => setStatusFilter(e.target.value)}
-                    className="px-4 py-2 border-2 border-gray-200 rounded-xl focus:border-green-500 focus:outline-none transition-colors text-sm bg-white"
+                    className="px-4 py-2 border-2 border-gray-200 rounded-xl focus:border-[#8B4513] focus:outline-none transition-colors text-sm bg-white"
                   >
                     <option value="all">All Status</option>
                     <option value="pending">Pending</option>
@@ -2339,10 +2441,10 @@ ${(() => {
                           <td className="hidden md:table-cell px-6 py-4 whitespace-nowrap text-sm text-gray-900">{order.users?.name || 'Unknown'}</td>
                           <td className="hidden md:table-cell px-6 py-4 whitespace-nowrap">
                             <span className={`px-3 py-1 rounded-full text-xs font-bold ${
-                              order.status === 'paid' ? 'bg-green-100 text-green-800' :
-                              order.status === 'ready' ? 'bg-blue-100 text-blue-800' :
-                              order.status === 'preparing' ? 'bg-yellow-100 text-yellow-800' :
-                              order.status === 'pending' ? 'bg-orange-100 text-orange-800' :
+                              order.status === 'paid' ? 'bg-[#F5F5DC] text-[#8B4513]' :
+                              order.status === 'ready' ? 'bg-[#F5F5DC] text-[#8B4513]' :
+                              order.status === 'preparing' ? 'bg-[#F5F5DC] text-[#8B4513]' :
+                              order.status === 'pending' ? 'bg-[#F5F5DC] text-[#8B4513]' :
                               'bg-gray-100 text-gray-800'
                             }`}>
                               {order.status}
@@ -2384,10 +2486,10 @@ ${(() => {
                                 <div className="flex justify-between">
                                   <span className="text-gray-600">Status:</span>
                                   <span className={`px-3 py-1 rounded-full text-xs font-bold ${
-                                    order.status === 'paid' ? 'bg-green-100 text-green-800' :
-                                    order.status === 'ready' ? 'bg-blue-100 text-blue-800' :
-                                    order.status === 'preparing' ? 'bg-yellow-100 text-yellow-800' :
-                                    order.status === 'pending' ? 'bg-orange-100 text-orange-800' :
+                                    order.status === 'paid' ? 'bg-[#F5F5DC] text-[#8B4513]' :
+                                    order.status === 'ready' ? 'bg-[#F5F5DC] text-[#8B4513]' :
+                                    order.status === 'preparing' ? 'bg-[#F5F5DC] text-[#8B4513]' :
+                                    order.status === 'pending' ? 'bg-[#F5F5DC] text-[#8B4513]' :
                                     'bg-gray-100 text-gray-800'
                                   }`}>
                                     {order.status}
@@ -2465,10 +2567,10 @@ ${(() => {
                         <td className="hidden md:table-cell px-6 py-4 whitespace-nowrap text-sm text-gray-900">{order.users?.name || 'Unknown'}</td>
                         <td className="hidden md:table-cell px-6 py-4 whitespace-nowrap">
                           <span className={`px-3 py-1 rounded-full text-xs font-bold ${
-                            order.status === 'paid' ? 'bg-green-100 text-green-800' :
-                            order.status === 'ready' ? 'bg-blue-100 text-blue-800' :
-                            order.status === 'preparing' ? 'bg-yellow-100 text-yellow-800' :
-                            order.status === 'pending' ? 'bg-orange-100 text-orange-800' :
+                            order.status === 'paid' ? 'bg-[#F5F5DC] text-[#8B4513]' :
+                            order.status === 'ready' ? 'bg-[#F5F5DC] text-[#8B4513]' :
+                            order.status === 'preparing' ? 'bg-[#F5F5DC] text-[#8B4513]' :
+                            order.status === 'pending' ? 'bg-[#F5F5DC] text-[#8B4513]' :
                             'bg-gray-100 text-gray-800'
                           }`}>
                             {order.status}
@@ -2510,10 +2612,10 @@ ${(() => {
                               <div className="flex justify-between">
                                 <span className="text-gray-600">Status:</span>
                                 <span className={`px-3 py-1 rounded-full text-xs font-bold ${
-                                  order.status === 'paid' ? 'bg-green-100 text-green-800' :
-                                  order.status === 'ready' ? 'bg-blue-100 text-blue-800' :
-                                  order.status === 'preparing' ? 'bg-yellow-100 text-yellow-800' :
-                                  order.status === 'pending' ? 'bg-orange-100 text-orange-800' :
+                                  order.status === 'paid' ? 'bg-[#F5F5DC] text-[#8B4513]' :
+                                  order.status === 'ready' ? 'bg-[#F5F5DC] text-[#8B4513]' :
+                                  order.status === 'preparing' ? 'bg-[#F5F5DC] text-[#8B4513]' :
+                                  order.status === 'pending' ? 'bg-[#F5F5DC] text-[#8B4513]' :
                                   'bg-gray-100 text-gray-800'
                                 }`}>
                                   {order.status}
@@ -2582,11 +2684,17 @@ ${(() => {
                         <td className="hidden md:table-cell px-6 py-4 whitespace-nowrap text-sm text-gray-900">{dish.category}</td>
                         <td className="hidden md:table-cell px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-900">₹{dish.price.toFixed(2)}</td>
                         <td className="hidden md:table-cell px-6 py-4 whitespace-nowrap">
-                          <span className={`px-3 py-1 rounded-full text-xs font-bold ${
-                            dish.is_available ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                          }`}>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleToggleDishAvailability(dish)
+                            }}
+                            className={`px-3 py-1 rounded-full text-xs font-bold cursor-pointer transition-all ${
+                              dish.is_available ? 'bg-[#F5F5DC] text-[#8B4513] border-2 border-[#8B4513]' : 'bg-red-100 text-red-800'
+                            }`}
+                          >
                             {dish.is_available ? 'Available' : 'Unavailable'}
-                          </span>
+                          </button>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm space-x-2">
                           <button
@@ -2628,11 +2736,17 @@ ${(() => {
                               </div>
                               <div className="flex justify-between items-center">
                                 <span className="text-gray-600">Status:</span>
-                                <span className={`px-3 py-1 rounded-full text-xs font-bold ${
-                                  dish.is_available ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                                }`}>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    handleToggleDishAvailability(dish)
+                                  }}
+                                  className={`px-3 py-1 rounded-full text-xs font-bold cursor-pointer transition-all ${
+                                    dish.is_available ? 'bg-[#F5F5DC] text-[#8B4513] border-2 border-[#8B4513]' : 'bg-red-100 text-red-800'
+                                  }`}
+                                >
                                   {dish.is_available ? 'Available' : 'Unavailable'}
-                                </span>
+                                </button>
                               </div>
                             </div>
                           </td>
@@ -2697,7 +2811,7 @@ ${(() => {
                           <td className="hidden md:table-cell px-6 py-4 whitespace-nowrap text-sm text-gray-900">{table.capacity} seats</td>
                           <td className="hidden md:table-cell px-6 py-4 whitespace-nowrap">
                             <span className={`px-3 py-1 rounded-full text-xs font-bold ${
-                              table.is_occupied ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'
+                              table.is_occupied ? 'bg-red-100 text-red-800' : 'bg-[#F5F5DC] text-[#8B4513]'
                             }`}>
                               {table.is_occupied ? 'Occupied' : 'Available'}
                             </span>
@@ -2758,18 +2872,18 @@ ${(() => {
                                 e.stopPropagation()
                                 handleEditTable(table)
                               }}
-                              className="text-[#5D3A1A] hover:text-green-800 transition-colors"
+                              className="text-[#5D3A1A] hover:text-[#8B4513] transition-colors"
                               title="Edit"
                             >
                               <Edit className="w-4 h-4 inline" />
                             </button>
-                            {table.is_occupied && (
+                            {(table.is_occupied || table.is_master) && (
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation()
                                   handleReleaseTable(table.id)
                                 }}
-                                className="text-[#5D3A1A] hover:text-green-800 transition-colors font-semibold"
+                                className="text-[#5D3A1A] hover:text-[#8B4513] transition-colors font-semibold"
                                 title="Release Table"
                               >
                                 Release
@@ -2803,7 +2917,7 @@ ${(() => {
                                 <div className="flex justify-between items-center">
                                   <span className="text-gray-600">Status:</span>
                                   <span className={`px-3 py-1 rounded-full text-xs font-bold ${
-                                    table.is_occupied ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'
+                                    table.is_occupied ? 'bg-red-100 text-red-800' : 'bg-[#F5F5DC] text-[#8B4513]'
                                   }`}>
                                     {table.is_occupied ? 'Occupied' : 'Available'}
                                   </span>
@@ -2815,6 +2929,28 @@ ${(() => {
                                   }`}>
                                     {table.is_master ? '✓ Master' : 'Standard'}
                                   </span>
+                                </div>
+                                <div className="flex gap-2 mt-4 pt-4 border-t border-gray-200">
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      handleViewTableOrders(table.id)
+                                    }}
+                                    className="flex-1 py-2 px-3 bg-blue-600 text-white rounded-lg text-sm font-semibold"
+                                  >
+                                    View Orders
+                                  </button>
+                                  {(table.is_occupied || table.is_master) && (
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        handleReleaseTable(table.id)
+                                      }}
+                                      className="flex-1 py-2 px-3 bg-[#8B4513] text-white rounded-lg text-sm font-semibold"
+                                    >
+                                      Release
+                                    </button>
+                                  )}
                                 </div>
                               </div>
                             </td>
@@ -2848,7 +2984,7 @@ ${(() => {
                   Offline Orders
                 </h1>
                 <div className="flex items-center gap-2">
-                  <span className={`px-3 py-1 rounded-full text-sm font-semibold ${isOnline ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                  <span className={`px-3 py-1 rounded-full text-sm font-semibold ${isOnline ? 'bg-[#F5F5DC] text-[#8B4513]' : 'bg-red-100 text-red-800'}`}>
                     {isOnline ? '🟢 Online' : '🔴 Offline'}
                   </span>
                   {!isOnline && offlineOrders.length > 0 && (
@@ -2876,7 +3012,7 @@ ${(() => {
                   <input
                     type="text"
                     placeholder="Search menu items..."
-                    className="w-full px-4 py-2 border-2 border-gray-200 rounded-xl focus:border-green-500 focus:outline-none"
+                    className="w-full px-4 py-2 border-2 border-gray-200 rounded-xl focus:border-[#8B4513] focus:outline-none"
                     value={menuSearchTerm}
                     onChange={(e) => setMenuSearchTerm(e.target.value)}
                   />
@@ -2897,11 +3033,10 @@ ${(() => {
                       .map((dish) => (
                       <div
                         key={dish.id}
-                        onClick={() => addToCart(dish)}
-                        className={`flex items-center gap-4 border-2 rounded-xl p-3 cursor-pointer hover:shadow-lg hover:scale-[1.02] transition-all duration-300 ${
-                          addedDishIds.has(dish.id) 
-                            ? 'bg-green-100 border-green-500' 
-                            : 'bg-[#F5F5DC] border-green-200'
+                        className={`flex items-center gap-4 border-2 rounded-xl p-3 transition-all duration-300 ${
+                          addedDishIds.has(dish.id)
+                            ? 'bg-white border-[#8B4513] shadow-md'
+                            : 'bg-[#F5F5DC] border-[#8B4513] hover:shadow-lg hover:scale-[1.02] cursor-pointer'
                         }`}
                       >
                         {/* Show image only when online */}
@@ -2920,9 +3055,59 @@ ${(() => {
                           <p className="text-xs text-gray-600 mb-1 truncate">{dish.category}</p>
                           <p className="text-lg font-bold text-[#5D3A1A]">₹{dish.price.toFixed(2)}</p>
                         </div>
-                        <button className="bg-green-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-green-700 transition-colors">
-                          Add
-                        </button>
+                        {!addedDishIds.has(dish.id) ? (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              addToCart(dish)
+                            }}
+                            className="bg-[#8B4513] text-white px-4 py-2 rounded-lg font-semibold hover:bg-[#5D3A13] transition-colors"
+                          >
+                            Add
+                          </button>
+                        ) : (
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                const item = offlineCart.find(i => i.dish_id === dish.id)
+                                if (item && item.quantity > 1) {
+                                  updateCartQuantity(item.id, item.quantity - 1)
+                                } else {
+                                  removeFromCart(item?.id || dish.id)
+                                }
+                              }}
+                              className="w-8 h-8 rounded-full bg-white border-2 border-[#8B4513] text-[#8B4513] hover:bg-[#F5F5DC] transition-colors text-sm font-bold"
+                            >
+                              -
+                            </button>
+                            <span className="w-8 text-center font-semibold text-sm">
+                              {offlineCart.find(i => i.dish_id === dish.id)?.quantity || 0}
+                            </span>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                addToCart(dish)
+                              }}
+                              className="w-8 h-8 rounded-full bg-[#8B4513] text-white hover:bg-[#5D3A13] transition-colors text-sm font-bold"
+                            >
+                              +
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                const item = offlineCart.find(i => i.dish_id === dish.id)
+                                if (item) {
+                                  removeFromCart(item.id)
+                                }
+                              }}
+                              className="text-red-500 hover:text-red-700 transition-colors"
+                              title="Remove item"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -2939,7 +3124,7 @@ ${(() => {
                   <select
                     value={selectedTable}
                     onChange={(e) => setSelectedTable(e.target.value)}
-                    className="w-full px-4 py-2 border-2 border-gray-200 rounded-xl focus:border-green-500 focus:outline-none"
+                    className="w-full px-4 py-2 border-2 border-gray-200 rounded-xl focus:border-[#8B4513] focus:outline-none"
                     disabled={tables.length === 0}
                   >
                     <option value="">
@@ -2966,7 +3151,7 @@ ${(() => {
                     value={customerName}
                     onChange={(e) => setCustomerName(e.target.value)}
                     placeholder="Enter customer name"
-                    className="w-full px-4 py-2 border-2 border-gray-200 rounded-xl focus:border-green-500 focus:outline-none"
+                    className="w-full px-4 py-2 border-2 border-gray-200 rounded-xl focus:border-[#8B4513] focus:outline-none"
                   />
                 </div>
 
@@ -2978,9 +3163,67 @@ ${(() => {
                     value={customerMobile}
                     onChange={(e) => setCustomerMobile(e.target.value)}
                     placeholder="Enter mobile number"
-                    className="w-full px-4 py-2 border-2 border-gray-200 rounded-xl focus:border-green-500 focus:outline-none"
+                    className="w-full px-4 py-2 border-2 border-gray-200 rounded-xl focus:border-[#8B4513] focus:outline-none"
                   />
                 </div>
+
+                {/* Cart Items */}
+                <div className="mb-4">
+                  <h3 className="text-sm font-semibold text-gray-700 mb-2">Cart Items</h3>
+                  {offlineCart.length === 0 ? (
+                    <p className="text-gray-500 text-sm text-center py-4">No items in cart</p>
+                  ) : (
+                    <div className="space-y-2 max-h-[300px] overflow-y-auto">
+                      {offlineCart.map((item) => (
+                        <div key={item.id} className="flex items-center justify-between bg-gray-50 rounded-lg p-2">
+                          <div className="flex-1">
+                            <p className="font-semibold text-gray-900 text-sm">{item.name}</p>
+                            <p className="text-sm text-[#5D3A1A]">₹{item.price.toFixed(2)} x {item.quantity}</p>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => updateCartQuantity(item.id, item.quantity - 1)}
+                              className="w-6 h-6 rounded-full bg-white border-2 border-[#8B4513] text-[#8B4513] hover:bg-[#F5F5DC] transition-colors text-sm font-bold"
+                            >
+                              -
+                            </button>
+                            <span className="w-6 text-center font-semibold text-sm">{item.quantity}</span>
+                            <button
+                              onClick={() => updateCartQuantity(item.id, item.quantity + 1)}
+                              className="w-6 h-6 rounded-full bg-white border-2 border-[#8B4513] text-[#8B4513] hover:bg-[#F5F5DC] transition-colors text-sm font-bold"
+                            >
+                              +
+                            </button>
+                            <button
+                              onClick={() => removeFromCart(item.id)}
+                              className="ml-2 text-red-500 hover:text-red-700 transition-colors"
+                              title="Remove item"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Total */}
+                <div className="mb-4 p-3 bg-[#F5F5DC] rounded-xl">
+                  <div className="flex justify-between items-center">
+                    <span className="font-semibold text-gray-700">Total:</span>
+                    <span className="text-xl font-bold text-[#8B4513]">₹{getCartTotal().toFixed(2)}</span>
+                  </div>
+                </div>
+
+                {/* Create Order Button */}
+                <button
+                  onClick={createOfflineOrder}
+                  disabled={offlineCart.length === 0 || !selectedTable}
+                  className="w-full bg-[#8B4513] text-white py-3 rounded-xl font-semibold hover:bg-[#5D3A13] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Create Order
+                </button>
               </div>
             </div>
 
@@ -3177,9 +3420,12 @@ ${(() => {
                 </div>
               </div>
             </div>
+          </div>
+        )}
+      </main>
 
-            {/* Custom animations */}
-            <style jsx>{`
+      {/* Custom animations */}
+      <style jsx>{`
               @keyframes letter-drop {
                 0% {
                   opacity: 0;
@@ -3317,28 +3563,24 @@ ${(() => {
                 animation: float 12s ease-in-out infinite;
               }
             `}</style>
-          </div>
-        )}
-      </main>
-      </div>
 
-      {/* Floating Cart Button */}
-      {activeTab === 'offline-billing' && offlineCart.length > 0 && (
-        <button
-          onClick={() => setShowCartModal(true)}
-          className="fixed bottom-8 right-8 bg-amber-600 hover:bg-amber-800 text-white px-6 py-4 rounded-2xl shadow-2xl flex items-center gap-3 transition-all duration-300 z-40"
-        >
-          <div className="relative">
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
-            </svg>
-            <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs w-5 h-5 rounded-full flex items-center justify-center font-bold">
-              {offlineCart.length}
-            </span>
-          </div>
-          <span className="font-semibold">₹{getCartTotal().toFixed(2)}</span>
-        </button>
-      )}
+        {/* Floating Cart Button */}
+        {activeTab === 'offline-billing' && offlineCart.length > 0 && (
+          <button
+            onClick={() => setShowCartModal(true)}
+            className="fixed bottom-8 right-8 bg-amber-600 hover:bg-amber-800 text-white px-6 py-4 rounded-2xl shadow-2xl flex items-center gap-3 transition-all duration-300 z-40"
+          >
+            <div className="relative">
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 0 11-4 0 2 2 0 014 0z" />
+              </svg>
+              <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs w-5 h-5 rounded-full flex items-center justify-center font-bold">
+                {offlineCart.length}
+              </span>
+            </div>
+            <span className="font-semibold">₹{getCartTotal().toFixed(2)}</span>
+          </button>
+        )}
 
       {/* Cart Modal */}
       {showCartModal && (
@@ -3368,16 +3610,23 @@ ${(() => {
                     <div className="flex items-center gap-2">
                       <button
                         onClick={() => updateCartQuantity(item.id, item.quantity - 1)}
-                        className="w-8 h-8 rounded-full bg-red-100 text-red-600 hover:bg-red-200 transition-colors"
+                        className="w-8 h-8 rounded-full bg-white border-2 border-[#8B4513] text-[#8B4513] hover:bg-[#F5F5DC] transition-colors"
                       >
                         -
                       </button>
                       <span className="w-8 text-center font-semibold">{item.quantity}</span>
                       <button
                         onClick={() => updateCartQuantity(item.id, item.quantity + 1)}
-                        className="w-8 h-8 rounded-full bg-green-100 text-[#5D3A1A] hover:bg-green-200 transition-colors"
+                        className="w-8 h-8 rounded-full bg-[#F5F5DC] text-[#8B4513] hover:bg-[#8B4513] hover:text-white transition-colors"
                       >
                         +
+                      </button>
+                      <button
+                        onClick={() => removeFromCart(item.id)}
+                        className="ml-2 text-red-500 hover:text-red-700 transition-colors"
+                        title="Remove item"
+                      >
+                        <Trash2 className="w-4 h-4" />
                       </button>
                     </div>
                   </div>
@@ -3392,7 +3641,7 @@ ${(() => {
                 <select
                   value={selectedTable}
                   onChange={(e) => setSelectedTable(e.target.value)}
-                  className="w-full px-4 py-2 border-2 border-gray-200 rounded-xl focus:border-green-500 focus:outline-none"
+                  className="w-full px-4 py-2 border-2 border-gray-200 rounded-xl focus:border-[#8B4513] focus:outline-none"
                 >
                   <option value="">Select Table</option>
                   {tables.map((table) => (
@@ -3409,7 +3658,7 @@ ${(() => {
                   value={customerName}
                   onChange={(e) => setCustomerName(e.target.value)}
                   placeholder="Enter customer name"
-                  className="w-full px-4 py-2 border-2 border-gray-200 rounded-xl focus:border-green-500 focus:outline-none"
+                  className="w-full px-4 py-2 border-2 border-gray-200 rounded-xl focus:border-[#8B4513] focus:outline-none"
                 />
               </div>
               <div>
@@ -3419,7 +3668,7 @@ ${(() => {
                   value={customerMobile}
                   onChange={(e) => setCustomerMobile(e.target.value)}
                   placeholder="Enter mobile number"
-                  className="w-full px-4 py-2 border-2 border-gray-200 rounded-xl focus:border-green-500 focus:outline-none"
+                  className="w-full px-4 py-2 border-2 border-gray-200 rounded-xl focus:border-[#8B4513] focus:outline-none"
                 />
               </div>
             </div>
@@ -3436,7 +3685,7 @@ ${(() => {
                   handleCreateBill()
                 }}
                 disabled={offlineCart.length === 0 || !selectedTable}
-                className="w-full bg-green-600 text-white px-6 py-3 rounded-xl font-semibold hover:bg-green-800 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full bg-[#8B4513] text-white px-6 py-3 rounded-xl font-semibold hover:bg-green-800 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Create Bill
               </button>
@@ -3507,8 +3756,8 @@ ${(() => {
                   onClick={() => setBillDiscountType('amount')}
                   className={`flex-1 px-4 py-2 rounded-lg font-semibold transition-colors ${
                     billDiscountType === 'amount' 
-                      ? 'bg-green-600 text-white' 
-                      : 'bg-white text-gray-700 border-2 border-green-200'
+                      ? 'bg-[#8B4513] text-white' 
+                      : 'bg-white text-gray-700 border-2 border-[#8B4513]'
                   }`}
                 >
                   Amount
@@ -3517,8 +3766,8 @@ ${(() => {
                   onClick={() => setBillDiscountType('percentage')}
                   className={`flex-1 px-4 py-2 rounded-lg font-semibold transition-colors ${
                     billDiscountType === 'percentage' 
-                      ? 'bg-green-600 text-white' 
-                      : 'bg-white text-gray-700 border-2 border-green-200'
+                      ? 'bg-[#8B4513] text-white' 
+                      : 'bg-white text-gray-700 border-2 border-[#8B4513]'
                   }`}
                 >
                   Percentage
@@ -3530,7 +3779,7 @@ ${(() => {
                   placeholder="Enter discount amount (₹)"
                   value={billDiscountAmount}
                   onChange={(e) => setBillDiscountAmount(e.target.value)}
-                  className="w-full px-4 py-2 border-2 border-green-200 rounded-xl focus:border-green-500 focus:outline-none"
+                  className="w-full px-4 py-2 border-2 border-[#8B4513] rounded-xl focus:border-[#8B4513] focus:outline-none"
                 />
               ) : (
                 <input
@@ -3538,7 +3787,7 @@ ${(() => {
                   placeholder="Enter discount percentage (%)"
                   value={billDiscountPercentage}
                   onChange={(e) => setBillDiscountPercentage(e.target.value)}
-                  className="w-full px-4 py-2 border-2 border-green-200 rounded-xl focus:border-green-500 focus:outline-none"
+                  className="w-full px-4 py-2 border-2 border-[#8B4513] rounded-xl focus:border-[#8B4513] focus:outline-none"
                 />
               )}
             </div>
@@ -3666,9 +3915,9 @@ ${(() => {
                   </div>
                   <div className="text-right">
                     <span className={`px-3 py-1 rounded-full text-xs font-bold ${
-                      viewingBill.status === 'paid' ? 'bg-green-100 text-green-800' :
-                      viewingBill.status === 'ready' ? 'bg-blue-100 text-blue-800' :
-                      viewingBill.status === 'preparing' ? 'bg-yellow-100 text-yellow-800' :
+                      viewingBill.status === 'paid' ? 'bg-[#F5F5DC] text-[#8B4513]' :
+                      viewingBill.status === 'ready' ? 'bg-[#F5F5DC] text-[#8B4513]' :
+                      viewingBill.status === 'preparing' ? 'bg-[#F5F5DC] text-[#8B4513]' :
                       'bg-gray-100 text-gray-800'
                     }`}>
                       {viewingBill.status}
@@ -3693,7 +3942,10 @@ ${(() => {
                     {billOrderItems.map((item) => (
                       <div key={item.id} className="flex justify-between items-center py-2 border-b border-gray-100">
                         <div>
-                          <p className="font-semibold text-gray-900">{item.dishes?.name || item.dish?.name}</p>
+                          <div className="flex items-center gap-2">
+                            {getFoodTypeIcon(item.dishes?.food_type)}
+                            <p className="font-semibold text-gray-900">{item.dishes?.name || item.dish?.name}</p>
+                          </div>
                           {isEditingBill && (
                             <input
                               type="number"
@@ -3739,7 +3991,7 @@ ${(() => {
                           onClick={() => setBillDiscountType('amount')}
                           className={`px-3 py-1 rounded-lg text-xs font-semibold ${
                             billDiscountType === 'amount'
-                              ? 'bg-green-600 text-white'
+                              ? 'bg-[#8B4513] text-white'
                               : 'bg-white text-gray-700 border border-gray-300'
                           }`}
                         >
@@ -3749,7 +4001,7 @@ ${(() => {
                           onClick={() => setBillDiscountType('percentage')}
                           className={`px-3 py-1 rounded-lg text-xs font-semibold ${
                             billDiscountType === 'percentage'
-                              ? 'bg-green-600 text-white'
+                              ? 'bg-[#8B4513] text-white'
                               : 'bg-white text-gray-700 border border-gray-300'
                           }`}
                         >
@@ -3762,7 +4014,7 @@ ${(() => {
                       placeholder={billDiscountType === 'amount' ? 'Enter discount amount' : 'Enter discount percentage'}
                       value={billDiscountType === 'amount' ? billDiscountAmount : billDiscountPercentage}
                       onChange={(e) => billDiscountType === 'amount' ? setBillDiscountAmount(e.target.value) : setBillDiscountPercentage(e.target.value)}
-                      className="w-full px-4 py-2 border-2 border-gray-300 rounded-xl focus:border-green-500 focus:outline-none"
+                      className="w-full px-4 py-2 border-2 border-gray-300 rounded-xl focus:border-[#8B4513] focus:outline-none"
                     />
                     {calculateBillDiscount() > 0 && (
                       <div className="mt-2 flex justify-between items-center">
@@ -3782,7 +4034,7 @@ ${(() => {
                           type="number"
                           value={billCGST}
                           onChange={(e) => setBillCGST(e.target.value)}
-                          className="w-20 px-3 py-1 border-2 border-gray-300 rounded-lg focus:border-green-500 focus:outline-none text-center"
+                          className="w-20 px-3 py-1 border-2 border-gray-300 rounded-lg focus:border-[#8B4513] focus:outline-none text-center"
                         />
                       </div>
                       <div className="flex items-center justify-between">
@@ -3791,7 +4043,7 @@ ${(() => {
                           type="number"
                           value={billSGST}
                           onChange={(e) => setBillSGST(e.target.value)}
-                          className="w-20 px-3 py-1 border-2 border-gray-300 rounded-lg focus:border-green-500 focus:outline-none text-center"
+                          className="w-20 px-3 py-1 border-2 border-gray-300 rounded-lg focus:border-[#8B4513] focus:outline-none text-center"
                         />
                       </div>
                       <div className="border-t border-gray-200 pt-2 mt-2 space-y-1">
@@ -3936,7 +4188,7 @@ ${(() => {
                   type="text"
                   value={dishForm.name}
                   onChange={(e) => setDishForm({ ...dishForm, name: e.target.value })}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-green-500 focus:outline-none transition-colors placeholder-gray-400"
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-[#8B4513] focus:outline-none transition-colors placeholder-gray-400"
                   placeholder="Enter dish name"
                 />
               </div>
@@ -3945,7 +4197,7 @@ ${(() => {
                 <textarea
                   value={dishForm.description}
                   onChange={(e) => setDishForm({ ...dishForm, description: e.target.value })}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-green-500 focus:outline-none transition-colors placeholder-gray-400"
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-[#8B4513] focus:outline-none transition-colors placeholder-gray-400"
                   placeholder="Enter dish description"
                   rows={3}
                 />
@@ -3956,7 +4208,7 @@ ${(() => {
                   type="number"
                   value={dishForm.price}
                   onChange={(e) => setDishForm({ ...dishForm, price: e.target.value })}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-green-500 focus:outline-none transition-colors placeholder-gray-400"
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-[#8B4513] focus:outline-none transition-colors placeholder-gray-400"
                   placeholder="Enter price"
                 />
               </div>
@@ -3965,13 +4217,26 @@ ${(() => {
                 <select
                   value={dishForm.category}
                   onChange={(e) => setDishForm({ ...dishForm, category: e.target.value })}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-green-500 focus:outline-none transition-colors bg-white"
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-[#8B4513] focus:outline-none transition-colors bg-white"
                 >
                   <option value="">Select category</option>
                   <option value="Starters">Starters</option>
                   <option value="Main Course">Main Course</option>
                   <option value="Desserts">Desserts</option>
                   <option value="Beverages">Beverages</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Food Type</label>
+                <select
+                  value={dishForm.food_type}
+                  onChange={(e) => setDishForm({ ...dishForm, food_type: e.target.value as 'veg' | 'nonveg' | 'custom' | 'parcel' })}
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-[#8B4513] focus:outline-none transition-colors bg-white"
+                >
+                  <option value="veg">Veg</option>
+                  <option value="nonveg">Non-Veg</option>
+                  <option value="custom">Custom</option>
+                  <option value="parcel">Parcel</option>
                 </select>
               </div>
               <div>
@@ -3994,7 +4259,7 @@ ${(() => {
                       reader.readAsDataURL(file)
                     }
                   }}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-green-500 focus:outline-none transition-colors placeholder-gray-400"
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-[#8B4513] focus:outline-none transition-colors placeholder-gray-400"
                 />
                 {dishForm.image_url && (
                   <div className="mt-2">
@@ -4045,7 +4310,7 @@ ${(() => {
                   type="number"
                   value={tableForm.table_number}
                   onChange={(e) => setTableForm({ ...tableForm, table_number: e.target.value })}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-green-500 focus:outline-none transition-colors placeholder-gray-400"
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-[#8B4513] focus:outline-none transition-colors placeholder-gray-400"
                   placeholder="Enter table number"
                 />
               </div>
@@ -4055,7 +4320,7 @@ ${(() => {
                   type="number"
                   value={tableForm.capacity}
                   onChange={(e) => setTableForm({ ...tableForm, capacity: e.target.value })}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-green-500 focus:outline-none transition-colors placeholder-gray-400"
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-[#8B4513] focus:outline-none transition-colors placeholder-gray-400"
                   placeholder="Enter capacity"
                 />
               </div>
@@ -4165,9 +4430,9 @@ ${(() => {
                         <p className="text-sm text-gray-600">Waiter: {order.users?.name}</p>
                       </div>
                       <span className={`px-3 py-1 rounded-full text-xs font-bold ${
-                        order.status === 'paid' ? 'bg-green-100 text-green-800' :
-                        order.status === 'ready' ? 'bg-blue-100 text-blue-800' :
-                        order.status === 'preparing' ? 'bg-yellow-100 text-yellow-800' :
+                        order.status === 'paid' ? 'bg-[#F5F5DC] text-[#8B4513]' :
+                        order.status === 'ready' ? 'bg-[#F5F5DC] text-[#8B4513]' :
+                        order.status === 'preparing' ? 'bg-[#F5F5DC] text-[#8B4513]' :
                         'bg-gray-100 text-gray-800'
                       }`}>
                         {order.status}
@@ -4186,7 +4451,12 @@ ${(() => {
                         <tbody className="divide-y divide-gray-200">
                           {order.order_items?.map((item: any) => (
                             <tr key={item.id} className="hover:bg-amber-50">
-                              <td className="px-4 py-2 text-sm font-semibold text-gray-900">{item.dishes?.name}</td>
+                              <td className="px-4 py-2 text-sm font-semibold text-gray-900">
+                                <div className="flex items-center gap-2">
+                                  {getFoodTypeIcon(item.dishes?.food_type)}
+                                  <span>{item.dishes?.name}</span>
+                                </div>
+                              </td>
                               <td className="px-4 py-2 text-sm text-gray-600">
                                 {item.quantity}
                                 {item.dish_type && (
@@ -4232,10 +4502,10 @@ ${(() => {
               </button>
             </div>
 
-            <div className="border-2 border-green-300 rounded-xl p-6 bg-white shadow-lg">
+            <div className="border-2 border-[#8B4513] rounded-xl p-6 bg-white shadow-lg">
               {/* Header */}
-              <div className="text-center mb-6 pb-4 border-b-2 border-dashed border-green-300">
-                <h1 className="text-3xl font-bold text-green-700 mb-1 uppercase">
+              <div className="text-center mb-6 pb-4 border-b-2 border-dashed border-[#8B4513]">
+                <h1 className="text-3xl font-bold text-[#8B4513] mb-1 uppercase">
                   DHOLE PATIL KHANAWAL
                 </h1>
                 <p className="text-sm font-semibold text-gray-700 mb-1 uppercase">RESTAURANT & BAR</p>
@@ -4244,7 +4514,7 @@ ${(() => {
                   <p>PHONE: +91 98765 43210</p>
                   <p>GSTIN: 29ABCDE1234F1Z5</p>
                 </div>
-                <p className="text-sm font-bold text-green-700 mt-3 border-t border-dashed border-green-300 pt-2 uppercase">BILL / INVOICE</p>
+                <p className="text-sm font-bold text-green-700 mt-3 border-t border-dashed border-[#8B4513] pt-2 uppercase">BILL / INVOICE</p>
               </div>
 
               {/* Print-only header with hotel details */}
@@ -4274,7 +4544,7 @@ ${(() => {
               </div>
 
               {/* Order Info */}
-              <div className="grid grid-cols-2 gap-4 mb-6 p-4 bg-[#F5F5DC] rounded-xl no-print border border-green-200">
+              <div className="grid grid-cols-2 gap-4 mb-6 p-4 bg-[#F5F5DC] rounded-xl no-print border border-[#8B4513]">
                 <div>
                   <p className="text-sm font-semibold text-green-800">Bill No</p>
                   <p className="text-lg font-bold text-green-900">{formatOrderId(selectedOrderForBilling.id)}</p>
@@ -4306,7 +4576,12 @@ ${(() => {
                   <tbody className="divide-y divide-green-100">
                     {selectedOrderForBilling.order_items?.map((item: any) => (
                       <tr key={item.id}>
-                        <td className="px-3 py-2 text-sm font-semibold text-gray-900 truncate">{item.dishes?.name}</td>
+                        <td className="px-3 py-2 text-sm font-semibold text-gray-900">
+                          <div className="flex items-center gap-2">
+                            {getFoodTypeIcon(item.dishes?.food_type)}
+                            <span className="truncate">{item.dishes?.name}</span>
+                          </div>
+                        </td>
                         <td className="px-3 py-2 text-sm text-center text-gray-600">{item.quantity}</td>
                         <td className="px-3 py-2 text-sm text-right font-bold text-green-700">₹{(item.price * item.quantity).toFixed(2)}</td>
                       </tr>
@@ -4338,7 +4613,7 @@ ${(() => {
               </div>
 
               {/* Discount Section (no-print) */}
-              <div className="mb-6 p-4 bg-[#F5F5DC] rounded-xl no-print border border-green-200">
+              <div className="mb-6 p-4 bg-[#F5F5DC] rounded-xl no-print border border-[#8B4513]">
                 <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-3">
                   <label className="text-sm font-semibold text-green-800">Discount Type:</label>
                   <div className="flex gap-2 flex-wrap">
@@ -4347,7 +4622,7 @@ ${(() => {
                       className={`px-3 py-1.5 rounded-lg text-xs sm:text-sm font-semibold transition-all ${
                         discountType === 'amount'
                           ? 'bg-[#5D3A1A] text-white shadow-md'
-                          : 'bg-white text-green-700 border-2 border-green-300 hover:border-green-500'
+                          : 'bg-white text-green-700 border-2 border-[#8B4513] hover:border-green-500'
                       }`}
                     >
                       Amount (₹)
@@ -4357,7 +4632,7 @@ ${(() => {
                       className={`px-3 py-1.5 rounded-lg text-xs sm:text-sm font-semibold transition-all ${
                         discountType === 'percentage'
                           ? 'bg-[#5D3A1A] text-white shadow-md'
-                          : 'bg-white text-green-700 border-2 border-green-300 hover:border-green-500'
+                          : 'bg-white text-green-700 border-2 border-[#8B4513] hover:border-green-500'
                       }`}
                     >
                       Percentage (%)
@@ -4373,7 +4648,7 @@ ${(() => {
                         setDiscountAmount(e.target.value)
                         setDiscountPercentage('')
                       }}
-                      className="flex-1 px-3 py-2 border-2 border-green-300 rounded-xl focus:border-green-500 focus:outline-none transition-colors placeholder-green-400 text-sm"
+                      className="flex-1 px-3 py-2 border-2 border-[#8B4513] rounded-xl focus:border-[#8B4513] focus:outline-none transition-colors placeholder-green-400 text-sm"
                       placeholder="Enter discount amount in ₹"
                     />
                   ) : (
@@ -4384,7 +4659,7 @@ ${(() => {
                         setDiscountPercentage(e.target.value)
                         setDiscountAmount('')
                       }}
-                      className="flex-1 px-3 py-2 border-2 border-green-300 rounded-xl focus:border-green-500 focus:outline-none transition-colors placeholder-green-400 text-sm"
+                      className="flex-1 px-3 py-2 border-2 border-[#8B4513] rounded-xl focus:border-[#8B4513] focus:outline-none transition-colors placeholder-green-400 text-sm"
                       placeholder="Enter discount percentage"
                     />
                   )}
@@ -4392,7 +4667,7 @@ ${(() => {
               </div>
 
               {/* Order Details (for screen view) */}
-              <div className="grid grid-cols-2 gap-4 p-4 bg-[#F5F5DC] rounded-xl no-print border border-green-200">
+              <div className="grid grid-cols-2 gap-4 p-4 bg-[#F5F5DC] rounded-xl no-print border border-[#8B4513]">
                 <div>
                   <p className="text-sm font-semibold text-green-800">Table</p>
                   <p className="text-lg font-bold text-green-900">Table {selectedOrderForBilling.tables?.table_number}</p>
@@ -4412,7 +4687,7 @@ ${(() => {
               </div>
 
               {/* Totals */}
-              <div className="mt-6 pt-4 border-t-2 border-green-300 space-y-3">
+              <div className="mt-6 pt-4 border-t-2 border-[#8B4513] space-y-3">
                 <div className="flex justify-between items-center">
                   <span className="text-lg font-bold text-green-700">Subtotal</span>
                   <span className="text-xl font-bold text-green-900">₹{selectedOrderForBilling.total_amount.toFixed(2)}</span>
@@ -4427,7 +4702,7 @@ ${(() => {
                     </span>
                   </div>
                 )}
-                <div className="flex justify-between items-center border-t-2 border-green-300 pt-3">
+                <div className="flex justify-between items-center border-t-2 border-[#8B4513] pt-3">
                   <span className="text-xl font-bold text-green-900">GRAND TOTAL</span>
                   <span className="text-3xl font-bold text-green-700">
                     ₹{calculateFinalAmount(selectedOrderForBilling.total_amount).toFixed(2)}
@@ -4471,7 +4746,7 @@ ${(() => {
             <div className="flex gap-3 no-print mt-6">
               <button
                 onClick={() => setSelectedOrderForBilling(null)}
-                className="flex-1 px-6 py-3 border-2 border-green-300 text-green-700 rounded-xl font-semibold hover:bg-amber-50 transition-all duration-300"
+                className="flex-1 px-6 py-3 border-2 border-[#8B4513] text-green-700 rounded-xl font-semibold hover:bg-amber-50 transition-all duration-300"
               >
                 Close
               </button>
@@ -4482,7 +4757,7 @@ ${(() => {
                 Print Bill
               </button>
               <button
-                onClick={() => handleMarkAsPaid(selectedOrderForBilling)}
+                onClick={() => selectedOrderForBilling && handleMarkAsPaid(selectedOrderForBilling)}
                 className="flex-1 px-6 py-3 bg-[#5D3A1A] text-white rounded-xl font-semibold hover:shadow-lg transition-all duration-300"
               >
                 Mark as Paid
@@ -4491,6 +4766,7 @@ ${(() => {
           </div>
         </div>
       )}
+      </div>
     </div>
   )
 }

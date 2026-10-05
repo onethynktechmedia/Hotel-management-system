@@ -80,7 +80,7 @@ export default function LoginPage() {
             <img src="/logo.png" alt="Dhole Patil Hotel Logo" className="w-24 h-24 mx-auto rounded-full object-cover" />
           </div>
           <h1 className="text-3xl font-bold text-[#5D3A1A] mb-2">
-            Dhole Patil Hotel
+            Dhole Patil Khanawal
           </h1>
           <p className="text-gray-600">Staff Login</p>
           <p className="text-sm text-gray-500 mt-1">Enter your credentials to access the system</p>

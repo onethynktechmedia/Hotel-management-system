@@ -10,6 +10,7 @@ export default function MenuPage() {
   const [dishes, setDishes] = useState<Dish[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedCategory, setSelectedCategory] = useState<string>('all')
+  const [selectedFoodType, setSelectedFoodType] = useState<string>('all')
   const [imageErrors, setImageErrors] = useState<Set<string>>(new Set())
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
 
@@ -38,9 +39,11 @@ export default function MenuPage() {
   }
 
   const categories = ['all', ...Array.from(new Set(dishes?.map(dish => dish.category) || []))]
-  const filteredDishes = selectedCategory === 'all' 
-    ? dishes || []
-    : (dishes || []).filter(dish => dish.category === selectedCategory)
+  const filteredDishes = dishes?.filter(dish => {
+    const categoryMatch = selectedCategory === 'all' || dish.category === selectedCategory
+    const foodTypeMatch = selectedFoodType === 'all' || dish.food_type === selectedFoodType
+    return categoryMatch && foodTypeMatch
+  }) || []
 
   const handleImageError = (dishId: string) => {
     setImageErrors(prev => new Set(prev).add(dishId))
@@ -60,18 +63,30 @@ export default function MenuPage() {
     return categoryImages[category.toLowerCase()] || 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=400&h=300&fit=crop'
   }
 
-  const getCategoryIcon = (category: string) => {
-    const icons: { [key: string]: string } = {
-      'starter': '🥗',
-      'starters': '🥗',
-      'main course': '🍛',
-      'dessert': '🍮',
-      'desserts': '🍮',
-      'beverage': '🥤',
-      'bread': '🫓',
-      'sides': '🥗',
+  const getFoodTypeIcon = (foodType?: string, size: 'small' | 'large' = 'small') => {
+    const sizeClass = size === 'small' ? 'w-5 h-5' : 'w-6 h-6'
+    const dotSize = size === 'small' ? 'w-2.5 h-2.5' : 'w-3 h-3'
+
+    if (foodType === 'veg') {
+      return (
+        <div className={`${sizeClass} flex items-center justify-center border-2 border-green-600 bg-green-50 rounded-sm`}>
+          <div className={`${dotSize} bg-green-600 rounded-full`}></div>
+        </div>
+      )
+    } else if (foodType === 'nonveg') {
+      return (
+        <div className={`${sizeClass} flex items-center justify-center border-2 border-red-600 bg-red-50 rounded-sm`}>
+          <div className={`${dotSize} bg-red-600 rounded-full`}></div>
+        </div>
+      )
+    } else if (foodType === 'custom' || foodType === 'parcel') {
+      return (
+        <div className={`${sizeClass} flex items-center justify-center border-2 border-blue-600 bg-blue-50 rounded-sm`}>
+          <span className="text-xs font-bold text-blue-600">C</span>
+        </div>
+      )
     }
-    return icons[category.toLowerCase()] || '🍽️'
+    return null
   }
 
   if (loading) {
@@ -90,7 +105,7 @@ export default function MenuPage() {
             <div className="flex items-center gap-3">
               <img src="/logo.png" alt="Dhole Patil Hotel Logo" className="w-10 h-10 rounded-full object-cover" />
               <Link href="/" className="text-2xl font-bold text-[#5D3A1A]">
-                Dhole Patil Hotel
+                Dhole Patil Khanawal
               </Link>
             </div>
             
@@ -145,6 +160,47 @@ export default function MenuPage() {
           <p className="text-xl text-gray-600">Explore our delicious dishes</p>
         </div>
 
+        {/* Food Type Filter */}
+        <div className="flex flex-wrap justify-center gap-3 mb-6">
+          <button
+            onClick={() => { playClickSound(); setSelectedFoodType('all') }}
+            className={`px-5 py-2.5 rounded-full text-sm font-semibold transition-all ${
+              selectedFoodType === 'all'
+                ? 'bg-[#5D3A1A] text-white scale-105 shadow-md'
+                : 'bg-white text-gray-700 hover:bg-[#F5F5DC]'
+            }`}
+          >
+            All
+          </button>
+          <button
+            onClick={() => { playClickSound(); setSelectedFoodType('veg') }}
+            className={`flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-semibold transition-all ${
+              selectedFoodType === 'veg'
+                ? 'bg-green-600 text-white scale-105 shadow-md'
+                : 'bg-white text-green-700 hover:bg-green-50'
+            }`}
+          >
+            <div className="w-4 h-4 flex items-center justify-center border-2 border-green-600 bg-green-50 rounded-sm">
+              <div className="w-2 h-2 bg-green-600 rounded-full"></div>
+            </div>
+            Veg
+          </button>
+          <button
+            onClick={() => { playClickSound(); setSelectedFoodType('nonveg') }}
+            className={`flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-semibold transition-all ${
+              selectedFoodType === 'nonveg'
+                ? 'bg-red-600 text-white scale-105 shadow-md'
+                : 'bg-white text-red-700 hover:bg-red-50'
+            }`}
+          >
+            <div className="w-4 h-4 flex items-center justify-center border-2 border-red-600 bg-red-50 rounded-sm">
+              <div className="w-2 h-2 bg-red-600 rounded-full"></div>
+            </div>
+            Non-Veg
+          </button>
+        </div>
+
+        {/* Category Filter */}
         <div className="flex flex-wrap justify-center gap-2 mb-8">
           {categories.map(category => (
             <button
@@ -184,14 +240,18 @@ export default function MenuPage() {
               </div>
               <div className="p-3 sm:p-4 md:p-6">
                 <div className="flex justify-between items-start mb-2">
-                  <h3 className="text-sm sm:text-base md:text-xl font-bold text-gray-900 line-clamp-1">{dish.name}</h3>
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-1">
+                      {getFoodTypeIcon(dish.food_type)}
+                      <h3 className="text-sm sm:text-base md:text-xl font-bold text-gray-900 line-clamp-1">{dish.name}</h3>
+                    </div>
+                  </div>
                   <span className="text-sm sm:text-base md:text-2xl font-bold text-[#5D3A1A]">
                     ₹{dish.price.toFixed(2)}
                   </span>
                 </div>
-                <p className="text-xs sm:text-sm font-semibold text-[#8B4513] mb-1 flex items-center gap-1">
-                  <span>{getCategoryIcon(dish.category)}</span>
-                  {dish.category}
+                <p className="text-xs sm:text-sm font-semibold text-[#8B4513] mb-1">
+                  {dish.category.charAt(0).toUpperCase() + dish.category.slice(1)}
                 </p>
                 {dish.description && (
                   <p className="text-xs sm:text-sm text-gray-600 line-clamp-2">{dish.description}</p>

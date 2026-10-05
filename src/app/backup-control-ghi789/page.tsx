@@ -358,7 +358,7 @@ export default function OfflineAdminPage() {
       // Generate properly formatted plain text bill content for thermal printer
       // 58mm paper width = approximately 32-35 characters per line
       const plainText = `
-<strong class="header">DHOLE PATIL HOTEL</strong><br>
+<strong class="header">DHOLE PATIL Khanawal</strong><br>
 Restaurant & Bar<br>
 ================================<br>
 123, Main Street<br>
@@ -396,7 +396,7 @@ ${(() => {
 Thank You for Dining!<br>
 Visit Us Again<br>
 ================================<br>
-<span class="developer">Dhole Patil Hotel</span><br>
+<span class="developer">Dhole Patil Khanawal</span><br>
 ================================
 `
       

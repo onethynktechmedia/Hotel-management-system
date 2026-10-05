@@ -16,7 +16,7 @@ export default function Home() {
             <div className="flex items-center gap-3">
               <img src="/logo.png" alt="Dhole Patil Hotel Logo" className="w-10 h-10 rounded-full object-cover" />
               <h1 className="text-2xl font-bold text-[#5D3A1A]">
-                Dhole Patil Hotel
+                Dhole Patil Khanawal
               </h1>
             </div>
             
@@ -62,7 +62,7 @@ export default function Home() {
           </div>
           <div className="relative z-10">
             <h2 className="text-5xl md:text-6xl font-extrabold text-white mb-6">
-              Welcome to Dhole Patil Hotel
+              Welcome to Dhole Patil Khanawal
             </h2>
             <p className="text-xl md:text-2xl text-white/90 mb-8 max-w-3xl mx-auto">
               Experience delicious food with our modern ordering system

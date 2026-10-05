@@ -69,20 +69,21 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { table_id, waiter_id, status, total_amount, customer_name, customer_mobile } = body
+    const { table_id, waiter_id, status, total_amount } = body
 
-    console.log('Creating order with:', { table_id, waiter_id, status, total_amount, customer_name, customer_mobile })
+    console.log('Creating order with:', { table_id, waiter_id, status, total_amount })
+
+    // Build insert data - only include core columns that definitely exist
+    const insertData: any = {
+      table_id,
+      waiter_id,
+      status,
+      total_amount
+    }
 
     const { data: order, error } = await supabase
       .from('orders')
-      .insert({
-        table_id,
-        waiter_id,
-        status,
-        total_amount,
-        customer_name: customer_name || null,
-        customer_mobile: customer_mobile || null
-      })
+      .insert(insertData)
       .select()
       .single()
 
@@ -95,8 +96,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(order)
   } catch (error: any) {
     console.error('Error creating order:', error)
-    return NextResponse.json({ 
-      error: 'Failed to create order', 
+    return NextResponse.json({
+      error: 'Failed to create order',
       details: error?.message || String(error),
       supabaseError: error?.code || null
     }, { status: 500 })
@@ -133,10 +134,9 @@ export async function PATCH(request: NextRequest) {
     const body = await request.json()
     const { id, status, total_amount } = body
 
-    const updateData: any = { status }
-    if (total_amount !== undefined) {
-      updateData.total_amount = total_amount
-    }
+    const updateData: any = {}
+    if (status !== undefined) updateData.status = status
+    if (total_amount !== undefined) updateData.total_amount = total_amount
 
     const { data: order, error } = await supabase
       .from('orders')

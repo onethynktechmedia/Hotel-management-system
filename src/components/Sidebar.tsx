@@ -2,15 +2,15 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { 
-  LayoutDashboard, 
-  ShoppingCart, 
-  Utensils, 
-  Table, 
-  TrendingUp, 
-  Users, 
-  Bell, 
-  LogOut, 
+import {
+  LayoutDashboard,
+  ShoppingCart,
+  Utensils,
+  Table,
+  TrendingUp,
+  Users,
+  Bell,
+  LogOut,
   Menu,
   X,
   Calendar,
@@ -93,7 +93,7 @@ export default function Sidebar({ activeTab, setActiveTab, user }: SidebarProps)
             <img src="/logo.png" alt="Dhole Patil Hotel Logo" className="w-12 h-12 rounded-full object-cover" />
             <div>
               <h1 className="text-xl font-bold text-[#5D3A1A]">
-                Dhole Patil Hotel
+                Dhole Patil Khanawal
               </h1>
               <p className="text-sm text-gray-600">Management Dashboard</p>
             </div>

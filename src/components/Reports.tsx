@@ -55,12 +55,13 @@ export default function Reports({ orders, payments, dishes }: ReportsProps) {
   const [dateRange, setDateRange] = useState<'today' | 'week' | 'month' | 'custom'>('month')
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
+  const [foodTypeFilter, setFoodTypeFilter] = useState<'all' | 'veg' | 'nonveg'>('all')
   const [reportData, setReportData] = useState<any>(null)
   const [showExportModal, setShowExportModal] = useState(false)
 
   useEffect(() => {
     generateReport()
-  }, [dateRange, startDate, endDate, orders, payments, dishes])
+  }, [dateRange, startDate, endDate, foodTypeFilter, orders, payments, dishes])
 
   const generateReport = () => {
     let filteredOrders = [...orders]
@@ -103,6 +104,17 @@ export default function Reports({ orders, payments, dishes }: ReportsProps) {
       filteredPayments = [...payments]
     }
 
+    // Filter by food type (veg/nonveg)
+    if (foodTypeFilter !== 'all') {
+      filteredOrders = filteredOrders.filter((order: any) => {
+        if (!order.order_items || order.order_items.length === 0) return false
+        return order.order_items.some((item: any) => {
+          const dish = item.dishes || item.dish
+          return dish?.food_type === foodTypeFilter
+        })
+      })
+    }
+
     // Calculate metrics
     const totalRevenue = filteredPayments
       .filter(p => p.status === 'completed')
@@ -129,12 +141,13 @@ export default function Reports({ orders, payments, dishes }: ReportsProps) {
       { name: 'Pending', value: filteredOrders.filter(o => o.status === 'pending').length, color: '#F5F5DC' },
     ]
 
-    // Hourly sales data - use order data for better accuracy with 12-hour format
-    const hourlySales = Array.from({ length: 12 }, (_, i) => {
-      const hour = i + 1 // 1-12
-      const period = i < 11 ? 'AM' : 'PM'
+    // Hourly sales data - 24 hours in AM/PM format (1-12 AM, 1-12 PM)
+    const hourlySales = Array.from({ length: 24 }, (_, i) => {
+      const hour24 = i
+      const hour12 = hour24 === 0 ? 12 : hour24 > 12 ? hour24 - 12 : hour24
+      const period = hour24 < 12 ? 'AM' : 'PM'
       return {
-        hour: `${hour}:00 ${period}`,
+        hour: `${hour12}:00 ${period}`,
         sales: 0,
         orders: 0
       }
@@ -144,12 +157,8 @@ export default function Reports({ orders, payments, dishes }: ReportsProps) {
       if (order.status === 'paid' || order.status === 'completed') {
         const date = new Date(order.created_at)
         const hour24 = date.getHours()
-        // Convert to 12-hour format
-        const hour12 = hour24 % 12 || 12
-        const period = hour24 < 12 ? 'AM' : 'PM'
-        const hourIndex = hour24 === 0 ? 11 : (hour24 > 12 ? hour24 - 13 : hour24 - 1)
-        hourlySales[hourIndex].sales += order.total_amount || 0
-        hourlySales[hourIndex].orders += 1
+        hourlySales[hour24].sales += order.total_amount || 0
+        hourlySales[hour24].orders += 1
       }
     })
 
@@ -493,6 +502,65 @@ export default function Reports({ orders, payments, dishes }: ReportsProps) {
               />
             </div>
           )}
+        </div>
+      </div>
+
+      {/* Food Type Filter */}
+      <div className="bg-white rounded-lg shadow-sm p-2 sm:p-3 border border-gray-200">
+        <div className="flex flex-col gap-1.5 sm:gap-2">
+          <div className="flex items-center gap-1 sm:gap-1.5">
+            <div className="bg-[#F5F5DC] p-1 sm:p-1.5 rounded-md">
+              <Filter className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-[#5D3A1A]" />
+            </div>
+            <span className="font-bold text-gray-800 text-[10px] sm:text-xs">Food Type</span>
+          </div>
+          <div className="flex flex-wrap gap-1 sm:gap-1.5">
+            <button
+              onClick={() => {
+                playClickSound()
+                setFoodTypeFilter('all')
+              }}
+              className={`flex items-center gap-1.5 px-2 sm:px-3 py-1 sm:py-1.5 rounded-md text-[10px] sm:text-xs font-semibold transition-all ${
+                foodTypeFilter === 'all'
+                  ? 'bg-[#5D3A1A] text-white shadow-sm'
+                  : 'text-gray-600 hover:bg-[#F5F5DC] border border-gray-200 hover:border-[#5D3A1A]'
+              }`}
+            >
+              All
+            </button>
+            <button
+              onClick={() => {
+                playClickSound()
+                setFoodTypeFilter('veg')
+              }}
+              className={`flex items-center gap-1.5 px-2 sm:px-3 py-1 sm:py-1.5 rounded-md text-[10px] sm:text-xs font-semibold transition-all ${
+                foodTypeFilter === 'veg'
+                  ? 'bg-green-600 text-white shadow-sm'
+                  : 'text-green-700 hover:bg-green-50 border border-green-200'
+              }`}
+            >
+              <div className="w-3 h-3 flex items-center justify-center border-2 border-green-600 bg-green-50 rounded-sm">
+                <div className="w-1.5 h-1.5 bg-green-600 rounded-full"></div>
+              </div>
+              Veg
+            </button>
+            <button
+              onClick={() => {
+                playClickSound()
+                setFoodTypeFilter('nonveg')
+              }}
+              className={`flex items-center gap-1.5 px-2 sm:px-3 py-1 sm:py-1.5 rounded-md text-[10px] sm:text-xs font-semibold transition-all ${
+                foodTypeFilter === 'nonveg'
+                  ? 'bg-red-600 text-white shadow-sm'
+                  : 'text-red-700 hover:bg-red-50 border border-red-200'
+              }`}
+            >
+              <div className="w-3 h-3 flex items-center justify-center border-2 border-red-600 bg-red-50 rounded-sm">
+                <div className="w-1.5 h-1.5 bg-red-600 rounded-full"></div>
+              </div>
+              Non-Veg
+            </button>
+          </div>
         </div>
       </div>
 

@@ -5,9 +5,9 @@ import { useRouter } from 'next/navigation'
 import supabase from '@/lib/db'
 import { User, Order, Dish, Table, CartItem } from '@/types'
 import { LogOut, ShoppingCart, Plus, Minus, ArrowLeft, Users, Clock, CheckCircle, X, Crown, RefreshCw, Printer, RotateCcw, History } from 'lucide-react'
-import { playClickSound, playSuccessSound, playErrorSound, playPrintSound } from '@/lib/sound-effects'
+import { playClickSound, playSuccessSound, playErrorSound, playPrintSound, playNotificationSound } from '@/lib/sound-effects'
 
-type Step = 'tables' | 'order-options' | 'dishes' | 'cart' | 'success' | 'master' | 'alter-table' | 'master-station-detail' | 'repeat-order' | 'bill-preview' | 'previous-orders'
+type Step = 'tables' | 'order-options' | 'dishes' | 'cart' | 'success' | 'alter-table' | 'repeat-order' | 'bill-preview' | 'previous-orders'
 
 // Utility function to format order ID as DPK-XXX
 const formatOrderId = (orderId: string) => {
@@ -30,11 +30,10 @@ export default function WaiterPage() {
   const [currentStep, setCurrentStep] = useState<Step>('tables')
   const [loading, setLoading] = useState(true)
   const [selectedCategory, setSelectedCategory] = useState<string>('all')
+  const [selectedFoodType, setSelectedFoodType] = useState<string>('all')
   const [submitting, setSubmitting] = useState(false)
   const [alteringOrder, setAlteringOrder] = useState<Order | null>(null)
   const [newTableId, setNewTableId] = useState<string | null>(null)
-  const [selectedMasterTable, setSelectedMasterTable] = useState<Table | null>(null)
-  const [masterTableCart, setMasterTableCart] = useState<CartItem[]>([])
   const [showMasterTableModal, setShowMasterTableModal] = useState(false)
   const [selectedTablesForMaster, setSelectedTablesForMaster] = useState<string[]>([])
   const [confirmingOrder, setConfirmingOrder] = useState(false)
@@ -48,8 +47,9 @@ export default function WaiterPage() {
   const [billOrderItems, setBillOrderItems] = useState<any[]>([])
   const [tableOrders, setTableOrders] = useState<Order[]>([])
   const [selectedItemsToRepeat, setSelectedItemsToRepeat] = useState<any[]>([])
+  const [previousOrderCount, setPreviousOrderCount] = useState(0)
   const [customerName, setCustomerName] = useState('')
-  const [customerMobile, setCustomerMobile] = useState('')
+  const [paymentType, setPaymentType] = useState<'cash' | 'upi' | 'card'>('cash')
 
   const dishTypes = ['Normal', 'Medium', 'Spicy', 'Extra Spicy']
 
@@ -123,7 +123,11 @@ export default function WaiterPage() {
         index === self.findIndex((o: Order) => o.id === order.id)
       )
       
-      setOrders(uniqueOrders)
+      // Play notification sound if new orders detected
+      if (uniqueOrders.length > previousOrderCount && previousOrderCount > 0) {
+        playNotificationSound('order')
+      }
+      setPreviousOrderCount(uniqueOrders.length)
     } catch (error) {
       console.error('Error fetching data:', error)
     } finally {
@@ -133,7 +137,7 @@ export default function WaiterPage() {
 
   const handleTableSelect = async (table: Table) => {
     setSelectedTable(table)
-    
+
     if (table.is_occupied) {
       // Find the active order for this table
       const tableOrder = orders.find(o => o.table_id === table.id && !['paid', 'completed'].includes(o.status))
@@ -144,6 +148,7 @@ export default function WaiterPage() {
       }
       return
     }
+    // For both regular and master tables, use the same dishes view
     setCurrentStep('dishes')
   }
 
@@ -163,6 +168,29 @@ export default function WaiterPage() {
   const handleViewPreviousOrders = () => {
     setSelectedItemsToRepeat([])
     setCurrentStep('previous-orders')
+  }
+
+  const getFoodTypeIcon = (foodType?: string) => {
+    if (foodType === 'veg') {
+      return (
+        <div className="w-5 h-5 flex items-center justify-center border-2 border-green-600 bg-green-50 rounded-sm">
+          <div className="w-2.5 h-2.5 bg-green-600 rounded-full"></div>
+        </div>
+      )
+    } else if (foodType === 'nonveg') {
+      return (
+        <div className="w-5 h-5 flex items-center justify-center border-2 border-red-600 bg-red-50 rounded-sm">
+          <div className="w-2.5 h-2.5 bg-red-600 rounded-full"></div>
+        </div>
+      )
+    } else if (foodType === 'custom' || foodType === 'parcel') {
+      return (
+        <div className="w-5 h-5 flex items-center justify-center border-2 border-blue-600 bg-blue-50 rounded-sm">
+          <span className="text-xs font-bold text-blue-600">C</span>
+        </div>
+      )
+    }
+    return null
   }
 
   const toggleItemSelection = (item: any) => {
@@ -260,24 +288,29 @@ export default function WaiterPage() {
 
       console.log('Table updated to occupied')
 
-      // Create notification for kitchen via API
-      const notificationResponse = await fetch('/api/notifications', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          user_id: user?.id,
-          order_id: orderData.id,
-          type: 'new_order',
-          message: `Repeated order for Table ${selectedTable?.table_number}`,
-          is_read: false
-        })
-      })
+      // Create notifications for kitchen and admin staff
+      const usersResponse = await fetch('/api/users')
+      const allUsers = await usersResponse.json()
+      const kitchenAndAdminUsers = allUsers.filter((u: any) => u.role === 'kitchen' || u.role === 'admin')
 
-      if (!notificationResponse.ok) {
-        console.error('Notification creation failed, but continuing...')
-      } else {
-        console.log('Notification created via API')
+      for (const targetUser of kitchenAndAdminUsers) {
+        await fetch('/api/notifications', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            user_id: targetUser.id,
+            order_id: orderData.id,
+            type: 'new_order',
+            message: `Repeated order for Table ${selectedTable?.table_number} by ${user?.name}`,
+            is_read: false
+          })
+        })
       }
+
+      console.log(`Notifications sent to ${kitchenAndAdminUsers.length} kitchen/admin users`)
+
+      // Play success sound
+      playSuccessSound()
 
       setCurrentStep('success')
       setCart([])
@@ -348,86 +381,156 @@ export default function WaiterPage() {
       const userId = userIdMatch ? decodeURIComponent(userIdMatch[1]) : null
       console.log('User ID from cookie:', userId)
 
-      // Create order via API to avoid CORS
-      const orderResponse = await fetch('/api/orders', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          table_id: selectedTable?.id,
-          waiter_id: userId,
-          status: 'pending',
-          total_amount: getCartTotal(),
-          customer_name: customerName || null,
-          customer_mobile: customerMobile || null
+      // Check if there's already a pending order for this table
+      const existingOrdersResponse = await fetch('/api/orders')
+      const allOrders = await existingOrdersResponse.json()
+      const existingOrder = allOrders.find((o: any) => 
+        o.table_id === selectedTable?.id && 
+        o.status === 'pending'
+      )
+
+      let orderData: any
+
+      if (existingOrder) {
+        // Add items to existing order
+        console.log('Found existing order, adding items to it:', existingOrder.id)
+        
+        // Update order total
+        const currentTotal = existingOrder.total_amount || 0
+        const newTotal = currentTotal + getCartTotal()
+        
+        await fetch(`/api/orders/${existingOrder.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            total_amount: newTotal
+          })
         })
-      })
 
-      console.log('Order response status:', orderResponse.status)
-      if (!orderResponse.ok) {
-        const errorData = await orderResponse.json()
-        console.error('Order API error:', errorData)
-        throw new Error(errorData.error || 'Failed to create order')
-      }
+        // Create order items for the existing order
+        const orderItems = cart.map(item => ({
+          order_id: existingOrder.id,
+          dish_id: item.dish_id,
+          quantity: item.quantity,
+          price: item.price,
+          status: 'pending'
+        }))
 
-      const orderData = await orderResponse.json()
-      console.log('Order created:', orderData)
-
-      // Create order items via API
-      const orderItems = cart.map(item => ({
-        order_id: orderData.id,
-        dish_id: item.dish_id,
-        quantity: item.quantity,
-        price: item.price,
-        status: 'pending'
-      }))
-
-      // Use API to create order items instead of direct Supabase
-      const itemsResponse = await fetch('/api/order-items', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(orderItems)
-      })
-
-      if (!itemsResponse.ok) {
-        const errorData = await itemsResponse.json()
-        console.error('Order items API error:', errorData)
-        throw new Error(errorData.error || 'Failed to create order items')
-      }
-
-      console.log('Order items created via API')
-
-      // Update table status to occupied via API to avoid CORS
-      const tableResponse = await fetch('/api/tables', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: selectedTable?.id, is_occupied: true })
-      })
-
-      if (!tableResponse.ok) {
-        console.error('Table update failed')
-        throw new Error('Failed to update table status')
-      }
-
-      console.log('Table updated to occupied')
-
-      // Create notification for kitchen via API
-      const notificationResponse = await fetch('/api/notifications', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          user_id: userId,
-          order_id: orderData.id,
-          type: 'new_order',
-          message: `New order for Table ${selectedTable?.table_number}`,
-          is_read: false
+        const itemsResponse = await fetch('/api/order-items', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(orderItems)
         })
-      })
 
-      if (!notificationResponse.ok) {
-        console.error('Notification creation failed, but continuing...')
+        if (!itemsResponse.ok) {
+          const errorData = await itemsResponse.json()
+          console.error('Order items API error:', errorData)
+          throw new Error(errorData.error || 'Failed to create order items')
+        }
+
+        orderData = existingOrder
       } else {
-        console.log('Notification created via API')
+        // Create new order
+        console.log('No existing order, creating new order')
+        
+        const orderResponse = await fetch('/api/orders', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            table_id: selectedTable?.id,
+            waiter_id: userId,
+            status: 'pending',
+            total_amount: getCartTotal()
+          })
+        })
+
+        console.log('Order response status:', orderResponse.status)
+        if (!orderResponse.ok) {
+          const errorData = await orderResponse.json()
+          console.error('Order API error:', errorData)
+          throw new Error(errorData.error || 'Failed to create order')
+        }
+
+        orderData = await orderResponse.json()
+        console.log('Order created:', orderData)
+
+        // Create order items via API
+        const orderItems = cart.map(item => ({
+          order_id: orderData.id,
+          dish_id: item.dish_id,
+          quantity: item.quantity,
+          price: item.price,
+          status: 'pending'
+        }))
+
+        // Use API to create order items instead of direct Supabase
+        const itemsResponse = await fetch('/api/order-items', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(orderItems)
+        })
+
+        if (!itemsResponse.ok) {
+          const errorData = await itemsResponse.json()
+          console.error('Order items API error:', errorData)
+          throw new Error(errorData.error || 'Failed to create order items')
+        }
+
+        console.log('Order items created via API')
+
+        // Update table status to occupied via API to avoid CORS
+        const tableResponse = await fetch('/api/tables', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: selectedTable?.id, is_occupied: true })
+        })
+
+        if (!tableResponse.ok) {
+          console.error('Table update failed')
+          throw new Error('Failed to update table status')
+        }
+
+        console.log('Table updated to occupied')
+
+        // If this is a master table, ensure all child tables remain occupied
+        if (selectedTable?.is_master) {
+          const childTables = tables.filter(t => t.master_table_id === selectedTable.id)
+          for (const childTable of childTables) {
+            await fetch('/api/tables', {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                id: childTable.id,
+                is_occupied: true
+              })
+            })
+          }
+        }
+
+        // Create notifications for kitchen and admin staff
+        const usersResponse = await fetch('/api/users')
+        const allUsers = await usersResponse.json()
+        const kitchenAndAdminUsers = allUsers.filter((u: any) => u.role === 'kitchen' || u.role === 'admin')
+
+        for (const targetUser of kitchenAndAdminUsers) {
+          await fetch('/api/notifications', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              user_id: targetUser.id,
+              order_id: orderData.id,
+              type: 'new_order',
+              message: `New order for Table ${selectedTable?.table_number} by ${user?.name}`,
+              is_read: false
+            })
+          })
+        }
+
+        console.log(`Notifications sent to ${kitchenAndAdminUsers.length} kitchen/admin users`)
       }
+
+      // Play success sound
+      playSuccessSound()
 
       setCurrentStep('success')
       setCart([])
@@ -479,18 +582,20 @@ export default function WaiterPage() {
         return sum + (table?.capacity || 0)
       }, 0)
 
-      // Update the first table to become master
+      // Update the first table to become master and mark as occupied
       await fetch('/api/tables', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           id: masterTableId,
           is_master: true,
-          capacity: totalCapacity
+          capacity: totalCapacity,
+          is_occupied: true
         })
       })
 
-      // Update all other selected tables to reference the master table
+      // Update all other selected tables to reference the master table and mark as occupied
+      // (Child tables should be occupied to prevent others from using them)
       for (let i = 1; i < selectedTablesForMaster.length; i++) {
         const tableId = selectedTablesForMaster[i]
         await fetch('/api/tables', {
@@ -499,7 +604,7 @@ export default function WaiterPage() {
           body: JSON.stringify({
             id: tableId,
             master_table_id: masterTableId,
-            is_occupied: false
+            is_occupied: true
           })
         })
       }
@@ -508,7 +613,7 @@ export default function WaiterPage() {
       setSelectedTablesForMaster([])
       fetchData()
       playSuccessSound()
-      alert(`Table ${masterTable.table_number} is now the master table with ${selectedTablesForMaster.length} tables combined`)
+      alert(`Table ${masterTable.table_number} is now the master table with ${selectedTablesForMaster.length} tables combined. All tables are now occupied and reserved.`)
     } catch (error) {
       console.error('Error creating master table:', error)
       playErrorSound()
@@ -725,10 +830,10 @@ export default function WaiterPage() {
 
   const handleDeleteMasterTable = async (tableId: string, tableNumber: number) => {
     const table = tables.find(t => t.id === tableId)
-    
-    const message = table?.is_occupied 
-      ? `Table ${tableNumber} is currently occupied. This will delete the master table and all associated orders. Are you sure you want to proceed?`
-      : `This will delete Master Table ${tableNumber} and all associated orders. Are you sure you want to proceed?`
+
+    const message = table?.is_occupied
+      ? `Table ${tableNumber} is currently occupied. This will delete the master table, release all associated tables, and delete all orders. Are you sure you want to proceed?`
+      : `This will delete Master Table ${tableNumber}, release all associated tables, and delete all orders. Are you sure you want to proceed?`
 
     if (!confirm(message)) return
 
@@ -745,7 +850,21 @@ export default function WaiterPage() {
         })
       }
 
-      // Delete the table
+      // Release all child tables
+      const childTables = tables.filter(t => t.master_table_id === tableId)
+      for (const childTable of childTables) {
+        await fetch('/api/tables', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            id: childTable.id,
+            is_occupied: false,
+            master_table_id: null
+          })
+        })
+      }
+
+      // Delete the master table
       const response = await fetch(`/api/tables?id=${tableId}`, {
         method: 'DELETE'
       })
@@ -753,7 +872,7 @@ export default function WaiterPage() {
       if (!response.ok) throw new Error('Failed to delete table')
 
       await fetchData()
-      alert(`Master Table ${tableNumber} deleted successfully!`)
+      alert(`Master Table ${tableNumber} deleted successfully! All associated tables have been released.`)
     } catch (error) {
       console.error('Error deleting master table:', error)
       alert('Failed to delete master table')
@@ -1086,6 +1205,10 @@ export default function WaiterPage() {
     <span>CUSTOMER:</span>
     <span>${viewingBill.customer_name || 'GUEST'}</span>
   </div>
+  <div style="display: flex; justify-content: space-between;">
+    <span>PAYMENT:</span>
+    <span>${(viewingBill as any).payment_type?.toUpperCase() || 'CASH'}</span>
+  </div>
 </div>
 <div style="border-top: 1px dashed #000; margin: 4px 0;"></div>
 <div style="font-size: 10px; font-weight: 900; margin: 4px 0; color: #000;">ITEM DETAILS</div>
@@ -1179,7 +1302,7 @@ ${itemsList}
           // Remove iframe after printing
           setTimeout(() => {
             document.body.removeChild(printFrame)
-            
+
             // Update order status to completed after printing
             const updateOrderStatus = async () => {
               try {
@@ -1188,10 +1311,58 @@ ${itemsList}
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({ status: 'completed' })
                 })
+
+                // If this is a master table, release all associated tables
+                if (viewingBill.tables?.is_master) {
+                  // Mark master table as not occupied
+                  await fetch('/api/tables', {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      id: viewingBill.table_id,
+                      is_occupied: false
+                    })
+                  })
+
+                  // Release all child tables
+                  const childTables = tables.filter(t => t.master_table_id === viewingBill.table_id)
+                  for (const childTable of childTables) {
+                    await fetch('/api/tables', {
+                      method: 'PATCH',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        id: childTable.id,
+                        is_occupied: false,
+                        master_table_id: null
+                      })
+                    })
+                  }
+
+                  // Remove master status from the table
+                  await fetch('/api/tables', {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      id: viewingBill.table_id,
+                      is_master: false
+                    })
+                  })
+                } else {
+                  // Regular table - just mark as not occupied
+                  await fetch('/api/tables', {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      id: viewingBill.table_id,
+                      is_occupied: false
+                    })
+                  })
+                }
+
                 // Refresh orders
                 fetchData()
                 playSuccessSound()
-                
+
                 // Close bill preview and go back to tables
                 setCurrentStep('tables')
                 setSelectedTable(null)
@@ -1201,7 +1372,7 @@ ${itemsList}
                 console.error('Error updating order status:', error)
               }
             }
-            
+
             updateOrderStatus()
           }, 1000)
         }, 750)
@@ -1240,129 +1411,11 @@ ${itemsList}
     setCurrentStep('master-station-detail')
   }
 
-  const handleAddToMasterTableCart = (dish: Dish) => {
-    setMasterTableCart(prev => {
-      const existing = prev.find(item => item.dish_id === dish.id)
-      if (existing) {
-        return prev.map(item => 
-          item.dish_id === dish.id 
-            ? { ...item, quantity: item.quantity + 1 }
-            : item
-        )
-      }
-      return [...prev, { 
-        dish_id: dish.id, 
-        name: dish.name, 
-        price: dish.price, 
-        image_url: dish.image_url, 
-        quantity: 1 
-      }]
-    })
-  }
-
-  const handleRemoveFromMasterTableCart = (dishId: string) => {
-    setMasterTableCart(prev => prev.filter(item => item.dish_id !== dishId))
-  }
-
-  const handleUpdateMasterTableCartQuantity = (dishId: string, delta: number) => {
-    setMasterTableCart(prev => prev.map(item => {
-      if (item.dish_id === dishId) {
-        const newQuantity = Math.max(1, item.quantity + delta)
-        return { ...item, quantity: newQuantity }
-      }
-      return item
-    }))
-  }
-
-  const handleSubmitMasterTableOrder = async () => {
-    if (!selectedMasterTable || masterTableCart.length === 0) {
-      alert('Please add items to cart first')
-      return
-    }
-
-    setSubmitting(true)
-    try {
-      const total_amount = masterTableCart.reduce((sum, item) => sum + (item.price * item.quantity), 0)
-
-      // Use the actual master table ID
-      const orderResponse = await fetch('/api/orders', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          table_id: selectedMasterTable.id,
-          waiter_id: user?.id,
-          total_amount,
-          status: 'pending'
-        })
-      })
-
-      if (!orderResponse.ok) throw new Error('Failed to create order')
-
-      const order = await orderResponse.json()
-
-      // Add order items
-      for (const item of masterTableCart) {
-        await fetch('/api/order-items', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            order_id: order.id,
-            dish_id: item.dish_id,
-            quantity: item.quantity,
-            price: item.price,
-            status: 'pending',
-            dish_type: item.dish_type || 'Normal'
-          })
-        })
-      }
-
-      // Update table as occupied
-      await fetch('/api/tables', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          id: selectedMasterTable.id,
-          is_occupied: true
-        })
-      })
-
-      setMasterTableCart([])
-      await fetchData()
-      alert('Order submitted successfully!')
-    } catch (error) {
-      console.error('Error submitting order:', error)
-      alert('Failed to submit order')
-    } finally {
-      setSubmitting(false)
-    }
-  }
-
-  const handleRemoveMasterStatus = async (tableId: string, tableNumber: number) => {
-    if (!confirm(`Are you sure you want to remove master status from Table ${tableNumber}?`)) return
-
-    try {
-      const response = await fetch('/api/tables', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          id: tableId,
-          is_master: false
-        })
-      })
-
-      if (!response.ok) throw new Error('Failed to remove master status')
-
-      await fetchData()
-      alert(`Table ${tableNumber} is now a regular table!`)
-    } catch (error) {
-      console.error('Error removing master status:', error)
-      alert('Failed to remove master status')
-    }
-  }
-
-  const filteredDishes = selectedCategory === 'all' 
-    ? dishes 
-    : dishes.filter(dish => dish.category === selectedCategory)
+  const filteredDishes = dishes.filter(dish => {
+    const categoryMatch = selectedCategory === 'all' || dish.category === selectedCategory
+    const foodTypeMatch = selectedFoodType === 'all' || dish.food_type === selectedFoodType
+    return categoryMatch && foodTypeMatch
+  })
 
   const categories = ['all', 'Starters', 'Main Course', 'Bread', 'Sides', 'Desserts', 'Beverages']
 
@@ -1402,13 +1455,6 @@ ${itemsList}
                 Init Tables
               </button>
               <button
-                onClick={() => { playClickSound(); setCurrentStep('master') }}
-                className="flex items-center gap-2 bg-[#5D3A1A] text-white px-3 sm:px-4 py-2 rounded-xl font-semibold hover:bg-[#8B4513] transition-all duration-300 text-sm sm:text-base"
-              >
-                <Crown className="w-4 h-4 sm:w-5 sm:h-5" />
-                Master Tables
-              </button>
-              <button
                 onClick={() => { playClickSound(); handleLogout() }}
                 className="flex items-center gap-2 bg-[#5D3A1A] text-white px-3 sm:px-4 py-2 rounded-xl font-semibold hover:bg-[#8B4513] transition-all duration-300 text-sm sm:text-base"
               >
@@ -1424,9 +1470,18 @@ ${itemsList}
         {/* Step 1: Tables Selection */}
         {currentStep === 'tables' && (
           <div>
-            <div className="mb-8">
-              <h2 className="text-3xl font-bold text-gray-900 mb-2">Select a Table</h2>
-              <p className="text-gray-600">Choose an available table to start taking orders</p>
+            <div className="mb-8 flex justify-between items-center">
+              <div>
+                <h2 className="text-3xl font-bold text-gray-900 mb-2">Select a Table</h2>
+                <p className="text-gray-600">Choose an available table to start taking orders</p>
+              </div>
+              <button
+                onClick={() => { playClickSound(); setShowMasterTableModal(true) }}
+                className="flex items-center gap-2 bg-purple-600 text-white px-4 py-2 rounded-xl font-semibold hover:bg-purple-700 transition-all duration-300"
+              >
+                <Crown className="w-5 h-5" />
+                Create Master Table
+              </button>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
@@ -1664,6 +1719,7 @@ ${itemsList}
                             primaryOrder.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
                             primaryOrder.status === 'preparing' ? 'bg-blue-100 text-blue-800' :
                             primaryOrder.status === 'ready' ? 'bg-[#F5F5DC] text-[#5D3A1A]' :
+                            primaryOrder.status === 'served' ? 'bg-white border-2 border-black text-black' :
                             'bg-gray-100 text-gray-800'
                           }`}>
                             {primaryOrder.status}
@@ -1769,6 +1825,7 @@ ${itemsList}
                                 primaryOrder.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
                                 primaryOrder.status === 'preparing' ? 'bg-blue-100 text-blue-800' :
                                 primaryOrder.status === 'ready' ? 'bg-[#F5F5DC] text-[#5D3A1A]' :
+                                primaryOrder.status === 'served' ? 'bg-white border-2 border-black text-black' :
                                 'bg-gray-100 text-gray-800'
                               }`}>
                                 {primaryOrder.status}
@@ -1918,7 +1975,7 @@ ${itemsList}
             </div>
 
             {/* Category Filter */}
-            <div className="flex flex-wrap gap-1 sm:gap-2 mb-3 sm:mb-4">
+            <div className="flex flex-wrap gap-1 sm:gap-2 mb-2 sm:mb-3">
               {categories.map((category) => (
                 <button
                   key={category}
@@ -1932,6 +1989,46 @@ ${itemsList}
                   {category === 'all' ? 'All' : category}
                 </button>
               ))}
+            </div>
+
+            {/* Food Type Filter */}
+            <div className="flex flex-wrap gap-2 mb-3 sm:mb-4">
+              <button
+                onClick={() => { playClickSound(); setSelectedFoodType('all') }}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                  selectedFoodType === 'all'
+                    ? 'bg-[#5D3A1A] text-white shadow-lg'
+                    : 'bg-white text-gray-600 hover:bg-[#F5F5DC] border-2 border-gray-200'
+                }`}
+              >
+                All
+              </button>
+              <button
+                onClick={() => { playClickSound(); setSelectedFoodType('veg') }}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                  selectedFoodType === 'veg'
+                    ? 'bg-green-600 text-white shadow-lg'
+                    : 'bg-white text-green-700 hover:bg-green-50 border-2 border-green-200'
+                }`}
+              >
+                <div className="w-3 h-3 flex items-center justify-center border-2 border-green-600 bg-green-50 rounded-sm">
+                  <div className="w-1.5 h-1.5 bg-green-600 rounded-full"></div>
+                </div>
+                Veg
+              </button>
+              <button
+                onClick={() => { playClickSound(); setSelectedFoodType('nonveg') }}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                  selectedFoodType === 'nonveg'
+                    ? 'bg-red-600 text-white shadow-lg'
+                    : 'bg-white text-red-700 hover:bg-red-50 border-2 border-red-200'
+                }`}
+              >
+                <div className="w-3 h-3 flex items-center justify-center border-2 border-red-600 bg-red-50 rounded-sm">
+                  <div className="w-1.5 h-1.5 bg-red-600 rounded-full"></div>
+                </div>
+                Non-Veg
+              </button>
             </div>
 
             {/* Customer Name Input */}
@@ -1952,7 +2049,10 @@ ${itemsList}
                       <tr key={dish.id} className="hover:bg-[#F5F5DC] transition-colors">
                         <td className="px-2 sm:px-3 py-2">
                           <div className="flex flex-col">
-                            <h3 className="font-bold text-gray-900 text-sm">{dish.name}</h3>
+                            <div className="flex items-center gap-2">
+                              {getFoodTypeIcon(dish.food_type)}
+                              <h3 className="font-bold text-gray-900 text-sm">{dish.name}</h3>
+                            </div>
                             <span className="text-xs text-gray-500">{dish.category}</span>
                           </div>
                         </td>
@@ -2117,27 +2217,69 @@ ${itemsList}
 
               {/* Customer Details (Optional) */}
               <div className="p-4 sm:p-6 bg-white border-t border-gray-200">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">Customer Name (Optional)</label>
-                    <input
-                      type="text"
-                      value={customerName}
-                      onChange={(e) => setCustomerName(e.target.value)}
-                      placeholder="Enter customer name"
-                      className="w-full px-4 py-2 border-2 border-gray-200 rounded-xl focus:border-amber-500 focus:outline-none text-sm"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">Mobile Number (Optional)</label>
-                    <input
-                      type="tel"
-                      value={customerMobile}
-                      onChange={(e) => setCustomerMobile(e.target.value)}
-                      placeholder="Enter mobile number"
-                      className="w-full px-4 py-2 border-2 border-gray-200 rounded-xl focus:border-amber-500 focus:outline-none text-sm"
-                    />
-                  </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Customer Name (Optional)</label>
+                  <input
+                    type="text"
+                    value={customerName}
+                    onChange={(e) => setCustomerName(e.target.value)}
+                    placeholder="Enter customer name"
+                    className="w-full px-4 py-2 border-2 border-gray-200 rounded-xl focus:border-amber-500 focus:outline-none text-sm"
+                  />
+                </div>
+              </div>
+
+              {/* Payment Type Selection */}
+              <div className="p-4 sm:p-6 bg-white border-t border-gray-200">
+                <label className="block text-sm font-semibold text-gray-700 mb-3">Payment Type</label>
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setPaymentType('cash')}
+                    className={`flex-1 px-4 py-3 rounded-xl font-semibold transition-all duration-300 ${
+                      paymentType === 'cash'
+                        ? 'bg-[#5D3A1A] text-white'
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                  >
+                    <span className="flex items-center gap-2">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" viewBox="0 0 20 20" fill="currentColor">
+                        <path d="M4 4a2 2 0 00-2 2v4a2 2 0 002 2V6h10a2 2 0 00-2-2H4z" />
+                        <path fillRule="evenodd" d="M6 10a2 2 0 012-2h8a2 2 0 012 2v4a2 2 0 01-2 2H8a2 2 0 01-2-2v-4zm5-1a1 1 0 100 2 1 1 0 000-2z" clipRule="evenodd" />
+                      </svg>
+                      Cash
+                    </span>
+                  </button>
+                  <button
+                    onClick={() => setPaymentType('upi')}
+                    className={`flex-1 px-4 py-3 rounded-xl font-semibold transition-all duration-300 ${
+                      paymentType === 'upi'
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                  >
+                    <span className="flex items-center gap-2">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M12.586 4.586a2 2 0 112.828 2.828l-3 3a2 2 0 01-2.828 0 1 1 0 00-1.414 1.414 4 4 0 005.656 0l3-3a4 4 0 00-5.656-5.656l-1.5 1.5a1 1 0 101.414 1.414l1.5-1.5zm-5 5a2 2 0 012.828 0 1 1 0 101.414-1.414 4 4 0 00-5.656 0l-3 3a4 4 0 105.656 5.656l1.5-1.5a1 1 0 10-1.414-1.414l-1.5 1.5a2 2 0 11-2.828-2.828l3-3z" clipRule="evenodd" />
+                      </svg>
+                      UPI
+                    </span>
+                  </button>
+                  <button
+                    onClick={() => setPaymentType('card')}
+                    className={`flex-1 px-4 py-3 rounded-xl font-semibold transition-all duration-300 ${
+                      paymentType === 'card'
+                        ? 'bg-purple-600 text-white'
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                  >
+                    <span className="flex items-center gap-2">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" viewBox="0 0 20 20" fill="currentColor">
+                        <path d="M4 4a2 2 0 00-2 2v1h16V6a2 2 0 00-2-2H4z" />
+                        <path fillRule="evenodd" d="M18 9H2v5a2 2 0 002 2h12a2 2 0 002-2V9zM4 13a1 1 0 011-1h1a1 1 0 110 2H5a1 1 0 01-1-1zm5-1a1 1 0 100 2h1a1 1 0 100-2H9z" clipRule="evenodd" />
+                      </svg>
+                      Card
+                    </span>
+                  </button>
                 </div>
               </div>
 
@@ -2186,441 +2328,6 @@ ${itemsList}
               >
                 Take Another Order
               </button>
-            </div>
-          </div>
-        )}
-
-        {/* Step 5: Master Tables */}
-        {currentStep === 'master' && (
-          <div>
-            <div className="mb-8">
-              <h2 className="text-3xl font-bold text-gray-900 mb-2">Master Tables</h2>
-              <p className="text-gray-600">Convert regular tables to master tables and take orders</p>
-            </div>
-
-            {/* Available Tables to Convert */}
-            <div className="mb-8">
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="text-xl font-bold text-gray-900">Available Tables to Convert</h3>
-                <button
-                  onClick={() => setShowMasterTableModal(true)}
-                  className="px-4 py-2 bg-[#8B4513] text-white rounded-xl font-semibold hover:bg-[#5D3A1A] transition-colors"
-                >
-                  Create Master Table
-                </button>
-              </div>
-              {tables.filter(t => !t.is_master && !t.master_table_id).length === 0 ? (
-                <div className="text-center py-8 bg-gray-50 rounded-xl">
-                  <Users className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                  <p className="text-gray-500 font-semibold">No available tables to convert</p>
-                </div>
-              ) : (
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
-                  {tables.filter(t => !t.is_master && !t.master_table_id).map((table) => (
-                    <div
-                      key={table.id}
-                      className={`p-6 rounded-2xl border-2 shadow-lg text-center ${
-                        table.is_occupied 
-                          ? 'border-red-300 bg-red-50 opacity-60' 
-                          : 'border-[#8B4513] bg-white'
-                      }`}
-                    >
-                      <div className="bg-[#F5F5DC] p-3 rounded-xl mx-auto mb-3 w-fit">
-                        <Users className="w-6 h-6 text-[#5D3A1A]" />
-                      </div>
-                      <h3 className="text-2xl font-bold mb-1">Table {table.table_number}</h3>
-                      <p className="text-xs text-gray-600 mb-2">Capacity: {table.capacity} seats</p>
-                      <span className={`px-2 py-1 rounded-full text-xs font-bold ${
-                        table.is_occupied 
-                          ? 'bg-red-100 text-red-800' 
-                          : 'bg-[#F5F5DC] text-[#5D3A1A]'
-                      }`}>
-                        {table.is_occupied ? 'Occupied' : 'Available'}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Master Tables Grid */}
-            <div className="mb-8">
-              <h3 className="text-xl font-bold text-gray-900 mb-4">Master Tables (Click to take orders)</h3>
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
-                {tables.filter(t => t.is_master).map((table) => (
-                  <div
-                    key={table.id}
-                    className={`p-6 rounded-2xl border-2 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 text-center relative ${
-                      table.is_occupied 
-                        ? 'border-red-500 bg-red-50' 
-                        : 'border-purple-500 bg-white hover:bg-purple-50'
-                    }`}
-                  >
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        playClickSound()
-                        handleDeleteMasterTable(table.id, table.table_number)
-                      }}
-                      className="absolute top-2 right-2 p-1.5 rounded-lg bg-red-500 text-white hover:bg-red-600 transition-colors"
-                    >
-                      <X className="w-3 h-3" />
-                    </button>
-                    <button
-                      onClick={() => {
-                        playClickSound()
-                        setSelectedMasterTable(table)
-                        setMasterTableCart([])
-                        setCurrentStep('master-station-detail')
-                      }}
-                      className="w-full"
-                    >
-                      <div className="bg-purple-100 p-3 rounded-xl mx-auto mb-3 w-fit">
-                        <Crown className="w-6 h-6 text-purple-700" />
-                      </div>
-                      <h3 className="text-2xl font-bold mb-1">Table {table.table_number}</h3>
-                      <p className="text-xs text-gray-600 mb-2">Master Table</p>
-                      <span className={`px-2 py-1 rounded-full text-xs font-bold ${
-                        table.is_occupied 
-                          ? 'bg-red-100 text-red-800' 
-                          : 'bg-[#F5F5DC] text-[#5D3A1A]'
-                      }`}>
-                        {table.is_occupied ? 'Occupied' : 'Available'}
-                      </span>
-                      <p className="text-xs text-purple-600 font-semibold mt-2">Click to take orders</p>
-                    </button>
-                  </div>
-                ))}
-                {tables.filter(t => t.is_master).length === 0 && (
-                  <div className="col-span-full text-center py-12">
-                    <Crown className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                    <p className="text-gray-500 font-semibold">No master tables yet</p>
-                    <p className="text-sm text-gray-400 mt-2">Convert a regular table above</p>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Master Tables Orders Summary */}
-            <div className="bg-white rounded-2xl shadow-xl p-6 border-2 border-purple-200">
-              <h3 className="text-xl font-bold text-gray-900 mb-4">Master Table Orders Summary</h3>
-              {tables.filter(t => t.is_master).length === 0 ? (
-                <div className="text-center py-8">
-                  <ShoppingCart className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                  <p className="text-gray-500 font-semibold">No master tables yet</p>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {tables.filter(t => t.is_master).map((table) => {
-                    const tableOrders = getTableOrders(table.id)
-                    return (
-                      <div key={table.id} className="bg-gray-50 rounded-xl p-4 border border-gray-200">
-                        <div className="flex justify-between items-center mb-3">
-                          <div className="flex items-center gap-2">
-                            <Crown className="w-5 h-5 text-purple-600" />
-                            <h4 className="font-bold text-gray-900">Table {table.table_number}</h4>
-                          </div>
-                          <span className={`px-2 py-1 rounded-full text-xs font-bold ${
-                            table.is_occupied 
-                              ? 'bg-red-100 text-red-800' 
-                              : 'bg-[#F5F5DC] text-[#5D3A1A]'
-                          }`}>
-                            {table.is_occupied ? 'Occupied' : 'Available'}
-                          </span>
-                        </div>
-                        {tableOrders.length === 0 ? (
-                          <p className="text-sm text-gray-500">No orders</p>
-                        ) : (
-                          <div className="space-y-2">
-                            {tableOrders.map((order, index) => (
-                              <div key={`${order.id}-${index}`} className="flex justify-between items-center bg-white p-2 rounded-lg">
-                                <div>
-                                  <span className="font-semibold text-sm">Order #{formatOrderId(order.id)}</span>
-                                  <span className="text-xs text-gray-600 ml-2">₹{order.total_amount.toFixed(2)}</span>
-                                </div>
-                                <span className={`px-2 py-1 rounded-full text-xs font-bold ${
-                                  order.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-                                  order.status === 'confirmed' ? 'bg-blue-100 text-blue-800' :
-                                  order.status === 'preparing' ? 'bg-purple-100 text-purple-800' :
-                                  order.status === 'ready' ? 'bg-[#F5F5DC] text-[#5D3A1A]' :
-                                  'bg-gray-100 text-gray-800'
-                                }`}>
-                                  {order.status}
-                                </span>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    )
-                  })}
-                </div>
-              )}
-            </div>
-
-            <div className="mt-8">
-              <button
-                onClick={() => { playClickSound(); setCurrentStep('tables') }}
-                className="flex items-center gap-2 bg-gray-100 text-gray-700 px-6 py-3 rounded-xl font-semibold hover:bg-gray-200 transition-all duration-300"
-              >
-                <ArrowLeft className="w-4 h-4" />
-                Back to Tables
-              </button>
-            </div>
-          </div>
-        )}
-
-
-        {/* Step: Master Station Detail */}
-        {currentStep === 'master-station-detail' && selectedMasterTable && (
-          <div className="max-w-7xl mx-auto">
-            <div className="mb-6 sm:mb-8 bg-purple-100 rounded-2xl p-4 sm:p-6 border-2 border-purple-200">
-              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-                <div className="flex items-center gap-3">
-                  <div className="bg-purple-200 p-2 sm:p-3 rounded-xl">
-                    <Crown className="w-5 h-5 sm:w-6 sm:h-6 text-purple-700" />
-                  </div>
-                  <div>
-                    <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-1 sm:mb-2">
-                      Master Table {selectedMasterTable.table_number}
-                    </h2>
-                    <p className="text-sm sm:text-base text-gray-600">
-                      Take orders for this master table
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  {!selectedMasterTable.is_occupied && (
-                    <>
-                      <button
-                        onClick={() => { playClickSound(); handleRemoveMasterStatus(selectedMasterTable.id, selectedMasterTable.table_number) }}
-                        className="flex items-center gap-1 bg-[#5D3A1A] text-white px-2 py-1 rounded-lg font-semibold hover:bg-[#8B4513] transition-all duration-300 text-xs"
-                      >
-                        <Crown className="w-3 h-3" />
-                        Remove
-                      </button>
-                      <button
-                        onClick={() => { playClickSound(); handleDeleteMasterTable(selectedMasterTable.id, selectedMasterTable.table_number) }}
-                        className="flex items-center gap-1 bg-red-500 text-white px-2 py-1 rounded-lg font-semibold hover:bg-red-600 transition-all duration-300 text-xs"
-                      >
-                        <X className="w-3 h-3" />
-                        Delete
-                      </button>
-                    </>
-                  )}
-                  <button
-                    onClick={() => { playClickSound(); setCurrentStep('master') }}
-                    className="flex items-center gap-2 bg-white text-purple-600 px-3 sm:px-4 py-2 rounded-xl font-semibold hover:bg-purple-50 transition-all duration-300 border-2 border-purple-300"
-                  >
-                    <ArrowLeft className="w-4 h-4" />
-                    Back
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              {/* Menu Section */}
-              <div className="lg:col-span-2">
-                <div className="mb-6">
-                  <h3 className="text-xl font-bold text-gray-900 mb-4">Menu</h3>
-                  
-                  {/* Category Filter */}
-                  <div className="flex flex-wrap gap-2 mb-4">
-                    {categories.map((category) => (
-                      <button
-                        key={category}
-                        onClick={() => { playClickSound(); setSelectedCategory(category) }}
-                        className={`px-3 py-2 rounded-lg text-xs font-semibold transition-all duration-300 ${
-                          selectedCategory === category
-                            ? 'bg-purple-500 text-white'
-                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                        }`}
-                      >
-                        {category === 'all' ? 'All Dishes' : category}
-                      </button>
-                    ))}
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {filteredDishes.map((dish) => (
-                      <button
-                        key={dish.id}
-                        onClick={() => { if (dish.is_available) { playClickSound(); handleAddToMasterTableCart(dish) } }}
-                        disabled={!dish.is_available}
-                        className={`p-3 sm:p-4 border-2 rounded-xl transition-all duration-300 text-left relative ${
-                          !dish.is_available
-                            ? 'bg-gray-100 border-gray-300 cursor-not-allowed opacity-60'
-                            : 'bg-white border-gray-200 hover:border-purple-500 hover:bg-purple-50'
-                        }`}
-                      >
-                        <div className="absolute top-2 right-2">
-                          <div className={`w-6 h-6 rounded-full flex items-center justify-center ${
-                            dish.is_available 
-                              ? 'bg-[#5D3A1A] text-white' 
-                              : 'bg-red-500 text-white'
-                          }`}>
-                            {dish.is_available ? (
-                              <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
-                                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                              </svg>
-                            ) : (
-                              <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
-                                <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-                              </svg>
-                            )}
-                          </div>
-                        </div>
-                        <div className="flex items-center justify-between mb-1 pr-8">
-                          <h4 className="font-bold text-gray-900 text-sm">{dish.name}</h4>
-                          <span className="text-sm font-bold text-[#5D3A1A]">₹{dish.price.toFixed(2)}</span>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <p className="text-xs text-gray-600">{dish.category}</p>
-                          <div className={`flex items-center gap-1 px-2 py-1 rounded-lg ${
-                            dish.is_available
-                              ? 'bg-[#F5F5DC] text-[#5D3A1A]'
-                              : 'bg-gray-200 text-gray-500'
-                          }`}>
-                            <Plus className="w-3 h-3 sm:w-4 sm:h-4" />
-                            <span className="text-xs font-semibold hidden sm:inline">Add</span>
-                          </div>
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              {/* Cart Section */}
-              <div className="lg:col-span-1">
-                <div className="bg-white rounded-2xl shadow-lg p-4 sm:p-6 border-2 border-purple-200 sticky top-24">
-                  <h3 className="text-xl font-bold text-gray-900 mb-4">Order Cart</h3>
-                  
-                  {masterTableCart.length === 0 ? (
-                    <div className="text-center py-8">
-                      <ShoppingCart className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                      <p className="text-gray-500 font-semibold">Cart is empty</p>
-                    </div>
-                  ) : (
-                    <div className="space-y-3 max-h-96 overflow-y-auto">
-                      {masterTableCart.map((item) => (
-                        <div key={item.dish_id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200">
-                          <div className="flex-1">
-                            <h4 className="font-bold text-gray-900 text-sm">{item.name}</h4>
-                            <p className="text-xs text-gray-600">₹{item.price.toFixed(2)}</p>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <button
-                              onClick={() => { playClickSound(); handleUpdateMasterTableCartQuantity(item.dish_id, -1) }}
-                              className="w-6 h-6 bg-purple-100 text-purple-600 rounded-lg hover:bg-purple-200 transition-colors flex items-center justify-center"
-                            >
-                              <Minus className="w-3 h-3" />
-                            </button>
-                            <span className="font-bold text-gray-900 w-6 text-center">{item.quantity}</span>
-                            <button
-                              onClick={() => { playClickSound(); handleUpdateMasterTableCartQuantity(item.dish_id, 1) }}
-                              className="w-6 h-6 bg-purple-100 text-purple-600 rounded-lg hover:bg-purple-200 transition-colors flex items-center justify-center"
-                            >
-                              <Plus className="w-3 h-3" />
-                            </button>
-                            <button
-                              onClick={() => { playClickSound(); handleRemoveFromMasterTableCart(item.dish_id) }}
-                              className="ml-2 text-red-500 hover:text-red-700"
-                            >
-                              <X className="w-4 h-4" />
-                            </button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  {masterTableCart.length > 0 && (
-                    <div className="mt-4 pt-4 border-t border-gray-200">
-                      <div className="flex justify-between items-center mb-4">
-                        <span className="text-lg font-bold text-gray-700">Total</span>
-                        <span className="text-2xl font-bold text-gray-900">
-                          ₹{masterTableCart.reduce((sum, item) => sum + (item.price * item.quantity), 0).toFixed(2)}
-                        </span>
-                      </div>
-                      <button
-                        onClick={() => { playClickSound(); handleSubmitMasterTableOrder() }}
-                        disabled={submitting}
-                        className="w-full px-6 py-3 bg-purple-500 text-white rounded-xl font-semibold hover:bg-purple-600 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        {submitting ? 'Submitting...' : 'Submit Order'}
-                      </button>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {/* Active Orders for this Master Table */}
-            <div className="mt-8">
-              <h3 className="text-xl font-bold text-gray-900 mb-4">Active Orders for Table {selectedMasterTable.table_number}</h3>
-              {getTableOrders(selectedMasterTable.id).length === 0 ? (
-                <div className="text-center py-8 bg-gray-50 rounded-xl">
-                  <ShoppingCart className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                  <p className="text-gray-500 font-semibold">No active orders</p>
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {getTableOrders(selectedMasterTable.id).map((order, index) => (
-                    <div key={`${order.id}-${index}`} className="bg-white rounded-2xl shadow-lg p-4 sm:p-6 border-2 border-purple-200">
-                      <div className="flex justify-between items-start mb-3">
-                        <div>
-                          <h4 className="font-bold text-gray-900">Order #{formatOrderId(order.id)}</h4>
-                          <p className="text-xs text-gray-600">
-                            {new Date(order.created_at).toLocaleTimeString()}
-                          </p>
-                        </div>
-                        <span className={`px-2 py-1 rounded-full text-xs font-bold ${
-                          order.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-                          order.status === 'confirmed' ? 'bg-blue-100 text-blue-800' :
-                          order.status === 'preparing' ? 'bg-purple-100 text-purple-800' :
-                          order.status === 'ready' ? 'bg-[#F5F5DC] text-[#5D3A1A]' :
-                          'bg-gray-100 text-gray-800'
-                        }`}>
-                          {order.status}
-                        </span>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <p className="text-lg font-bold text-gray-900">
-                          ₹{order.total_amount.toFixed(2)}
-                        </p>
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() => handleViewOrderItems(order)}
-                            className="flex items-center gap-1 bg-blue-500 text-white px-2 py-1 rounded-lg font-semibold hover:bg-blue-600 transition-all duration-300 text-xs"
-                          >
-                            <ShoppingCart className="w-3 h-3" />
-                            Items
-                          </button>
-                          {order.status === 'pending' && (
-                            <button
-                              onClick={() => handleConfirmOrder(order.id)}
-                              disabled={confirmingOrder}
-                              className="flex items-center gap-1 bg-[#5D3A1A] text-white px-2 py-1 rounded-lg font-semibold hover:bg-[#8B4513] transition-all duration-300 text-xs disabled:opacity-50"
-                            >
-                              <CheckCircle className="w-3 h-3" />
-                              {confirmingOrder ? '...' : 'Confirm'}
-                            </button>
-                          )}
-                          <button
-                            onClick={() => handleDeleteOrder(order.id)}
-                            className="flex items-center gap-1 bg-red-500 text-white px-2 py-1 rounded-lg font-semibold hover:bg-red-600 transition-all duration-300 text-xs"
-                          >
-                            <X className="w-3 h-3" />
-                            Delete
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
             </div>
           </div>
         )}
@@ -2726,7 +2433,7 @@ ${itemsList}
                   <h3 className="text-xl font-bold text-gray-900 mb-4">Menu</h3>
                   
                   {/* Category Filter */}
-                  <div className="flex flex-wrap gap-2 mb-4">
+                  <div className="flex flex-wrap gap-2 mb-2">
                     {categories.map((category) => (
                       <button
                         key={category}
@@ -2737,9 +2444,49 @@ ${itemsList}
                             : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                         }`}
                       >
-                        {category === 'all' ? 'All Dishes' : category}
+                        {category === 'all' ? 'All' : category}
                       </button>
                     ))}
+                  </div>
+
+                  {/* Food Type Filter */}
+                  <div className="flex flex-wrap gap-2 mb-4">
+                    <button
+                      onClick={() => setSelectedFoodType('all')}
+                      className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold transition-all ${
+                        selectedFoodType === 'all'
+                          ? 'bg-orange-500 text-white'
+                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      }`}
+                    >
+                      All
+                    </button>
+                    <button
+                      onClick={() => setSelectedFoodType('veg')}
+                      className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold transition-all ${
+                        selectedFoodType === 'veg'
+                          ? 'bg-green-600 text-white'
+                          : 'bg-white text-green-700 hover:bg-green-50 border border-green-200'
+                      }`}
+                    >
+                      <div className="w-3 h-3 flex items-center justify-center border-2 border-green-600 bg-green-50 rounded-sm">
+                        <div className="w-1.5 h-1.5 bg-green-600 rounded-full"></div>
+                      </div>
+                      Veg
+                    </button>
+                    <button
+                      onClick={() => setSelectedFoodType('nonveg')}
+                      className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold transition-all ${
+                        selectedFoodType === 'nonveg'
+                          ? 'bg-red-600 text-white'
+                          : 'bg-white text-red-700 hover:bg-red-50 border border-red-200'
+                      }`}
+                    >
+                      <div className="w-3 h-3 flex items-center justify-center border-2 border-red-600 bg-red-50 rounded-sm">
+                        <div className="w-1.5 h-1.5 bg-red-600 rounded-full"></div>
+                      </div>
+                      Non-Veg
+                    </button>
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -2772,7 +2519,10 @@ ${itemsList}
                           </div>
                         </div>
                         <div className="flex items-center justify-between mb-1 pr-8">
-                          <h4 className="font-bold text-gray-900 text-sm">{dish.name}</h4>
+                          <div className="flex items-center gap-2">
+                            {getFoodTypeIcon(dish.food_type)}
+                            <h4 className="font-bold text-gray-900 text-sm">{dish.name}</h4>
+                          </div>
                           <span className="text-sm font-bold text-orange-600">₹{dish.price.toFixed(2)}</span>
                         </div>
                         <div className="flex items-center justify-between">
@@ -2907,9 +2657,10 @@ ${itemsList}
                     <div className="text-right">
                       <p className="text-xs text-gray-500 uppercase tracking-wide">Status</p>
                       <span className={`px-2 py-1 rounded-full text-xs font-bold ${
-                        viewingBill.status === 'paid' ? 'bg-amber-100 text-amber-900' :
-                        viewingBill.status === 'ready' ? 'bg-blue-100 text-blue-800' :
+                        viewingBill.status === 'paid' ? 'bg-[#5D3A1A] text-white' :
+                        viewingBill.status === 'ready' ? 'bg-[#F5F5DC] text-[#5D3A1A]' :
                         viewingBill.status === 'preparing' ? 'bg-yellow-100 text-yellow-800' :
+                        viewingBill.status === 'served' ? 'bg-white border-2 border-black text-black' :
                         'bg-gray-100 text-gray-800'
                       }`}>
                         {viewingBill.status}
@@ -3065,7 +2816,7 @@ ${itemsList}
                   <h3 className="text-lg font-bold text-gray-900 mb-4">Add Items</h3>
                   
                   {/* Category Filter */}
-                  <div className="flex flex-wrap gap-2 mb-4">
+                  <div className="flex flex-wrap gap-2 mb-2">
                     {categories.map((category) => (
                       <button
                         key={category}
@@ -3079,6 +2830,46 @@ ${itemsList}
                         {category === 'all' ? 'All Dishes' : category}
                       </button>
                     ))}
+                  </div>
+
+                  {/* Food Type Filter */}
+                  <div className="flex flex-wrap gap-2 mb-4">
+                    <button
+                      onClick={() => setSelectedFoodType('all')}
+                      className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold transition-all ${
+                        selectedFoodType === 'all'
+                          ? 'bg-blue-500 text-white'
+                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      }`}
+                    >
+                      All
+                    </button>
+                    <button
+                      onClick={() => setSelectedFoodType('veg')}
+                      className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold transition-all ${
+                        selectedFoodType === 'veg'
+                          ? 'bg-green-600 text-white'
+                          : 'bg-white text-green-700 hover:bg-green-50 border border-green-200'
+                      }`}
+                    >
+                      <div className="w-3 h-3 flex items-center justify-center border-2 border-green-600 bg-green-50 rounded-sm">
+                        <div className="w-1.5 h-1.5 bg-green-600 rounded-full"></div>
+                      </div>
+                      Veg
+                    </button>
+                    <button
+                      onClick={() => setSelectedFoodType('nonveg')}
+                      className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold transition-all ${
+                        selectedFoodType === 'nonveg'
+                          ? 'bg-red-600 text-white'
+                          : 'bg-white text-red-700 hover:bg-red-50 border border-red-200'
+                      }`}
+                    >
+                      <div className="w-3 h-3 flex items-center justify-center border-2 border-red-600 bg-red-50 rounded-sm">
+                        <div className="w-1.5 h-1.5 bg-red-600 rounded-full"></div>
+                      </div>
+                      Non-Veg
+                    </button>
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-64 overflow-y-auto">
@@ -3111,7 +2902,10 @@ ${itemsList}
                           </div>
                         </div>
                         <div className="flex justify-between items-start mb-1 pr-8">
-                          <h4 className="font-bold text-gray-900 text-sm">{dish.name}</h4>
+                          <div className="flex items-center gap-2">
+                            {getFoodTypeIcon(dish.food_type)}
+                            <h4 className="font-bold text-gray-900 text-sm">{dish.name}</h4>
+                          </div>
                           <span className="text-sm font-bold text-[#5D3A1A]">₹{dish.price.toFixed(2)}</span>
                         </div>
                         <div className="flex items-center justify-between">

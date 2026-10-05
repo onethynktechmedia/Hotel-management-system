@@ -18,8 +18,8 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { name, description, price, category, image_url, is_available } = body
-    
+    const { name, description, price, category, image_url, is_available, food_type } = body
+
     const { data: dish, error } = await supabase
       .from('dishes')
       .insert({
@@ -28,7 +28,8 @@ export async function POST(request: NextRequest) {
         price,
         category,
         image_url,
-        is_available: is_available !== undefined ? is_available : true
+        is_available: is_available !== undefined ? is_available : true,
+        food_type: food_type || 'veg'
       })
       .select()
       .single()
@@ -66,7 +67,7 @@ export async function DELETE(request: NextRequest) {
 export async function PATCH(request: NextRequest) {
   try {
     const body = await request.json()
-    const { id, name, description, price, category, image_url, is_available } = body
+    const { id, name, description, price, category, image_url, is_available, food_type } = body
 
     console.log('=== PATCH dishes request ===')
     console.log('Full body:', body)
@@ -91,6 +92,7 @@ export async function PATCH(request: NextRequest) {
     if (category !== undefined && category !== null) updateData.category = category
     if (image_url !== undefined && image_url !== null) updateData.image_url = image_url
     if (is_available !== undefined && is_available !== null) updateData.is_available = is_available
+    if (food_type !== undefined && food_type !== null) updateData.food_type = food_type
 
     console.log('Update data:', updateData)
 

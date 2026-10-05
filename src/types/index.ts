@@ -27,6 +27,7 @@ export interface Dish {
   category: string
   image_url: string | null
   is_available: boolean
+  food_type?: 'veg' | 'nonveg' | 'custom' | 'parcel'
   created_at: string
 }
 
@@ -39,6 +40,7 @@ export interface Order {
   customer_name?: string
   customer_mobile?: string
   order_type?: 'Normal' | 'Repeat' | 'Extra' | 'Parcel' | 'Takeaway'
+  payment_type?: 'cash' | 'upi' | 'card'
   is_prebooked?: boolean
   prebooked_time?: string
   created_at: string

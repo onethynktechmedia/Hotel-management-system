@@ -30,6 +30,7 @@ export interface LocalDish {
   category: string
   is_available: boolean
   image_url?: string
+  food_type?: 'veg' | 'nonveg' | 'custom' | 'parcel'
 }
 
 export interface LocalTable {
@@ -161,11 +162,22 @@ class LocalStorageDB {
 
     // Sample dishes
     const sampleDishes: LocalDish[] = [
-      { id: '1', name: 'Butter Chicken', price: 250, category: 'Main Course', is_available: true },
-      { id: '2', name: 'Paneer Tikka', price: 200, category: 'Starters', is_available: true },
-      { id: '3', name: 'Naan', price: 30, category: 'Bread', is_available: true },
-      { id: '4', name: 'Dal Makhani', price: 180, category: 'Main Course', is_available: true },
-      { id: '5', name: 'Biryani', price: 220, category: 'Main Course', is_available: true },
+      // Non-veg dishes
+      { id: '1', name: 'Chicken Biryani', price: 280, category: 'Main Course', is_available: true, food_type: 'nonveg' },
+      { id: '2', name: 'Butter Chicken', price: 250, category: 'Main Course', is_available: true, food_type: 'nonveg' },
+      { id: '3', name: 'Chicken Tikka', price: 220, category: 'Starters', is_available: true, food_type: 'nonveg' },
+      { id: '4', name: 'Mutton Biryani', price: 320, category: 'Main Course', is_available: true, food_type: 'nonveg' },
+      { id: '5', name: 'Egg Curry', price: 180, category: 'Main Course', is_available: true, food_type: 'nonveg' },
+      { id: '6', name: 'Fish Curry', price: 240, category: 'Main Course', is_available: true, food_type: 'nonveg' },
+      { id: '7', name: 'Chicken 65', price: 200, category: 'Starters', is_available: true, food_type: 'nonveg' },
+      { id: '8', name: 'Prawn Masala', price: 300, category: 'Main Course', is_available: true, food_type: 'nonveg' },
+      // Veg dishes
+      { id: '9', name: 'Paneer Tikka', price: 200, category: 'Starters', is_available: true, food_type: 'veg' },
+      { id: '10', name: 'Naan', price: 30, category: 'Bread', is_available: true, food_type: 'veg' },
+      { id: '11', name: 'Dal Makhani', price: 180, category: 'Main Course', is_available: true, food_type: 'veg' },
+      { id: '12', name: 'Veg Biryani', price: 200, category: 'Main Course', is_available: true, food_type: 'veg' },
+      { id: '13', name: 'Palak Paneer', price: 190, category: 'Main Course', is_available: true, food_type: 'veg' },
+      { id: '14', name: 'Roti', price: 20, category: 'Bread', is_available: true, food_type: 'veg' },
     ]
     this.set('dishes', sampleDishes)
 

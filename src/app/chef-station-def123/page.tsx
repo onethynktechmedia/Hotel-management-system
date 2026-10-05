@@ -2,115 +2,158 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import Link from 'next/link'
 import supabase from '@/lib/db'
-import { User, Order, OrderItem } from '@/types'
-import { Bell, LogOut, CheckCircle, ChefHat, Clock } from 'lucide-react'
-import NotificationSystem from '@/components/NotificationSystem'
-import { WebUSBPrinter } from '@/lib/webusb-printer'
-import { playClickSound, playSuccessSound, playErrorSound } from '@/lib/sound-effects'
+import { Order, OrderItem, Dish, Table, User } from '@/types'
+import { LogOut, Printer, CheckCircle, Clock, ChefHat, Utensils, AlertCircle, RefreshCw } from 'lucide-react'
+import { playClickSound, playSuccessSound, playPrintSound, playNotificationSound } from '@/lib/sound-effects'
 
 // Utility function to format order ID as DPK-XXX
 const formatOrderId = (orderId: string) => {
-  // Extract a number from the UUID and format it
   const hash = orderId.split('').reduce((acc, char) => {
     return acc + char.charCodeAt(0)
   }, 0)
-  const orderNumber = (hash % 999) + 1 // Ensure it's between 1-999
+  const orderNumber = (hash % 999) + 1
   return `DPK-${String(orderNumber).padStart(3, '0')}`
 }
 
-export default function KitchenPage() {
+// Format time
+const formatTime = (dateString: string) => {
+  const date = new Date(dateString)
+  return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+}
+
+// Get food type icon
+const getFoodTypeIcon = (foodType?: string) => {
+  if (foodType === 'veg') {
+    return (
+      <div className="w-5 h-5 flex items-center justify-center border-2 border-green-600 bg-green-50 rounded-sm">
+        <div className="w-2.5 h-2.5 bg-green-600 rounded-full"></div>
+      </div>
+    )
+  } else if (foodType === 'nonveg') {
+    return (
+      <div className="w-5 h-5 flex items-center justify-center border-2 border-red-600 bg-red-50 rounded-sm">
+        <div className="w-2.5 h-2.5 bg-red-600 rounded-full"></div>
+      </div>
+    )
+  } else if (foodType === 'custom' || foodType === 'parcel') {
+    return (
+      <div className="w-5 h-5 flex items-center justify-center border-2 border-blue-600 bg-blue-50 rounded-sm">
+        <span className="text-xs font-bold text-blue-600">C</span>
+      </div>
+    )
+  }
+  return null
+}
+
+export default function ChefStation() {
   const router = useRouter()
   const [user, setUser] = useState<User | null>(null)
   const [orders, setOrders] = useState<Order[]>([])
+  const [orderItems, setOrderItems] = useState<{[key: string]: OrderItem[]}>({})
+  const [dishes, setDishes] = useState<Dish[]>([])
+  const [tables, setTables] = useState<Table[]>([])
   const [loading, setLoading] = useState(true)
-  const [notifications, setNotifications] = useState<any[]>([])
-  const [selectedFilter, setSelectedFilter] = useState<string>('ready')
-  const [selectedOrderForBill, setSelectedOrderForBill] = useState<Order | null>(null)
-  const [servedOrderId, setServedOrderId] = useState<string | null>(null)
-  const [selectedOrderDetails, setSelectedOrderDetails] = useState<Order | null>(null)
+  const [updating, setUpdating] = useState<string | null>(null)
+  const [filterStatus, setFilterStatus] = useState<'all' | 'pending' | 'served'>('all')
+  const [previousOrderCount, setPreviousOrderCount] = useState(0)
 
   useEffect(() => {
-    // Check for session cookie instead of localStorage
+    // Check for session cookie
     const sessionCookie = document.cookie.includes('hotel_session=')
     const userRoleCookie = document.cookie.includes('hotel_role=')
-    
+
     if (!sessionCookie || !userRoleCookie) {
       router.push('/dpk')
       return
     }
-    
+
     // Get user role from cookie
     const roleMatch = document.cookie.match(/hotel_role=([^;]+)/)
     const userRole = roleMatch ? decodeURIComponent(roleMatch[1]) : null
-    
-    if (userRole !== 'kitchen') {
+
+    // Allow kitchen, admin, or waiter to access chef station for testing
+    if (!['kitchen', 'admin', 'waiter'].includes(userRole || '')) {
       router.push('/dpk')
       return
     }
-    
-    setUser(null)
-    fetchOrders()
-    
-    // Set up real-time subscription for order updates
+
+    // Get user ID and name from cookie
+    const userIdMatch = document.cookie.match(/hotel_user_id=([^;]+)/)
+    const userId = userIdMatch ? decodeURIComponent(userIdMatch[1]) : null
+    const userName = localStorage.getItem('user_name') || 'Chef'
+
+    setUser({
+      id: userId || '',
+      email: '',
+      role: (userRole as 'kitchen' | 'admin' | 'waiter') || 'kitchen',
+      name: userName,
+      created_at: new Date().toISOString()
+    })
+
+    fetchData()
+
+    // Set up real-time subscription for orders
     const subscription = supabase
-      .channel('kitchen_orders')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, (payload) => {
-        fetchOrders()
+      .channel('orders')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, (_payload: any) => {
+        fetchData()
       })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'order_items' }, (payload) => {
-        fetchOrders()
+      .subscribe()
+
+    // Set up real-time subscription for order items
+    const itemsSubscription = supabase
+      .channel('order_items')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'order_items' }, (_payload: any) => {
+        fetchData()
       })
       .subscribe()
 
     return () => {
       subscription.unsubscribe()
+      itemsSubscription.unsubscribe()
     }
   }, [router])
 
-  const fetchOrders = async () => {
+  const fetchData = async () => {
     try {
-      console.log('Fetching orders via API...')
-      const response = await fetch('/api/orders?status=pending,confirmed,preparing,ready,served')
-      
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
+      const [ordersRes, dishesRes, tablesRes] = await Promise.all([
+        fetch('/api/orders').then(res => res.json()),
+        fetch('/api/dishes').then(res => res.json()),
+        fetch('/api/tables').then(res => res.json())
+      ])
+
+      // Filter orders to only include those with status not completed/paid
+      const activeOrders = ordersRes.filter((order: Order) => 
+        !['completed', 'paid'].includes(order.status)
+      )
+
+      // Play notification sound if new orders detected
+      if (activeOrders.length > previousOrderCount && previousOrderCount > 0) {
+        playNotificationSound('order')
       }
-      
-      const data = await response.json()
-      console.log('Fetched orders:', data)
-      console.log('Number of orders:', data?.length || 0)
-      
-      // Log order items to check if dish data is present
-      data?.forEach((order: Order) => {
-        console.log(`Order ${order.id} items:`, order.order_items)
-        order.order_items?.forEach((item: OrderItem) => {
-          console.log(`Item ${item.id}: dish_id=${item.dish_id}, dish=`, item.dish)
-        })
-      })
-      
-      // Filter orders: show recent orders (last 1 hour) OR active orders (not served)
-      const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000)
-      const filteredOrders = (data || []).filter((order: Order) => {
-        const isRecent = new Date(order.created_at) > oneHourAgo
-        const isActive = order.status !== 'served'
-        return isRecent || isActive
-      })
-      
-      // Remove duplicate orders by ID
-      const uniqueOrders = filteredOrders.filter((order: Order, index: number, self: Order[]) => 
-        index === self.findIndex((o: Order) => o.id === order.id)
-      )
-      
-      // Sort orders by created_at (newest first)
-      const sortedOrders = uniqueOrders.sort((a: Order, b: Order) => 
-        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-      )
-      setOrders(sortedOrders)
+      setPreviousOrderCount(activeOrders.length)
+
+      setOrders(activeOrders)
+      setDishes(dishesRes)
+      setTables(tablesRes)
+
+      // Fetch order items for each order
+      const itemsMap: {[key: string]: OrderItem[]} = {}
+      for (const order of activeOrders) {
+        try {
+          const itemsRes = await fetch(`/api/orders/${order.id}/items`)
+          if (itemsRes.ok) {
+            const items = await itemsRes.json()
+            itemsMap[order.id] = items
+          }
+        } catch (error) {
+          console.error(`Error fetching items for order ${order.id}:`, error)
+        }
+      }
+      setOrderItems(itemsMap)
     } catch (error) {
-      console.error('Error fetching orders:', error)
-      console.error('Error string:', String(error))
+      console.error('Error fetching data:', error)
     } finally {
       setLoading(false)
     }
@@ -118,303 +161,174 @@ export default function KitchenPage() {
 
   const handleLogout = () => {
     playClickSound()
-    // Clear all cookies
     document.cookie = 'hotel_session=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT'
     document.cookie = 'hotel_role=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT'
     document.cookie = 'hotel_user_id=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT'
-    
-    // Clear localStorage
     localStorage.clear()
-    
-    // Redirect to main page
-    router.push('/')
+    router.push('/dpk')
   }
 
-
-  // Thermal Print Function for Kitchen Bill using browser print
-  const handleThermalPrint = async () => {
-    if (!selectedOrderForBill) return
-    
+  const handleUpdateItemStatus = async (itemId: string, newStatus: string) => {
+    setUpdating(itemId)
     try {
-      console.log('Starting thermal print for kitchen order...')
-      
-      // Generate items list
-      const itemsList = selectedOrderForBill.order_items?.map((item: any) => {
-        const name = item.dishes?.name || 'Unknown'
-        const qty = item.quantity
-        const dishType = item.dish_type || '-'
-        const itemName = name.length > 20 ? name.substring(0, 19) + '.' : name
-        return `<div style="display: flex; font-size: 9px; margin: 2px 0;">
-  <span style="flex: 2;">${itemName}</span>
-  <span style="flex: 1; text-align: right;">${qty}</span>
-  <span style="flex: 1; text-align: right;">${dishType}</span>
-</div>`
-      }).join('') || ''
-      
-      // Generate HTML bill content for browser print
-      const plainText = `
-<div style="text-align: center; margin-bottom: 8px;">
-  <div style="font-size: 18px; font-weight: 900; color: #000;">DHOLE PATIL KHANAWAL</div>
-  <div style="font-size: 12px; font-weight: bold; color: #000;">RESTAURANT & BAR</div>
-</div>
-<div style="border-top: 1px dashed #000; margin: 4px 0;"></div>
-<div style="text-align: center; font-size: 12px; font-weight: 900; margin: 4px 0; color: #000;">KITCHEN ORDER</div>
-<div style="border-top: 1px dashed #000; margin: 4px 0;"></div>
-<div style="margin: 4px 0; font-size: 10px; font-weight: bold; color: #000;">
-  <div style="display: flex; justify-content: space-between;">
-    <span>ORDER:</span>
-    <span>${formatOrderId(selectedOrderForBill.id)}</span>
-  </div>
-  <div style="display: flex; justify-content: space-between;">
-    <span>TABLE:</span>
-    <span>${selectedOrderForBill.tables?.table_number}</span>
-  </div>
-  <div style="display: flex; justify-content: space-between;">
-    <span>DATE:</span>
-    <span>${new Date(selectedOrderForBill.created_at).toLocaleDateString()}</span>
-  </div>
-  <div style="display: flex; justify-content: space-between;">
-    <span>TIME:</span>
-    <span>${new Date(selectedOrderForBill.created_at).toLocaleTimeString()}</span>
-  </div>
-  <div style="display: flex; justify-content: space-between;">
-    <span>WAITER:</span>
-    <span>${selectedOrderForBill.users?.name}</span>
-  </div>
-</div>
-<div style="border-top: 1px dashed #000; margin: 4px 0;"></div>
-<div style="font-size: 10px; font-weight: 900; margin: 4px 0; color: #000;">ITEM DETAILS</div>
-<div style="border-top: 1px dashed #000; margin: 4px 0;"></div>
-<div style="display: flex; font-size: 9px; font-weight: 900; margin-bottom: 2px; color: #000;">
-  <span style="flex: 2;">ITEM</span>
-  <span style="flex: 1; text-align: right;">QTY</span>
-  <span style="flex: 1; text-align: right;">TYPE</span>
-</div>
-<div style="border-top: 1px dashed #000; margin: 2px 0;"></div>
-${itemsList}
-<div style="border-top: 1px dashed #000; margin: 4px 0;"></div>
-<div style="margin: 4px 0; font-size: 10px; font-weight: bold; color: #000;">
-  <div style="display: flex; justify-content: space-between;">
-    <span>STATUS:</span>
-    <span>${selectedOrderForBill.status.toUpperCase()}</span>
-  </div>
-</div>
-<div style="border-top: 1px dashed #000; margin: 4px 0;"></div>
-<div style="text-align: center; font-size: 8px; font-weight: bold; margin: 2px 0; color: #000;">
-  DEVELOPED BY ONETHYNK TECHMEDIA
-</div>
-`
-      
-      console.log('Bill content generated')
-      
-      // Create a hidden iframe for printing to avoid popup blockers
-      const printFrame = document.createElement('iframe')
-      printFrame.style.display = 'none'
-      document.body.appendChild(printFrame)
-      
-      const printDoc = printFrame.contentDocument || printFrame.contentWindow?.document
-      if (printDoc) {
-        printDoc.open()
-        printDoc.write(`
-          <!DOCTYPE html>
-          <html>
-            <head>
-              <title>Kitchen Order Print</title>
-              <meta charset="UTF-8">
-              <meta name="viewport" content="width=device-width, initial-scale=1.0">
-              <style>
-                @page {
-                  size: 58mm auto;
-                  margin: 0;
-                }
-                @media print {
-                  @page {
-                    size: 58mm auto;
-                    margin: 0;
-                  }
-                  body {
-                    margin: 0;
-                    padding: 2mm;
-                    width: 58mm;
-                    -webkit-print-color-adjust: exact;
-                    print-color-adjust: exact;
-                  }
-                }
-                * {
-                  margin: 0;
-                  padding: 0;
-                  box-sizing: border-box;
-                }
-                body {
-                  font-family: monospace;
-                  font-size: 10px;
-                  line-height: 1.2;
-                  color: #000;
-                }
-              </style>
-            </head>
-            <body>${plainText}</body>
-          </html>
-        `)
-        printDoc.close()
-        
-        setTimeout(() => {
-          printFrame.contentWindow?.focus()
-          printFrame.contentWindow?.print()
-          
-          setTimeout(() => {
-            document.body.removeChild(printFrame)
-          }, 1000)
-        }, 250)
-      } else {
-        alert('Failed to prepare print document')
-        document.body.removeChild(printFrame)
-      }
-      
-      console.log('Kitchen order printed successfully')
-      
-    } catch (error: any) {
-      console.error('Error printing kitchen order:', error)
-      alert('Printing failed: ' + error.message)
-    }
-  }
-
-  const updateOrderStatus = async (orderId: string, newStatus: string) => {
-    try {
-      console.log('Updating order:', orderId, 'to status:', newStatus)
-      
-      // Play notification sound
-      playNotificationSound(newStatus)
-      
-      // Set served order for animation
-      if (newStatus === 'served') {
-        setServedOrderId(orderId)
-      }
-      
-      const response = await fetch('/api/orders', {
+      const response = await fetch(`/api/order-items/${itemId}`, {
         method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ id: orderId, status: newStatus }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: newStatus })
       })
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
-      }
+      if (!response.ok) throw new Error('Failed to update item status')
 
-      console.log('Order updated successfully')
-      fetchOrders()
-      
-      // Clear served order after animation
-      if (newStatus === 'served') {
-        setTimeout(() => setServedOrderId(null), 2000)
-      }
+      playSuccessSound()
+      fetchData()
     } catch (error) {
-      console.error('Error updating order:', error)
-      alert('Failed to update order status. Check console for details.')
-    }
-  }
-
-  const updateItemStatus = async (itemId: string, newStatus: string) => {
-    try {
-      const { error } = await supabase
-        .from('order_items')
-        .update({ status: newStatus })
-        .eq('id', itemId)
-
-      if (error) throw error
-      fetchOrders()
-    } catch (error) {
-      console.error('Error updating item:', error)
+      console.error('Error updating item status:', error)
       alert('Failed to update item status')
+    } finally {
+      setUpdating(null)
     }
   }
 
-  const getStatusColor = (status: string) => {
+  const handleCompleteOrder = async (orderId: string) => {
+    try {
+      // Update all items in the order to 'served'
+      const items = orderItems[orderId] || []
+      for (const item of items) {
+        await fetch(`/api/order-items/${item.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: 'served' })
+        })
+      }
+
+      // Update order status to 'served'
+      await fetch(`/api/orders/${orderId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'served' })
+      })
+
+      playSuccessSound()
+      fetchData()
+    } catch (error) {
+      console.error('Error completing order:', error)
+      alert('Failed to complete order')
+    }
+  }
+
+  const handlePrintKOT = async (order: Order) => {
+    playClickSound()
+    playPrintSound()
+
+    const items = orderItems[order.id] || []
+    const table = tables.find(t => t.id === order.table_id)
+
+    const billContent = `
+================================
+      DHOLE PATIL KHANAWAL
+            KOT
+================================
+Table No: ${table?.table_number || 'N/A'}
+Waiter: ${order.users?.name || 'N/A'}
+Time: ${formatTime(order.created_at)}
+--------------------------------
+ITEMS:
+${items.map(item => {
+  const dish = dishes.find(d => d.id === item.dish_id)
+  const foodTypeIcon = dish?.food_type === 'veg' ? '[V]' : dish?.food_type === 'nonveg' ? '[N]' : ''
+  return `${foodTypeIcon} ${dish?.name || 'Unknown'}          x${item.quantity}`
+}).join('\n')}
+================================
+      `
+
+    // Create a new window to print
+    const printWindow = window.open('', '_blank')
+    if (printWindow) {
+      printWindow.document.write(`
+        <html>
+          <head>
+            <title>KOT - Table ${table?.table_number}</title>
+            <style>
+              body {
+                font-family: 'Courier New', monospace;
+                font-size: 14px;
+                padding: 20px;
+                margin: 0;
+                text-align: center;
+              }
+              pre {
+                white-space: pre-wrap;
+                word-wrap: break-word;
+                text-align: center;
+                display: inline-block;
+              }
+            </style>
+          </head>
+          <body>
+            <pre>${billContent}</pre>
+          </body>
+        </html>
+      `)
+      printWindow.document.close()
+      printWindow.print()
+    }
+  }
+
+  const getItemStatusColor = (status: string) => {
     switch (status) {
       case 'pending':
-      case 'confirmed':
-        return 'bg-[#F5F5DC] text-[#5D3A1A] border-[#8B4513]'
-      case 'preparing':
-        return 'bg-[#F5F5DC] text-[#5D3A1A] border-[#8B4513]'
-      case 'ready':
-        return 'bg-[#F5F5DC] text-[#5D3A1A] border-[#8B4513]'
+        return 'bg-[#F5F5DC] border-[#8B4513] text-[#8B4513]'
       case 'served':
-        return 'bg-white text-black border-black'
+        return 'bg-white border-2 border-[#8B4513] text-[#8B4513]'
       default:
-        return 'bg-gray-100 text-gray-800 border-gray-300'
+        return 'bg-[#F5F5DC] border-[#8B4513] text-[#8B4513]'
     }
   }
 
-  // Notification sound function
-  const playNotificationSound = (status: string) => {
-    try {
-      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)()
-      const oscillator = audioContext.createOscillator()
-      const gainNode = audioContext.createGain()
-      
-      oscillator.connect(gainNode)
-      gainNode.connect(audioContext.destination)
-      
-      if (status === 'served') {
-        // Success sound - higher pitch
-        oscillator.frequency.setValueAtTime(880, audioContext.currentTime)
-        oscillator.frequency.setValueAtTime(1100, audioContext.currentTime + 0.1)
-        gainNode.gain.setValueAtTime(0.3, audioContext.currentTime)
-        gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3)
-        oscillator.start(audioContext.currentTime)
-        oscillator.stop(audioContext.currentTime + 0.3)
-      } else {
-        // Default notification sound
-        oscillator.frequency.setValueAtTime(440, audioContext.currentTime)
-        gainNode.gain.setValueAtTime(0.2, audioContext.currentTime)
-        gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.2)
-        oscillator.start(audioContext.currentTime)
-        oscillator.stop(audioContext.currentTime + 0.2)
-      }
-    } catch (error) {
-      console.error('Error playing notification sound:', error)
-    }
-  }
-
-  const pendingOrders = orders.filter(o => o.status === 'pending' || o.status === 'confirmed')
-  const preparingOrders = orders.filter(o => o.status === 'preparing')
-  const readyOrders = orders.filter(o => o.status === 'ready')
-  const servedOrders = orders.filter(o => o.status === 'served')
-  
-  // Sort orders: pending first, then preparing, then ready, then served
-  const filteredOrders = [...orders].sort((a, b) => {
-    const statusOrder = { 'pending': 0, 'confirmed': 0, 'preparing': 1, 'ready': 2, 'served': 3 }
-    const statusA = statusOrder[a.status as keyof typeof statusOrder] ?? 4
-    const statusB = statusOrder[b.status as keyof typeof statusOrder] ?? 4
-    if (statusA !== statusB) return statusA - statusB
-    // If same status, sort by time (newest first)
-    return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+  const filteredOrders = orders.filter(order => {
+    if (filterStatus === 'all') return true
+    if (filterStatus === 'pending') return order.status === 'pending' || order.status === 'confirmed'
+    if (filterStatus === 'served') return order.status === 'served'
+    return true
   })
 
   if (loading) {
-    return <div className="min-h-screen flex items-center justify-center">Loading...</div>
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-2xl font-bold text-gray-900">Loading...</div>
+      </div>
+    )
   }
 
   return (
-    <div className="min-h-screen bg-[#F5F5DC]">
+    <div className="min-h-screen bg-gray-50">
+      {/* Header */}
       <nav className="bg-white shadow-lg sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between h-16">
-            <div className="flex items-center">
-              <h1 className="text-xl font-bold text-[#5D3A1A]">
-                 Kitchen Display
-              </h1>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+          <div className="flex justify-between items-center">
+            <div className="flex items-center gap-3">
+              <div className="bg-[#8B4513] p-2 rounded-xl">
+                <ChefHat className="w-6 h-6 text-white" />
+              </div>
+              <div>
+                <h1 className="text-xl font-bold text-gray-900">Chef Station</h1>
+                <p className="text-sm text-gray-600">Kitchen Order Management</p>
+              </div>
             </div>
-            <div className="flex items-center space-x-2 sm:space-x-4">
-              {user && <NotificationSystem userId={user.id} userRole={user.role} />}
-              <span className="text-gray-700 font-semibold hidden sm:block">{user?.name}</span>
+            <div className="flex items-center gap-3">
               <button
-                onClick={() => { playClickSound(); handleLogout() }}
-                className="flex items-center text-gray-600 hover:text-red-600 transition-colors"
+                onClick={() => { playClickSound(); fetchData() }}
+                className="flex items-center gap-2 bg-[#8B4513] text-white px-4 py-2 rounded-xl font-semibold hover:bg-[#8B4513] transition-all"
               >
-                <LogOut className="w-5 h-5" />
+                <RefreshCw className="w-4 h-4" />
+                Refresh
+              </button>
+              <button
+                onClick={handleLogout}
+                className="flex items-center gap-2 bg-[#8B4513] text-white px-4 py-2 rounded-xl font-semibold hover:bg-[#8B4513] transition-all"
+              >
+                <LogOut className="w-4 h-4" />
+                Logout
               </button>
             </div>
           </div>
@@ -422,393 +336,188 @@ ${itemsList}
       </nav>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Stats Bar - All Order Statuses */}
-        <div className="mb-8 grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div className="bg-[#5D3A1A] rounded-2xl p-6 shadow-lg text-white">
-            <div className="flex items-center gap-3">
-              <Clock className="w-10 h-10" />
-              <div>
-                <p className="text-2xl font-bold">{pendingOrders.length}</p>
-                <p className="text-xs font-semibold opacity-90">Pending</p>
-              </div>
-            </div>
-          </div>
-          <div className="bg-[#5D3A1A] rounded-2xl p-6 shadow-lg text-white">
-            <div className="flex items-center gap-3">
-              <ChefHat className="w-10 h-10" />
-              <div>
-                <p className="text-2xl font-bold">{preparingOrders.length}</p>
-                <p className="text-xs font-semibold opacity-90">Preparing</p>
-              </div>
-            </div>
-          </div>
-          <div className="bg-[#5D3A1A] rounded-2xl p-6 shadow-lg text-white">
-            <div className="flex items-center gap-3">
-              <CheckCircle className="w-10 h-10" />
-              <div>
-                <p className="text-2xl font-bold">{readyOrders.length}</p>
-                <p className="text-xs font-semibold opacity-90">Ready</p>
-              </div>
-            </div>
-          </div>
-          <div className="bg-[#8B4513] rounded-2xl p-6 shadow-lg text-white">
-            <div className="flex items-center gap-3">
-              <CheckCircle className="w-10 h-10" />
-              <div>
-                <p className="text-2xl font-bold">{servedOrders.length}</p>
-                <p className="text-xs font-semibold opacity-90">Served</p>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Orders Grid - All Orders */}
-        <div>
-          <h2 className="text-2xl font-bold mb-6 flex items-center text-gray-900">
-            <CheckCircle className="w-6 h-6 text-[#5D3A1A] mr-3" />
-            All Orders ({filteredOrders.length})
-          </h2>
-          {filteredOrders.length > 0 ? (
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {filteredOrders.map(order => (
-                <OrderCard
-                  key={order.id}
-                  order={order}
-                  servedOrderId={servedOrderId}
-                  onStatusChange={(status) => updateOrderStatus(order.id, status)}
-                  onItemStatusChange={updateItemStatus}
-                  getStatusColor={getStatusColor}
-                  onViewBill={setSelectedOrderForBill}
-                  onViewDetails={setSelectedOrderDetails}
-                />
-              ))}
-            </div>
-          ) : (
-            <div className="text-center py-16">
-              <CheckCircle className="w-20 h-20 text-[#8B4513] mx-auto mb-6" />
-              <p className="text-gray-500 text-xl font-semibold">No orders</p>
-            </div>
-          )}
-        </div>
-
-        {/* Refresh Button */}
-        <div className="fixed bottom-8 right-8">
-          <button
-            onClick={() => { playClickSound(); fetchOrders() }}
-            className="bg-[#5D3A1A] hover:bg-[#8B4513] text-white px-6 py-3 rounded-xl font-semibold shadow-lg transition-all duration-300"
+        {/* Statistics Cards */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+          <div
+            onClick={() => { playClickSound(); setFilterStatus('all') }}
+            className={`bg-white border-2 rounded-xl p-4 shadow-lg cursor-pointer transition-all ${
+              filterStatus === 'all' ? 'border-[#8B4513] bg-[#F5F5DC]' : 'border-[#8B4513] hover:bg-[#F5F5DC]'
+            }`}
           >
-            Refresh
-          </button>
-        </div>
-      </div>
-
-      {/* Kitchen Bill Modal */}
-      {selectedOrderForBill && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 animate-slide-in">
-          <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-2xl font-bold text-[#5D3A1A]">
-                Kitchen Order Bill
-              </h2>
-              <button
-                onClick={() => { playClickSound(); setSelectedOrderForBill(null) }}
-                className="text-gray-500 hover:text-gray-700 transition-colors"
-              >
-                ✕
-              </button>
-            </div>
-
-            <div className="border-2 border-[#8B4513] rounded-xl p-6 bg-white shadow-lg">
-              {/* Header */}
-              <div className="text-center mb-6 pb-4 border-b-2 border-dashed border-[#8B4513]">
-                <p className="text-sm font-bold text-[#5D3A1A] mt-3 border-t border-dashed border-[#8B4513] pt-2">KITCHEN ORDER</p>
-              </div>
-
-              {/* Order Info */}
-              <div className="grid grid-cols-2 gap-4 mb-6 p-4 bg-[#F5F5DC] rounded-xl border border-[#8B4513]">
-                <div>
-                  <p className="text-sm font-semibold text-[#5D3A1A]">Order No</p>
-                  <p className="text-lg font-bold text-gray-900">{formatOrderId(selectedOrderForBill.id)}</p>
-                </div>
-                <div>
-                  <p className="text-sm font-semibold text-[#5D3A1A]">Date</p>
-                  <p className="text-lg font-bold text-gray-900">{new Date(selectedOrderForBill.created_at).toLocaleDateString()}</p>
-                </div>
-                <div>
-                  <p className="text-sm font-semibold text-[#5D3A1A]">Table</p>
-                  <p className="text-lg font-bold text-gray-900">Table {selectedOrderForBill.tables?.table_number}</p>
-                </div>
-                <div>
-                  <p className="text-sm font-semibold text-[#5D3A1A]">Waiter</p>
-                  <p className="text-lg font-bold text-gray-900">{selectedOrderForBill.users?.name}</p>
-                </div>
-              </div>
-
-              {/* Items */}
-              <div className="mb-6">
-                <table className="w-full">
-                  <thead className="bg-[#D2691E]">
-                    <tr>
-                      <th className="px-3 py-2 text-left text-xs font-bold text-white uppercase w-1/2">Item</th>
-                      <th className="px-3 py-2 text-center text-xs font-bold text-white uppercase w-16">Qty</th>
-                      <th className="px-3 py-2 text-center text-xs font-bold text-white uppercase w-24">Type</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-200">
-                    {selectedOrderForBill.order_items?.map((item: any) => (
-                      <tr key={item.id}>
-                        <td className="px-3 py-2 text-sm font-semibold text-gray-900 truncate">{item.dishes?.name}</td>
-                        <td className="px-3 py-2 text-sm text-center text-gray-600">{item.quantity}</td>
-                        <td className="px-3 py-2 text-sm text-center text-gray-600">{item.dish_type || '-'}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-
-              {/* Order Details */}
-              <div className="grid grid-cols-2 gap-4 p-4 bg-[#F5F5DC] rounded-xl border border-[#8B4513]">
-                <div>
-                  <p className="text-sm font-semibold text-[#5D3A1A]">Customer</p>
-                  <p className="text-lg font-bold text-gray-900">{selectedOrderForBill.customer_name || 'Guest'}</p>
-                </div>
-                <div>
-                  <p className="text-sm font-semibold text-[#5D3A1A]">Status</p>
-                  <p className="text-lg font-bold text-gray-900 capitalize">{selectedOrderForBill.status}</p>
-                </div>
-              </div>
-            </div>
-
-            <div className="mt-6 flex gap-3">
-              <button
-                onClick={() => { playClickSound(); setSelectedOrderForBill(null) }}
-                className="flex-1 px-6 py-3 border-2 border-[#8B4513] text-[#5D3A1A] rounded-xl font-semibold hover:bg-[#F5F5DC] transition-all duration-300"
-              >
-                Close
-              </button>
-              <button
-                onClick={() => { playClickSound(); handleThermalPrint() }}
-                className="flex-1 px-6 py-3 bg-[#5D3A1A] text-white rounded-xl font-semibold hover:bg-[#8B4513] transition-all duration-300"
-              >
-                Print Order
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Order Details Modal */}
-      {selectedOrderDetails && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 animate-slide-in">
-          <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-2xl font-bold text-[#5D3A1A]">
-                Order Details - Table {selectedOrderDetails.tables?.table_number}
-              </h2>
-              <button
-                onClick={() => { playClickSound(); setSelectedOrderDetails(null) }}
-                className="text-gray-500 hover:text-gray-700 transition-colors"
-              >
-                ✕
-              </button>
-            </div>
-
-            <div className="space-y-4">
-              <div className="bg-gray-50 rounded-xl p-4">
-                <p className="text-sm text-gray-600">Order #: {formatOrderId(selectedOrderDetails.id)}</p>
-                <p className="text-sm text-gray-600">Status: <span className="font-bold">{selectedOrderDetails.status.toUpperCase()}</span></p>
-                <p className="text-sm text-gray-600">Time: {new Date(selectedOrderDetails.created_at).toLocaleString()}</p>
-                <p className="text-sm text-gray-600">Waiter: {selectedOrderDetails.users?.name}</p>
-              </div>
-
+            <div className="flex items-center justify-between">
               <div>
-                <h3 className="font-bold text-gray-900 mb-3">Items</h3>
-                <div className="space-y-2">
-                  {selectedOrderDetails.order_items?.map((item: OrderItem) => (
-                    <div key={item.id} className="flex justify-between items-center bg-gray-50 rounded-lg p-3">
-                      <div>
-                        <p className="font-semibold">{item.dishes?.name || item.dish?.name}</p>
-                        <p className="text-sm text-gray-600">Qty: {item.quantity} × ₹{item.price}</p>
-                      </div>
-                      <span className="font-bold text-[#5D3A1A]">₹{(item.price * item.quantity).toFixed(2)}</span>
-                    </div>
-                  ))}
-                </div>
+                <p className="text-sm text-gray-600">Total Orders</p>
+                <p className="text-2xl font-bold text-[#8B4513]">{orders.length}</p>
               </div>
-
-              <div className="border-t border-gray-200 pt-4">
-                <div className="flex justify-between items-center">
-                  <span className="text-lg font-bold text-gray-900">Total:</span>
-                  <span className="text-2xl font-bold text-[#5D3A1A]">₹{selectedOrderDetails.total_amount.toFixed(2)}</span>
-                </div>
+              <div className="bg-[#F5F5DC] p-3 rounded-xl">
+                <Utensils className="w-6 h-6 text-[#8B4513]" />
               </div>
             </div>
           </div>
-        </div>
-      )}
-
-      {/* Order Details Modal */}
-      {selectedOrderDetails && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 animate-slide-in">
-          <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-2xl font-bold text-[#5D3A1A]">
-                Order Details - Table {selectedOrderDetails.tables?.table_number}
-              </h2>
-              <button
-                onClick={() => { playClickSound(); setSelectedOrderDetails(null) }}
-                className="text-gray-500 hover:text-gray-700 transition-colors"
-              >
-                ✕
-              </button>
-            </div>
-
-            <div className="space-y-4">
-              <div className="bg-gray-50 rounded-xl p-4">
-                <p className="text-sm text-gray-600">Order #: {formatOrderId(selectedOrderDetails.id)}</p>
-                <p className="text-sm text-gray-600">Status: <span className="font-bold">{selectedOrderDetails.status.toUpperCase()}</span></p>
-                <p className="text-sm text-gray-600">Time: {new Date(selectedOrderDetails.created_at).toLocaleString()}</p>
-                <p className="text-sm text-gray-600">Waiter: {selectedOrderDetails.users?.name}</p>
-              </div>
-
+          <div
+            onClick={() => { playClickSound(); setFilterStatus('pending') }}
+            className={`bg-white border-2 rounded-xl p-4 shadow-lg cursor-pointer transition-all ${
+              filterStatus === 'pending' ? 'border-[#8B4513] bg-[#F5F5DC]' : 'border-[#8B4513] hover:bg-[#F5F5DC]'
+            }`}
+          >
+            <div className="flex items-center justify-between">
               <div>
-                <h3 className="font-bold text-gray-900 mb-3">Items</h3>
-                <div className="space-y-2">
-                  {selectedOrderDetails.order_items?.map((item: OrderItem) => (
-                    <div key={item.id} className="flex justify-between items-center bg-gray-50 rounded-lg p-3">
-                      <div>
-                        <p className="font-semibold">{item.dishes?.name || item.dish?.name}</p>
-                        <p className="text-sm text-gray-600">Qty: {item.quantity} × ₹{item.price}</p>
-                      </div>
-                      <span className="font-bold text-[#5D3A1A]">₹{(item.price * item.quantity).toFixed(2)}</span>
-                    </div>
-                  ))}
-                </div>
+                <p className="text-sm text-gray-600">Pending</p>
+                <p className="text-2xl font-bold text-[#8B4513]">{orders.filter(o => o.status === 'pending' || o.status === 'confirmed').length}</p>
               </div>
-
-              <div className="border-t border-gray-200 pt-4">
-                <div className="flex justify-between items-center">
-                  <span className="text-lg font-bold text-gray-900">Total:</span>
-                  <span className="text-2xl font-bold text-[#5D3A1A]">₹{selectedOrderDetails.total_amount.toFixed(2)}</span>
-                </div>
+              <div className="bg-[#F5F5DC] p-3 rounded-xl">
+                <Clock className="w-6 h-6 text-[#8B4513]" />
+              </div>
+            </div>
+          </div>
+          <div
+            onClick={() => { playClickSound(); setFilterStatus('served') }}
+            className={`bg-white border-2 rounded-xl p-4 shadow-lg cursor-pointer transition-all ${
+              filterStatus === 'served' ? 'border-[#8B4513] bg-[#F5F5DC]' : 'border-[#8B4513] hover:bg-[#F5F5DC]'
+            }`}
+          >
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-600">Completed</p>
+                <p className="text-2xl font-bold text-[#8B4513]">{orders.filter(o => o.status === 'served').length}</p>
+              </div>
+              <div className="bg-[#F5F5DC] p-3 rounded-xl">
+                <CheckCircle className="w-6 h-6 text-[#8B4513]" />
+              </div>
+            </div>
+          </div>
+          <div
+            onClick={() => { playClickSound(); setFilterStatus('served') }}
+            className={`bg-white border-2 rounded-xl p-4 shadow-lg cursor-pointer transition-all ${
+              filterStatus === 'served' ? 'border-[#8B4513] bg-[#F5F5DC]' : 'border-[#8B4513] hover:bg-[#F5F5DC]'
+            }`}
+          >
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-600">Served</p>
+                <p className="text-2xl font-bold text-[#8B4513]">{orders.filter(o => o.status === 'served').length}</p>
+              </div>
+              <div className="bg-[#F5F5DC] p-3 rounded-xl">
+                <AlertCircle className="w-6 h-6 text-[#8B4513]" />
               </div>
             </div>
           </div>
         </div>
-      )}
-    </div>
-  )
-}
 
-function OrderCard({ order, servedOrderId, onStatusChange, onItemStatusChange, getStatusColor, onViewBill, onViewDetails }: {
-  order: Order
-  servedOrderId: string | null
-  onStatusChange: (status: string) => void
-  onItemStatusChange: (itemId: string, status: string) => void
-  getStatusColor: (status: string) => string
-  onViewBill: (order: Order) => void
-  onViewDetails: (order: Order) => void
-}) {
-  const isServed = servedOrderId === order.id
-  
-  // Calculate time elapsed
-  const timeElapsed = Math.floor((Date.now() - new Date(order.created_at).getTime()) / 60000) // minutes
-  const timeDisplay = timeElapsed < 1 ? 'Just now' : timeElapsed < 60 ? `${timeElapsed}m ago` : `${Math.floor(timeElapsed / 60)}h ago`
-  
-  return (
-    <div 
-      onClick={() => (order.status === 'served' || order.status === 'ready') && onViewDetails(order)}
-      className={`bg-white rounded-2xl shadow-lg overflow-hidden border-2 hover:shadow-xl transition-all duration-300 cursor-pointer ${isServed ? 'animate-pulse bg-[#F5F5DC] border-[#5D3A1A]' : order.status === 'served' || order.status === 'ready' ? 'hover:border-[#8B4513]' : 'border-gray-200'}`}
-    >
-      <div className={`p-5 border-b-2 ${getStatusColor(order.status)}`}>
-        <div className="flex justify-between items-start">
-          <div className="flex-1 min-w-0">
-            <h3 className="font-bold text-xl text-gray-900 mb-1 truncate">Table {order.tables?.table_number}</h3>
-            <p className="text-sm opacity-75 mb-1 truncate">{timeDisplay}</p>
-            <p className="text-xs opacity-60 truncate">Order #{formatOrderId(order.id)}</p>
+        {/* Orders Grid */}
+        {filteredOrders.length === 0 ? (
+          <div className="text-center py-12 bg-white rounded-2xl shadow-lg">
+            <Utensils className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+            <p className="text-gray-500 font-semibold">No orders found</p>
           </div>
-          <div className="flex flex-col items-end gap-2 shrink-0">
-            <span className={`px-3 py-1 rounded-full text-xs font-bold whitespace-nowrap ${getStatusColor(order.status)}`}>
-              {order.status}
-            </span>
-            <button
-              onClick={() => { playClickSound(); onViewBill(order) }}
-              className="text-xs bg-gray-600 text-white px-3 py-1.5 rounded-lg font-semibold hover:bg-gray-700 transition-colors whitespace-nowrap"
-            >
-              View Bill
-            </button>
-          </div>
-        </div>
-      </div>
-      
-      <div className="p-5">
-        <div className="space-y-3">
-          {order.order_items?.map((item: OrderItem) => (
-            <div key={item.id} className="flex justify-between items-center p-4 bg-gray-50 rounded-xl border border-gray-200 hover:border-[#8B4513] transition-colors">
-              <div className="flex items-center gap-4 flex-1 min-w-0">
-                <span className="font-bold text-gray-900 text-xl shrink-0">{item.quantity}x</span>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1 flex-wrap">
-                    <span className="font-semibold text-gray-800 truncate">
-                      {item.dishes?.name || item.dish?.name || `Dish ID: ${item.dish_id}`}
-                    </span>
-                    {item.dish_type && (
-                      <span className="px-2 py-0.5 bg-[#F5F5DC] text-[#5D3A1A] text-xs font-semibold rounded-full shrink-0">
-                        {item.dish_type}
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {filteredOrders.map((order) => {
+              const items = orderItems[order.id] || []
+              const table = tables.find(t => t.id === order.table_id)
+
+              return (
+                <div key={order.id} className="bg-white rounded-2xl shadow-lg overflow-hidden">
+                  {/* Order Header */}
+                  <div className="bg-[#8B4513] text-white p-4">
+                    <div className="flex justify-between items-start mb-2">
+                      <div>
+                        <h3 className="text-lg font-bold">Order #{formatOrderId(order.id)}</h3>
+                        <p className="text-sm opacity-90">Table {table?.table_number || 'N/A'}</p>
+                      </div>
+                      <span className={`px-3 py-1 rounded-full text-xs font-bold ${
+                        order.status === 'served' ? 'bg-white border-2 border-[#8B4513] text-[#8B4513]' :
+                        'bg-[#F5F5DC] text-[#8B4513]'
+                      }`}>
+                        {order.status}
                       </span>
-                    )}
+                    </div>
+                    <div className="flex justify-between items-center text-sm opacity-90">
+                      <span>{formatTime(order.created_at)}</span>
+                      <span>Waiter: {order.users?.name || 'N/A'}</span>
+                    </div>
+                  </div>
+
+                  {/* Order Items */}
+                  <div className="p-4 space-y-3">
+                    {items.map((item) => {
+                      const dish = dishes.find(d => d.id === item.dish_id)
+
+                      return (
+                        <div
+                          key={item.id}
+                          className={`p-3 rounded-lg border-2 ${getItemStatusColor(item.status)} transition-all`}
+                        >
+                          <div className="flex justify-between items-start">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2">
+                                {getFoodTypeIcon(dish?.food_type)}
+                                <span className="font-semibold text-[#5D3A1A]">
+                                  {dish?.name || 'Unknown Dish'}
+                                </span>
+                                <span className="bg-[#5D3A1A] text-white text-xs px-2 py-0.5 rounded-full">
+                                  x{item.quantity}
+                                </span>
+                              </div>
+                              {item.dish_type && item.dish_type !== 'Normal' && (
+                                <span className="text-xs text-gray-600 mt-1 block">
+                                  {item.dish_type}
+                                </span>
+                              )}
+                              {item.special_instructions && (
+                                <p className="text-sm text-gray-600 mt-1 italic">
+                                  Note: {item.special_instructions}
+                                </p>
+                              )}
+                            </div>
+                            <div className="text-right">
+                              <p className="font-bold text-[#5D3A1A]">
+                                ₹{(item.price * item.quantity).toFixed(2)}
+                              </p>
+                              <span className={`text-xs px-2 py-1 rounded-full border ${
+                                item.status === 'served'
+                                  ? 'bg-white border-2 border-[#8B4513] text-[#8B4513]'
+                                  : 'bg-[#F5F5DC] border-[#8B4513] text-[#8B4513]'
+                              }`}>
+                                {item.status}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+
+                  {/* Order Footer */}
+                  <div className="p-4 bg-gray-50 border-t border-gray-200">
+                    <div className="flex justify-between items-center mb-3">
+                      <span className="font-semibold text-gray-700">Total Amount</span>
+                      <span className="text-xl font-bold text-[#5D3A1A]">₹{order.total_amount.toFixed(2)}</span>
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => handlePrintKOT(order)}
+                        className="flex-1 flex items-center justify-center gap-2 bg-[#8B4513] text-white py-2 rounded-xl font-semibold hover:bg-[#5D3A13] transition-all"
+                      >
+                        <Printer className="w-4 h-4" />
+                        Print KOT
+                      </button>
+                      {order.status !== 'served' && (
+                        <button
+                          onClick={() => handleCompleteOrder(order.id)}
+                          className="flex-1 flex items-center justify-center gap-2 bg-[#8B4513] text-white py-2 rounded-xl font-semibold hover:bg-[#5D3A13] transition-all"
+                        >
+                          <CheckCircle className="w-4 h-4" />
+                          Completed
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
-              </div>
-              <div className="flex flex-col items-end gap-2 shrink-0">
-                <span className={`px-2 py-0.5 rounded-full text-xs font-bold whitespace-nowrap bg-[#F5F5DC] text-[#5D3A1A]`}>
-                  {item.status}
-                </span>
-                <button
-                  onClick={() => {
-                    playClickSound()
-                    const nextStatus = item.status === 'pending' ? 'preparing' : 
-                                     item.status === 'preparing' ? 'ready' : 'ready'
-                    onItemStatusChange(item.id, nextStatus)
-                  }}
-                  className="text-xs bg-[#5D3A1A] text-white px-3 py-1.5 rounded-lg font-semibold hover:bg-[#8B4513] transition-colors whitespace-nowrap"
-                >
-                  {item.status === 'pending' ? 'Start' : item.status === 'preparing' ? 'Complete' : 'Done'}
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        <div className="mt-5 pt-5 border-t border-gray-200">
-          <div className="flex justify-between items-center mb-4">
-            <div className="min-w-0">
-              <p className="text-sm text-gray-500">{order.order_items?.length} items</p>
-            </div>
-            <div className="text-right shrink-0">
-              <span className="text-sm font-semibold text-gray-500 truncate">Waiter: {order.users?.name}</span>
-            </div>
+              )
+            })}
           </div>
-
-          <div className="flex gap-3">
-            {(order.status === 'pending' || order.status === 'confirmed' || order.status === 'preparing') && (
-              <button
-                onClick={() => { playClickSound(); onStatusChange('ready') }}
-                className="flex-1 bg-[#5D3A1A] text-white py-3 rounded-xl font-bold hover:bg-[#8B4513] transition-colors"
-              >
-                Completed
-              </button>
-            )}
-            {order.status === 'ready' && (
-              <button
-                onClick={() => { playClickSound(); onStatusChange('served') }}
-                className="flex-1 bg-[#5D3A1A] text-white py-3 rounded-xl font-bold hover:bg-[#8B4513] transition-colors"
-              >
-                Served
-              </button>
-            )}
-          </div>
-        </div>
+        )}
       </div>
     </div>
   )
