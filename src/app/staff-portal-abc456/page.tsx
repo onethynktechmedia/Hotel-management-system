@@ -1547,72 +1547,80 @@ ${itemsList}
             </div>
 
             {/* My Active Orders */}
-            {orders.length > 0 && (
-              <div className="mt-8 sm:mt-12">
-                <h3 className="text-xl sm:text-2xl font-bold text-gray-900 mb-4">My Active Orders</h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {(() => {
-                    // Group orders by table
-                    const tableGroups = orders
-                      .filter(o => (o.waiter_id === user?.id || o.users?.id === user?.id) && !['paid', 'completed'].includes(o.status))
-                      .reduce((acc, order) => {
-                        const tableId = order.table_id
-                        if (!acc[tableId]) {
-                          acc[tableId] = {
-                            table: order.tables,
-                            orders: []
-                          }
+            <div className="mt-8 sm:mt-12">
+              <h3 className="text-xl sm:text-2xl font-bold text-gray-900 mb-4">My Active Orders</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {(() => {
+                  // Group orders by table - show all orders for this waiter
+                  const tableGroups = orders
+                    .filter(o => !['paid', 'completed'].includes(o.status))
+                    .reduce((acc, order) => {
+                      const tableId = order.table_id
+                      if (!acc[tableId]) {
+                        acc[tableId] = {
+                          table: order.tables,
+                          orders: []
                         }
-                        acc[tableId].orders.push(order)
-                        return acc
-                      }, {} as any)
-                    
-                    return Object.values(tableGroups).map((group: any) => (
-                      <div
-                        key={group.table?.id}
-                        className="bg-white rounded-2xl shadow-lg p-4 sm:p-6 border-2 border-[#8B4513] hover:border-[#5D3A1A] hover:shadow-xl transition-all duration-300 text-left cursor-pointer"
-                      >
-                        <div className="flex justify-between items-start mb-4">
-                          <div>
-                            <h4 className="text-base sm:text-lg font-bold text-gray-900">Table {group.table?.table_number}</h4>
-                            <p className="text-xs sm:text-sm text-gray-600">{group.orders.length} active order{group.orders.length > 1 ? 's' : ''}</p>
-                          </div>
-                          <span className="px-2 sm:px-3 py-1 rounded-full text-xs font-bold bg-[#F5F5DC] text-[#5D3A1A]">
-                            Active
-                          </span>
-                        </div>
-                        <p className="text-base sm:text-lg font-bold text-gray-900 mb-3">
-                          ₹{group.orders.reduce((sum: number, o: Order) => sum + o.total_amount, 0).toFixed(2)}
-                        </p>
-                        <div className="flex gap-2">
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              playClickSound()
-                              handleViewBill(group.orders[0])
-                            }}
-                            className="flex-1 flex items-center justify-center gap-2 bg-[#5D3A1A] text-white px-4 py-2 rounded-xl font-semibold hover:bg-[#8B4513] transition-all duration-300 text-sm"
-                          >
-                            View Details
-                          </button>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              playClickSound()
-                              handleStartRepeatOrder(group.orders[0])
-                            }}
-                            className="flex-1 flex items-center justify-center gap-2 bg-orange-500 text-white px-4 py-2 rounded-xl font-semibold hover:bg-orange-600 transition-all duration-300 text-sm"
-                          >
-                            <RotateCcw className="w-4 h-4" />
-                            Repeat
-                          </button>
-                        </div>
+                      }
+                      acc[tableId].orders.push(order)
+                      return acc
+                    }, {} as any)
+                  
+                  const groupArray = Object.values(tableGroups)
+                  
+                  if (groupArray.length === 0) {
+                    return (
+                      <div className="col-span-full text-center py-8 bg-white rounded-2xl shadow-lg">
+                        <p className="text-gray-500 font-semibold">No active orders</p>
                       </div>
-                    ))
-                  })()}
-                </div>
+                    )
+                  }
+                  
+                  return groupArray.map((group: any) => (
+                    <div
+                      key={group.table?.id}
+                      className="bg-white rounded-2xl shadow-lg p-4 sm:p-6 border-2 border-[#8B4513] hover:border-[#5D3A1A] hover:shadow-xl transition-all duration-300 text-left cursor-pointer"
+                    >
+                      <div className="flex justify-between items-start mb-4">
+                        <div>
+                          <h4 className="text-base sm:text-lg font-bold text-gray-900">Table {group.table?.table_number}</h4>
+                          <p className="text-xs sm:text-sm text-gray-600">{group.orders.length} active order{group.orders.length > 1 ? 's' : ''}</p>
+                        </div>
+                        <span className="px-2 sm:px-3 py-1 rounded-full text-xs font-bold bg-[#F5F5DC] text-[#5D3A1A]">
+                          Active
+                        </span>
+                      </div>
+                      <p className="text-base sm:text-lg font-bold text-gray-900 mb-3">
+                        ₹{group.orders.reduce((sum: number, o: Order) => sum + o.total_amount, 0).toFixed(2)}
+                      </p>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            playClickSound()
+                            handleViewBill(group.orders[0])
+                          }}
+                          className="flex-1 flex items-center justify-center gap-2 bg-[#5D3A1A] text-white px-4 py-2 rounded-xl font-semibold hover:bg-[#8B4513] transition-all duration-300 text-sm"
+                        >
+                          View Details
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            playClickSound()
+                            handleStartRepeatOrder(group.orders[0])
+                          }}
+                          className="flex-1 flex items-center justify-center gap-2 bg-orange-500 text-white px-4 py-2 rounded-xl font-semibold hover:bg-orange-600 transition-all duration-300 text-sm"
+                        >
+                          <RotateCcw className="w-4 h-4" />
+                          Repeat
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                })()}
               </div>
-            )}
+            </div>
           </div>
         )}
 

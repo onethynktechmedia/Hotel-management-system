@@ -709,11 +709,11 @@ export default function AdminDashboard() {
         const plainText = `
 <div style="text-align: center; margin-bottom: 8px;">
   <div style="font-size: 18px; font-weight: 900; color: #000;">DHOLE PATIL KHANAWAL</div>
-  <div style="font-size: 12px; font-weight: bold; color: #000;">RESTAURANT & BAR</div>
+  <div style="font-size: 12px; font-weight: bold; color: #000;">VEG & NON-VEG</div>
 </div>
 <div style="border-top: 1px dashed #000; margin: 4px 0;"></div>
 <div style="text-align: center; font-size: 10px; margin-bottom: 4px; font-weight: bold; color: #000;">
-  <div>123, MAIN STREET</div>
+  <div>Sangamner</div>
   <div>CITY, STATE - 123456</div>
   <div>PHONE: +91 98765 43210</div>
   <div>GSTIN: 29ABCDE1234F1Z5</div>
@@ -890,13 +890,11 @@ ${billOrderItems.map((item: any) => {
       escposContent += '\x1B\x21\x30' // Double width and height
       escposContent += 'DHOLE PATIL KHANAWAL\n'
       escposContent += '\x1B\x21\x00' // Normal
-      escposContent += 'Restaurant & Bar\n'
+      escposContent += 'VEG & NON-VEG\n'
       escposContent += '================================\n'
       
       // Address - Centered
-      escposContent += '123, Main Street\n'
-      escposContent += 'City, State - 123456\n'
-      escposContent += 'Phone: +91 98765 43210\n'
+      escposContent += 'Sangamner\n'
       escposContent += '================================\n'
       escposContent += '\x1B\x21\x08' // Bold
       escposContent += 'BILL / INVOICE\n'
@@ -920,8 +918,21 @@ ${billOrderItems.map((item: any) => {
       escposContent += '--------------------------\n'
       escposContent += '\x1B\x21\x00' // Normal font for items
       
-      // Items
-      selectedOrderForBilling.order_items?.forEach((item: any) => {
+      // Items - Group by dish_id and dish_type
+      const groupedItems = (selectedOrderForBilling.order_items || []).reduce((acc: any[], item: any) => {
+        const existing = acc.find(i => i.dish_id === item.dish_id && i.dish_type === item.dish_type)
+        if (existing) {
+          existing.quantity += item.quantity
+        } else {
+          acc.push({
+            ...item,
+            quantity: item.quantity
+          })
+        }
+        return acc
+      }, [])
+
+      groupedItems.forEach((item: any) => {
         const name = item.dishes?.name || 'Unknown'
         const qty = item.quantity
         const price = (item.dishes?.price || item.price || 0)
@@ -977,11 +988,11 @@ ${billOrderItems.map((item: any) => {
         const plainText = `
 <div style="text-align: center; margin-bottom: 8px;">
   <div style="font-size: 18px; font-weight: 900; color: #000;">DHOLE PATIL KHANAWAL</div>
-  <div style="font-size: 12px; font-weight: bold; color: #000;">RESTAURANT & BAR</div>
+  <div style="font-size: 12px; font-weight: bold; color: #000;">VEG & NON-VEG</div>
 </div>
 <div style="border-top: 1px dashed #000; margin: 4px 0;"></div>
 <div style="text-align: center; font-size: 10px; margin-bottom: 4px; font-weight: bold; color: #000;">
-  <div>123, MAIN STREET</div>
+  <div>Sangamner</div>
   <div>CITY, STATE - 123456</div>
   <div>PHONE: +91 98765 43210</div>
   <div>GSTIN: 29ABCDE1234F1Z5</div>
@@ -1949,9 +1960,9 @@ ${order.order_items?.map((item: any) => {
     
     const plainText = `
 <strong class="header">DHOLE PATIL KHANAWAL</strong><br>
-<strong>RESTAURANT & BAR</strong><br>
+<strong>VEG & NON-VEG</strong><br>
 ================================<br>
-<strong>123, MAIN STREET</strong><br>
+<strong>Sangamner</strong><br>
 <strong>CITY, STATE - 123456</strong><br>
 <strong>PHONE: +91 98765 43210</strong><br>
 <strong>GSTIN: 29ABCDE1234F1Z5</strong><br>
@@ -3878,9 +3889,9 @@ ${(() => {
             <div className="bg-gradient-to-r from-[#5D3A1A] to-[#8B5A2B] p-6 rounded-t-2xl">
               <div className="text-center">
                 <h2 className="text-3xl font-bold text-white mb-1">DHOLE PATIL KHANAWAL</h2>
-                <p className="text-[#F5F5DC] text-sm font-semibold">RESTAURANT & BAR</p>
+                <p className="text-[#F5F5DC] text-sm font-semibold">VEG & NON-VEG</p>
                 <div className="mt-2 text-[#F5F5DC] text-xs space-y-1">
-                  <p>123, MAIN STREET, CITY, STATE - 123456</p>
+                  <p>Sangamner</p>
                   <p>PHONE: +91 98765 43210</p>
                   <p>GSTIN: 29ABCDE1234F1Z5</p>
                 </div>
@@ -4510,9 +4521,9 @@ ${(() => {
                 <h1 className="text-3xl font-bold text-[#8B4513] mb-1 uppercase">
                   DHOLE PATIL KHANAWAL
                 </h1>
-                <p className="text-sm font-semibold text-gray-700 mb-1 uppercase">RESTAURANT & BAR</p>
+                <p className="text-sm font-semibold text-gray-700 mb-1 uppercase">VEG & NON-VEG</p>
                 <div className="text-xs text-gray-600 space-y-1">
-                  <p>123, MAIN STREET, CITY, STATE - 123456</p>
+                  <p>Sangamner</p>
                   <p>PHONE: +91 98765 43210</p>
                   <p>GSTIN: 29ABCDE1234F1Z5</p>
                 </div>
@@ -4579,18 +4590,35 @@ ${(() => {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-green-100">
-                    {selectedOrderForBilling.order_items?.map((item: any) => (
-                      <tr key={item.id}>
-                        <td className="px-3 py-2 text-sm font-semibold text-gray-900">
-                          <div className="flex items-center gap-2">
-                            {getFoodTypeIcon(item.dishes?.food_type)}
-                            <span className="truncate">{item.dishes?.name}</span>
-                          </div>
-                        </td>
-                        <td className="px-3 py-2 text-sm text-center text-gray-600">{item.quantity}</td>
-                        <td className="px-3 py-2 text-sm text-right font-bold text-green-700">₹{(item.price * item.quantity).toFixed(2)}</td>
-                      </tr>
-                    ))}
+                    {(() => {
+                      // Group items by dish_id and dish_type
+                      const groupedItems = (selectedOrderForBilling.order_items || []).reduce((acc: any[], item: any) => {
+                        const existing = acc.find(i => i.dish_id === item.dish_id && i.dish_type === item.dish_type)
+                        if (existing) {
+                          existing.quantity += item.quantity
+                          existing.total_price += (item.price * item.quantity)
+                        } else {
+                          acc.push({
+                            ...item,
+                            quantity: item.quantity,
+                            total_price: (item.price * item.quantity)
+                          })
+                        }
+                        return acc
+                      }, [])
+                      return groupedItems.map((item: any, index: number) => (
+                        <tr key={`${item.dish_id}-${item.dish_type}-${index}`}>
+                          <td className="px-3 py-2 text-sm font-semibold text-gray-900">
+                            <div className="flex items-center gap-2">
+                              {getFoodTypeIcon(item.dishes?.food_type)}
+                              <span className="truncate">{item.dishes?.name}</span>
+                            </div>
+                          </td>
+                          <td className="px-3 py-2 text-sm text-center text-gray-600 font-bold">{item.quantity}x</td>
+                          <td className="px-3 py-2 text-sm text-right font-bold text-green-700">₹{item.total_price.toFixed(2)}</td>
+                        </tr>
+                      ))
+                    })()}
                   </tbody>
                 </table>
               </div>
@@ -4606,13 +4634,30 @@ ${(() => {
                     </tr>
                   </thead>
                   <tbody>
-                    {selectedOrderForBilling.order_items?.map((item: any) => (
-                      <tr key={item.id}>
-                        <td className="text-xs text-black">{item.dishes?.name}</td>
-                        <td className="text-xs text-center text-black">{item.quantity}</td>
-                        <td className="text-xs text-right text-black">{(item.price * item.quantity).toFixed(2)}</td>
-                      </tr>
-                    ))}
+                    {(() => {
+                      // Group items by dish_id and dish_type
+                      const groupedItems = (selectedOrderForBilling.order_items || []).reduce((acc: any[], item: any) => {
+                        const existing = acc.find(i => i.dish_id === item.dish_id && i.dish_type === item.dish_type)
+                        if (existing) {
+                          existing.quantity += item.quantity
+                          existing.total_price += (item.price * item.quantity)
+                        } else {
+                          acc.push({
+                            ...item,
+                            quantity: item.quantity,
+                            total_price: (item.price * item.quantity)
+                          })
+                        }
+                        return acc
+                      }, [])
+                      return groupedItems.map((item: any, index: number) => (
+                        <tr key={`${item.dish_id}-${item.dish_type}-${index}`}>
+                          <td className="text-xs text-black">{item.dishes?.name}</td>
+                          <td className="text-xs text-center text-black font-bold">{item.quantity}x</td>
+                          <td className="text-xs text-right text-black">{item.total_price.toFixed(2)}</td>
+                        </tr>
+                      ))
+                    })()}
                   </tbody>
                 </table>
               </div>
