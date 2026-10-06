@@ -204,6 +204,11 @@ export default function WaiterStatus() {
     const newPassword = prompt('Enter new password for this waiter:')
     if (!newPassword) return
 
+    if (newPassword.length < 6) {
+      alert('Password must be at least 6 characters long')
+      return
+    }
+
     try {
       // Call the password change API to initiate email verification
       const response = await fetch('/api/password-change', {
@@ -221,7 +226,14 @@ export default function WaiterStatus() {
         throw new Error(data.error || 'Failed to initiate password change')
       }
 
-      alert(`Password change verification email sent to waiter. They need to confirm it to complete the change.\n\nVerification Link: ${data.verificationLink}`)
+      // Show appropriate message based on email configuration
+      if (data.verificationLink) {
+        // Development mode or email not configured
+        alert(`Password change request created successfully!\n\nThe waiter needs to verify the change using this link:\n${data.verificationLink}\n\nIn production, this will be sent via email automatically.`)
+      } else {
+        // Production mode with email configured
+        alert(`Password change verification email sent to the waiter's email address.\n\nThe waiter must click the link in the email to complete the password change.\n\nThe password will NOT be changed until they verify it via email.`)
+      }
     } catch (error) {
       console.error('Error initiating password change:', error)
       alert('Failed to initiate password change: ' + (error as Error).message)

@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import supabase from '@/lib/db'
 import { Order, OrderItem, Dish, Table, User } from '@/types'
-import { LogOut, Printer, CheckCircle, Clock, ChefHat, Utensils, AlertCircle, RefreshCw } from 'lucide-react'
+import { LogOut, Printer, CheckCircle, Clock, ChefHat, Utensils, AlertCircle } from 'lucide-react'
 import { playClickSound, playSuccessSound, playPrintSound, playNotificationSound } from '@/lib/sound-effects'
 
 // Utility function to format order ID as DPK-XXX
@@ -223,21 +223,74 @@ export default function ChefStation() {
     const items = orderItems[order.id] || []
     const table = tables.find(t => t.id === order.table_id)
 
+    // Separate items by food type
+    const vegItems = items.filter(item => {
+      const dish = dishes.find(d => d.id === item.dish_id)
+      return dish?.food_type === 'veg'
+    })
+    const nonVegItems = items.filter(item => {
+      const dish = dishes.find(d => d.id === item.dish_id)
+      return dish?.food_type === 'nonveg'
+    })
+    const otherItems = items.filter(item => {
+      const dish = dishes.find(d => d.id === item.dish_id)
+      return dish?.food_type !== 'veg' && dish?.food_type !== 'nonveg'
+    })
+
+    let itemsText = ''
+    if (vegItems.length > 0) {
+      itemsText += '--------------------------------\n'
+      itemsText += 'VEG ITEMS:\n'
+      itemsText += '--------------------------------\n'
+      vegItems.forEach(item => {
+        const dish = dishes.find(d => d.id === item.dish_id)
+        const name = dish?.name || 'Unknown'
+        const qty = item.quantity
+        const paddedName = name.length > 18 ? name.substring(0, 17) + '.' : name
+        itemsText += `${paddedName.padEnd(18)} x${qty.toString().padStart(2)}\n`
+      })
+    }
+    if (nonVegItems.length > 0) {
+      itemsText += '--------------------------------\n'
+      itemsText += 'NON-VEG ITEMS:\n'
+      itemsText += '--------------------------------\n'
+      nonVegItems.forEach(item => {
+        const dish = dishes.find(d => d.id === item.dish_id)
+        const name = dish?.name || 'Unknown'
+        const qty = item.quantity
+        const paddedName = name.length > 18 ? name.substring(0, 17) + '.' : name
+        itemsText += `${paddedName.padEnd(18)} x${qty.toString().padStart(2)}\n`
+      })
+    }
+    if (otherItems.length > 0) {
+      itemsText += '--------------------------------\n'
+      itemsText += 'OTHER ITEMS:\n'
+      itemsText += '--------------------------------\n'
+      otherItems.forEach(item => {
+        const dish = dishes.find(d => d.id === item.dish_id)
+        const name = dish?.name || 'Unknown'
+        const qty = item.quantity
+        const paddedName = name.length > 18 ? name.substring(0, 17) + '.' : name
+        itemsText += `${paddedName.padEnd(18)} x${qty.toString().padStart(2)}\n`
+      })
+    }
+
     const billContent = `
 ================================
       DHOLE PATIL KHANAWAL
-            KOT
+        RESTAURANT & BAR
 ================================
-Table No: ${table?.table_number || 'N/A'}
-Waiter: ${order.users?.name || 'N/A'}
+           KOT
+================================
+Order ID: ${formatOrderId(order.id)}
+Date: ${new Date(order.created_at).toLocaleDateString()}
 Time: ${formatTime(order.created_at)}
+Table: ${table?.table_number || 'N/A'}
+Waiter: ${order.users?.name || 'N/A'}
 --------------------------------
-ITEMS:
-${items.map(item => {
-  const dish = dishes.find(d => d.id === item.dish_id)
-  const foodTypeIcon = dish?.food_type === 'veg' ? '[V]' : dish?.food_type === 'nonveg' ? '[N]' : ''
-  return `${foodTypeIcon} ${dish?.name || 'Unknown'}          x${item.quantity}`
-}).join('\n')}
+${itemsText}
+================================
+Developed by onethynk techmedia
 ================================
       `
 
@@ -251,16 +304,26 @@ ${items.map(item => {
             <style>
               body {
                 font-family: 'Courier New', monospace;
-                font-size: 14px;
-                padding: 20px;
+                font-size: 12px;
+                padding: 10px;
                 margin: 0;
                 text-align: center;
+                background: white;
               }
               pre {
                 white-space: pre-wrap;
                 word-wrap: break-word;
                 text-align: center;
                 display: inline-block;
+                font-weight: bold;
+              }
+              @media print {
+                body {
+                  padding: 0;
+                }
+                pre {
+                  font-size: 10px;
+                }
               }
             </style>
           </head>
@@ -320,7 +383,6 @@ ${items.map(item => {
                 onClick={() => { playClickSound(); fetchData() }}
                 className="flex items-center gap-2 bg-[#8B4513] text-white px-4 py-2 rounded-xl font-semibold hover:bg-[#8B4513] transition-all"
               >
-                <RefreshCw className="w-4 h-4" />
                 Refresh
               </button>
               <button
@@ -422,8 +484,8 @@ ${items.map(item => {
                   <div className="bg-[#8B4513] text-white p-4">
                     <div className="flex justify-between items-start mb-2">
                       <div>
-                        <h3 className="text-lg font-bold">Order #{formatOrderId(order.id)}</h3>
-                        <p className="text-sm opacity-90">Table {table?.table_number || 'N/A'}</p>
+                        <h3 className="text-sm font-bold">Order #{formatOrderId(order.id)}</h3>
+                        <p className="text-xl font-bold">Table {table?.table_number || 'N/A'}</p>
                       </div>
                       <span className={`px-3 py-1 rounded-full text-xs font-bold ${
                         order.status === 'served' ? 'bg-white border-2 border-[#8B4513] text-[#8B4513]' :
@@ -438,54 +500,169 @@ ${items.map(item => {
                     </div>
                   </div>
 
-                  {/* Order Items */}
-                  <div className="p-4 space-y-3">
-                    {items.map((item) => {
+                  {/* Order Items - Separated by Veg/Non-Veg */}
+                  <div className="p-4 space-y-4">
+                    {/* Veg Items */}
+                    {items.filter(item => {
                       const dish = dishes.find(d => d.id === item.dish_id)
-
-                      return (
-                        <div
-                          key={item.id}
-                          className={`p-3 rounded-lg border-2 ${getItemStatusColor(item.status)} transition-all`}
-                        >
-                          <div className="flex justify-between items-start">
-                            <div className="flex-1">
-                              <div className="flex items-center gap-2">
-                                {getFoodTypeIcon(dish?.food_type)}
-                                <span className="font-semibold text-[#5D3A1A]">
-                                  {dish?.name || 'Unknown Dish'}
-                                </span>
-                                <span className="bg-[#5D3A1A] text-white text-xs px-2 py-0.5 rounded-full">
-                                  x{item.quantity}
-                                </span>
-                              </div>
-                              {item.dish_type && item.dish_type !== 'Normal' && (
-                                <span className="text-xs text-gray-600 mt-1 block">
-                                  {item.dish_type}
-                                </span>
-                              )}
-                              {item.special_instructions && (
-                                <p className="text-sm text-gray-600 mt-1 italic">
-                                  Note: {item.special_instructions}
-                                </p>
-                              )}
-                            </div>
-                            <div className="text-right">
-                              <p className="font-bold text-[#5D3A1A]">
-                                ₹{(item.price * item.quantity).toFixed(2)}
-                              </p>
-                              <span className={`text-xs px-2 py-1 rounded-full border ${
-                                item.status === 'served'
-                                  ? 'bg-white border-2 border-[#8B4513] text-[#8B4513]'
-                                  : 'bg-[#F5F5DC] border-[#8B4513] text-[#8B4513]'
-                              }`}>
-                                {item.status}
-                              </span>
-                            </div>
-                          </div>
+                      return dish?.food_type === 'veg'
+                    }).length > 0 && (
+                      <div className="border-2 border-green-600 rounded-lg overflow-hidden">
+                        <div className="bg-green-600 text-white px-3 py-2 font-bold text-sm">
+                          VEG ITEMS
                         </div>
-                      )
-                    })}
+                        <div className="p-3 space-y-2">
+                          {items.filter(item => {
+                            const dish = dishes.find(d => d.id === item.dish_id)
+                            return dish?.food_type === 'veg'
+                          }).map((item) => {
+                            const dish = dishes.find(d => d.id === item.dish_id)
+                            return (
+                              <div
+                                key={item.id}
+                                className={`p-2 rounded border ${getItemStatusColor(item.status)} transition-all`}
+                              >
+                                <div className="flex justify-between items-start">
+                                  <div className="flex-1">
+                                    <div className="flex items-center gap-2">
+                                      {getFoodTypeIcon(dish?.food_type)}
+                                      <span className="font-semibold text-[#5D3A1A]">
+                                        {dish?.name || 'Unknown Dish'}
+                                      </span>
+                                      <span className="bg-green-600 text-white text-xs px-2 py-0.5 rounded-full">
+                                        x{item.quantity}
+                                      </span>
+                                    </div>
+                                    {item.dish_type && item.dish_type !== 'Normal' && (
+                                      <span className="text-xs text-gray-600 mt-1 block">
+                                        {item.dish_type}
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div className="text-right">
+                                    <span className={`text-xs px-2 py-1 rounded-full border ${
+                                      item.status === 'served'
+                                        ? 'bg-white border-2 border-green-600 text-green-600'
+                                        : 'bg-green-50 border-green-600 text-green-600'
+                                    }`}>
+                                      {item.status}
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Non-Veg Items */}
+                    {items.filter(item => {
+                      const dish = dishes.find(d => d.id === item.dish_id)
+                      return dish?.food_type === 'nonveg'
+                    }).length > 0 && (
+                      <div className="border-2 border-red-600 rounded-lg overflow-hidden">
+                        <div className="bg-red-600 text-white px-3 py-2 font-bold text-sm">
+                          NON-VEG ITEMS
+                        </div>
+                        <div className="p-3 space-y-2">
+                          {items.filter(item => {
+                            const dish = dishes.find(d => d.id === item.dish_id)
+                            return dish?.food_type === 'nonveg'
+                          }).map((item) => {
+                            const dish = dishes.find(d => d.id === item.dish_id)
+                            return (
+                              <div
+                                key={item.id}
+                                className={`p-2 rounded border ${getItemStatusColor(item.status)} transition-all`}
+                              >
+                                <div className="flex justify-between items-start">
+                                  <div className="flex-1">
+                                    <div className="flex items-center gap-2">
+                                      {getFoodTypeIcon(dish?.food_type)}
+                                      <span className="font-semibold text-[#5D3A1A]">
+                                        {dish?.name || 'Unknown Dish'}
+                                      </span>
+                                      <span className="bg-red-600 text-white text-xs px-2 py-0.5 rounded-full">
+                                        x{item.quantity}
+                                      </span>
+                                    </div>
+                                    {item.dish_type && item.dish_type !== 'Normal' && (
+                                      <span className="text-xs text-gray-600 mt-1 block">
+                                        {item.dish_type}
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div className="text-right">
+                                    <span className={`text-xs px-2 py-1 rounded-full border ${
+                                      item.status === 'served'
+                                        ? 'bg-white border-2 border-red-600 text-red-600'
+                                        : 'bg-red-50 border-red-600 text-red-600'
+                                    }`}>
+                                      {item.status}
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Other Items (custom/parcel) */}
+                    {items.filter(item => {
+                      const dish = dishes.find(d => d.id === item.dish_id)
+                      return dish?.food_type !== 'veg' && dish?.food_type !== 'nonveg'
+                    }).length > 0 && (
+                      <div className="border-2 border-blue-600 rounded-lg overflow-hidden">
+                        <div className="bg-blue-600 text-white px-3 py-2 font-bold text-sm">
+                          OTHER ITEMS
+                        </div>
+                        <div className="p-3 space-y-2">
+                          {items.filter(item => {
+                            const dish = dishes.find(d => d.id === item.dish_id)
+                            return dish?.food_type !== 'veg' && dish?.food_type !== 'nonveg'
+                          }).map((item) => {
+                            const dish = dishes.find(d => d.id === item.dish_id)
+                            return (
+                              <div
+                                key={item.id}
+                                className={`p-2 rounded border ${getItemStatusColor(item.status)} transition-all`}
+                              >
+                                <div className="flex justify-between items-start">
+                                  <div className="flex-1">
+                                    <div className="flex items-center gap-2">
+                                      {getFoodTypeIcon(dish?.food_type)}
+                                      <span className="font-semibold text-[#5D3A1A]">
+                                        {dish?.name || 'Unknown Dish'}
+                                      </span>
+                                      <span className="bg-blue-600 text-white text-xs px-2 py-0.5 rounded-full">
+                                        x{item.quantity}
+                                      </span>
+                                    </div>
+                                    {item.dish_type && item.dish_type !== 'Normal' && (
+                                      <span className="text-xs text-gray-600 mt-1 block">
+                                        {item.dish_type}
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div className="text-right">
+                                    <span className={`text-xs px-2 py-1 rounded-full border ${
+                                      item.status === 'served'
+                                        ? 'bg-white border-2 border-blue-600 text-blue-600'
+                                        : 'bg-blue-50 border-blue-600 text-blue-600'
+                                    }`}>
+                                      {item.status}
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   {/* Order Footer */}

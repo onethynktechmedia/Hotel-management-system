@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import supabase from '@/lib/db'
+import { Resend } from 'resend'
+
+// Initialize Resend with API key from environment variables
+const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null
 
 // Generate a random verification token
 function generateToken(): string {
@@ -66,29 +70,55 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to create password change request' }, { status: 500 })
     }
 
-    // In a real application, you would send an email here
-    // For now, we'll return the token for testing purposes
-    // In production, use a service like SendGrid, AWS SES, or Resend
-    const verificationLink = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/verify-password?token=${token}`
+    // Generate verification link
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+    const verificationLink = `${appUrl}/verify-password?token=${token}`
 
     console.log('Password change verification link:', verificationLink)
     console.log('Waiter email:', waiter.email)
 
-    // TODO: Implement actual email sending
-    // Example using Resend:
-    // await resend.emails.send({
-    //   from: 'your-email@yourdomain.com',
-    //   to: waiter.email,
-    //   subject: 'Password Change Verification',
-    //   html: `<p>Click <a href="${verificationLink}">here</a> to confirm your password change. This link expires in 24 hours.</p>`
-    // })
+    // Send email using Resend
+    if (resend && waiter.email) {
+      try {
+        await resend.emails.send({
+          from: process.env.RESEND_FROM_EMAIL || 'noreply@yourdomain.com',
+          to: waiter.email,
+          subject: 'Password Change Verification - Galaxy Garden Hotel',
+          html: `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+              <h2 style="color: #5D3A1A;">Password Change Request</h2>
+              <p>Hello ${waiter.name},</p>
+              <p>Your password has been requested to be changed by the hotel administrator.</p>
+              <p>To complete the password change, please click the button below:</p>
+              <p style="text-align: center; margin: 30px 0;">
+                <a href="${verificationLink}" 
+                   style="background-color: #5D3A1A; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; display: inline-block;">
+                  Confirm Password Change
+                </a>
+              </p>
+              <p>Or copy and paste this link into your browser:</p>
+              <p style="word-break: break-all; color: #666;">${verificationLink}</p>
+              <p style="color: #666; font-size: 14px; margin-top: 30px;">
+                This link will expire in 24 hours. If you did not request this change, please ignore this email.
+              </p>
+              <p style="margin-top: 20px;">Best regards,<br>Galaxy Garden Hotel Team</p>
+            </div>
+          `
+        })
+        console.log('Email sent successfully to:', waiter.email)
+      } catch (emailError) {
+        console.error('Error sending email:', emailError)
+        // Continue with the process even if email fails (for development/testing)
+      }
+    } else {
+      console.warn('Resend not configured or waiter email missing. Email not sent.')
+    }
 
-    return NextResponse.json({ 
+    return NextResponse.json({
       success: true,
-      message: 'Password change verification email sent',
-      // For testing only - remove in production
-      verificationLink,
-      token
+      message: resend ? 'Password change verification email sent' : 'Password change request created (email not configured)',
+      // Only include verification link in development or if email failed
+      ...(process.env.NODE_ENV === 'development' || !resend ? { verificationLink, token } : {})
     })
   } catch (error) {
     console.error('Error initiating password change:', error)

@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import supabase from '@/lib/db'
 import { User, Order, Dish, Table, CartItem } from '@/types'
-import { LogOut, ShoppingCart, Plus, Minus, ArrowLeft, Users, Clock, CheckCircle, X, Crown, RefreshCw, Printer, RotateCcw, History } from 'lucide-react'
+import { LogOut, ShoppingCart, Plus, Minus, ArrowLeft, Users, Clock, CheckCircle, X, Crown, Printer, RotateCcw, History } from 'lucide-react'
 import { playClickSound, playSuccessSound, playErrorSound, playPrintSound, playNotificationSound } from '@/lib/sound-effects'
 
 type Step = 'tables' | 'order-options' | 'dishes' | 'cart' | 'success' | 'alter-table' | 'repeat-order' | 'bill-preview' | 'previous-orders'
@@ -49,7 +49,6 @@ export default function WaiterPage() {
   const [selectedItemsToRepeat, setSelectedItemsToRepeat] = useState<any[]>([])
   const [previousOrderCount, setPreviousOrderCount] = useState(0)
   const [customerName, setCustomerName] = useState('')
-  const [paymentType, setPaymentType] = useState<'cash' | 'upi' | 'card'>('cash')
 
   const dishTypes = ['Normal', 'Medium', 'Spicy', 'Extra Spicy']
 
@@ -139,7 +138,13 @@ export default function WaiterPage() {
     setSelectedTable(table)
 
     if (table.is_occupied) {
-      // Find the active order for this table
+      // For master tables, allow adding orders even when occupied
+      if (table.is_master) {
+        setCurrentStep('dishes')
+        return
+      }
+
+      // For regular tables, check if there's an active order
       const tableOrder = orders.find(o => o.table_id === table.id && !['paid', 'completed'].includes(o.status))
       if (tableOrder) {
         handleViewBill(tableOrder)
@@ -1924,7 +1929,6 @@ ${itemsList}
                             onClick={() => { playClickSound(); handleRepeatOrder(primaryOrder) }}
                             className="flex-1 flex items-center justify-center gap-2 bg-[#5D3A1A] text-white px-6 py-3 rounded-xl font-semibold hover:bg-[#8B4513] transition-all duration-300"
                           >
-                            <RefreshCw className="w-5 h-5" />
                             Repeat Order
                           </button>
                           <button
@@ -2216,60 +2220,6 @@ ${itemsList}
                     placeholder="Enter customer name"
                     className="w-full px-4 py-2 border-2 border-gray-200 rounded-xl focus:border-amber-500 focus:outline-none text-sm"
                   />
-                </div>
-              </div>
-
-              {/* Payment Type Selection */}
-              <div className="p-4 sm:p-6 bg-white border-t border-gray-200">
-                <label className="block text-sm font-semibold text-gray-700 mb-3">Payment Type</label>
-                <div className="flex gap-3">
-                  <button
-                    onClick={() => setPaymentType('cash')}
-                    className={`flex-1 px-4 py-3 rounded-xl font-semibold transition-all duration-300 ${
-                      paymentType === 'cash'
-                        ? 'bg-[#5D3A1A] text-white'
-                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                    }`}
-                  >
-                    <span className="flex items-center gap-2">
-                      <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" viewBox="0 0 20 20" fill="currentColor">
-                        <path d="M4 4a2 2 0 00-2 2v4a2 2 0 002 2V6h10a2 2 0 00-2-2H4z" />
-                        <path fillRule="evenodd" d="M6 10a2 2 0 012-2h8a2 2 0 012 2v4a2 2 0 01-2 2H8a2 2 0 01-2-2v-4zm5-1a1 1 0 100 2 1 1 0 000-2z" clipRule="evenodd" />
-                      </svg>
-                      Cash
-                    </span>
-                  </button>
-                  <button
-                    onClick={() => setPaymentType('upi')}
-                    className={`flex-1 px-4 py-3 rounded-xl font-semibold transition-all duration-300 ${
-                      paymentType === 'upi'
-                        ? 'bg-blue-600 text-white'
-                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                    }`}
-                  >
-                    <span className="flex items-center gap-2">
-                      <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" viewBox="0 0 20 20" fill="currentColor">
-                        <path fillRule="evenodd" d="M12.586 4.586a2 2 0 112.828 2.828l-3 3a2 2 0 01-2.828 0 1 1 0 00-1.414 1.414 4 4 0 005.656 0l3-3a4 4 0 00-5.656-5.656l-1.5 1.5a1 1 0 101.414 1.414l1.5-1.5zm-5 5a2 2 0 012.828 0 1 1 0 101.414-1.414 4 4 0 00-5.656 0l-3 3a4 4 0 105.656 5.656l1.5-1.5a1 1 0 10-1.414-1.414l-1.5 1.5a2 2 0 11-2.828-2.828l3-3z" clipRule="evenodd" />
-                      </svg>
-                      UPI
-                    </span>
-                  </button>
-                  <button
-                    onClick={() => setPaymentType('card')}
-                    className={`flex-1 px-4 py-3 rounded-xl font-semibold transition-all duration-300 ${
-                      paymentType === 'card'
-                        ? 'bg-purple-600 text-white'
-                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                    }`}
-                  >
-                    <span className="flex items-center gap-2">
-                      <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" viewBox="0 0 20 20" fill="currentColor">
-                        <path d="M4 4a2 2 0 00-2 2v1h16V6a2 2 0 00-2-2H4z" />
-                        <path fillRule="evenodd" d="M18 9H2v5a2 2 0 002 2h12a2 2 0 002-2V9zM4 13a1 1 0 011-1h1a1 1 0 110 2H5a1 1 0 01-1-1zm5-1a1 1 0 100 2h1a1 1 0 100-2H9z" clipRule="evenodd" />
-                      </svg>
-                      Card
-                    </span>
-                  </button>
                 </div>
               </div>
 

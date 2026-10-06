@@ -127,6 +127,7 @@ export default function AdminDashboard() {
   const [sgstRate, setSgstRate] = useState('2.5')
   const [showCartModal, setShowCartModal] = useState(false)
   const [addedDishIds, setAddedDishIds] = useState<Set<string>>(new Set())
+  const [billPaymentType, setBillPaymentType] = useState<'cash' | 'online'>('cash')
 
   useEffect(() => {
     // Check for session cookie instead of localStorage
@@ -910,6 +911,7 @@ ${billOrderItems.map((item: any) => {
       escposContent += `Table: ${selectedOrderForBilling.tables?.is_master ? `${selectedOrderForBilling.tables?.table_number} (M)` : selectedOrderForBilling.tables?.table_number}\n`
       escposContent += `Waiter: ${selectedOrderForBilling.users?.name}\n`
       escposContent += `Customer: ${selectedOrderForBilling.customer_name || 'Guest'}\n`
+      escposContent += `Payment: ${billPaymentType === 'cash' ? 'CASH' : 'ONLINE'}\n`
       escposContent += '--------------------------\n'
       
       // Items Header
@@ -4541,6 +4543,9 @@ ${(() => {
                   <span>Waiter: {selectedOrderForBilling.users?.name}</span>
                   <span>Customer: {selectedOrderForBilling.customer_name || 'Guest'}</span>
                 </div>
+                <div className="flex justify-between text-xs text-black mt-1">
+                  <span>Payment: {billPaymentType === 'cash' ? 'CASH' : 'ONLINE'}</span>
+                </div>
               </div>
 
               {/* Order Info */}
@@ -4740,6 +4745,33 @@ ${(() => {
                 <div className="mt-6">
                   &nbsp;
                 </div>
+              </div>
+            </div>
+
+            {/* Payment Type Selection */}
+            <div className="mt-6 p-4 bg-white border-2 border-[#8B4513] rounded-xl no-print">
+              <label className="block text-sm font-bold text-[#5D3A1A] mb-3 uppercase">Payment Type</label>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setBillPaymentType('cash')}
+                  className={`flex-1 px-4 py-3 rounded-xl font-bold transition-all duration-300 ${
+                    billPaymentType === 'cash'
+                      ? 'bg-[#5D3A1A] text-white'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  Cash
+                </button>
+                <button
+                  onClick={() => setBillPaymentType('online')}
+                  className={`flex-1 px-4 py-3 rounded-xl font-bold transition-all duration-300 ${
+                    billPaymentType === 'online'
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  Online
+                </button>
               </div>
             </div>
 
