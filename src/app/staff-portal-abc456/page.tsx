@@ -137,14 +137,20 @@ export default function WaiterPage() {
   const handleTableSelect = async (table: Table) => {
     setSelectedTable(table)
 
-    if (table.is_occupied) {
-      // For master tables, allow adding orders even when occupied
-      if (table.is_master) {
-        setCurrentStep('dishes')
-        return
-      }
+    // For master tables, always allow taking orders (regardless of occupied status)
+    if (table.is_master) {
+      setCurrentStep('dishes')
+      return
+    }
 
-      // For regular tables, check if there's an active order
+    // For child tables (part of master table), show error
+    if (table.master_table_id) {
+      alert('This table is part of a master table. Please use the master table to place orders.')
+      return
+    }
+
+    // For regular tables, check if occupied
+    if (table.is_occupied) {
       const tableOrder = orders.find(o => o.table_id === table.id && !['paid', 'completed'].includes(o.status))
       if (tableOrder) {
         handleViewBill(tableOrder)
@@ -153,7 +159,8 @@ export default function WaiterPage() {
       }
       return
     }
-    // For both regular and master tables, use the same dishes view
+
+    // For available regular tables, go to dishes
     setCurrentStep('dishes')
   }
 
@@ -2893,7 +2900,7 @@ ${itemsList}
               </div>
             )}
             <div className="space-y-2 max-h-96 overflow-y-auto">
-              {tables.filter(t => !t.is_master && !t.master_table_id).map(table => (
+              {tables.filter(t => !t.master_table_id).map(table => (
                 <label key={table.id} className="flex items-center p-3 border-2 border-gray-200 rounded-xl hover:border-[#8B4513] cursor-pointer transition-colors">
                   <input
                     type="checkbox"

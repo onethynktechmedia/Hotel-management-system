@@ -216,77 +216,86 @@ export default function ChefStation() {
     }
   }
 
-  const handlePrintKOT = async (order: Order) => {
+  const handleCompleteKOT = async (orderId: string, foodType: string) => {
+    try {
+      // Update only items of the specified food type to 'served'
+      const items = orderItems[orderId] || []
+      for (const item of items) {
+        const dish = dishes.find(d => d.id === item.dish_id)
+        const itemFoodType = dish?.food_type
+
+        if (
+          (foodType === 'veg' && itemFoodType === 'veg') ||
+          (foodType === 'nonveg' && itemFoodType === 'nonveg') ||
+          (foodType === 'other' && itemFoodType !== 'veg' && itemFoodType !== 'nonveg')
+        ) {
+          await fetch(`/api/order-items/${item.id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status: 'served' })
+          })
+        }
+      }
+
+      // Check if all items in the order are now served
+      const allItemsServed = items.every(item => item.status === 'served')
+
+      // If all items are served, update order status
+      if (allItemsServed) {
+        await fetch(`/api/orders/${orderId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: 'served' })
+        })
+      }
+
+      playSuccessSound()
+      fetchData()
+    } catch (error) {
+      console.error('Error completing KOT:', error)
+      alert('Failed to complete KOT')
+    }
+  }
+
+  const handlePrintKOT = async (order: Order, foodType: string) => {
     playClickSound()
     playPrintSound()
 
     const items = orderItems[order.id] || []
     const table = tables.find(t => t.id === order.table_id)
 
-    // Separate items by food type
-    const vegItems = items.filter(item => {
+    // Filter items by food type
+    const filteredItems = items.filter(item => {
       const dish = dishes.find(d => d.id === item.dish_id)
-      return dish?.food_type === 'veg'
-    })
-    const nonVegItems = items.filter(item => {
-      const dish = dishes.find(d => d.id === item.dish_id)
-      return dish?.food_type === 'nonveg'
-    })
-    const otherItems = items.filter(item => {
-      const dish = dishes.find(d => d.id === item.dish_id)
+      if (foodType === 'veg') return dish?.food_type === 'veg'
+      if (foodType === 'nonveg') return dish?.food_type === 'nonveg'
       return dish?.food_type !== 'veg' && dish?.food_type !== 'nonveg'
     })
 
+    // Build items text
     let itemsText = ''
-    if (vegItems.length > 0) {
-      itemsText += '--------------------------------\n'
-      itemsText += 'VEG ITEMS:\n'
-      itemsText += '--------------------------------\n'
-      vegItems.forEach(item => {
-        const dish = dishes.find(d => d.id === item.dish_id)
-        const name = dish?.name || 'Unknown'
-        const qty = item.quantity
-        const paddedName = name.length > 18 ? name.substring(0, 17) + '.' : name
-        itemsText += `${paddedName.padEnd(18)} x${qty.toString().padStart(2)}\n`
-      })
-    }
-    if (nonVegItems.length > 0) {
-      itemsText += '--------------------------------\n'
-      itemsText += 'NON-VEG ITEMS:\n'
-      itemsText += '--------------------------------\n'
-      nonVegItems.forEach(item => {
-        const dish = dishes.find(d => d.id === item.dish_id)
-        const name = dish?.name || 'Unknown'
-        const qty = item.quantity
-        const paddedName = name.length > 18 ? name.substring(0, 17) + '.' : name
-        itemsText += `${paddedName.padEnd(18)} x${qty.toString().padStart(2)}\n`
-      })
-    }
-    if (otherItems.length > 0) {
-      itemsText += '--------------------------------\n'
-      itemsText += 'OTHER ITEMS:\n'
-      itemsText += '--------------------------------\n'
-      otherItems.forEach(item => {
-        const dish = dishes.find(d => d.id === item.dish_id)
-        const name = dish?.name || 'Unknown'
-        const qty = item.quantity
-        const paddedName = name.length > 18 ? name.substring(0, 17) + '.' : name
-        itemsText += `${paddedName.padEnd(18)} x${qty.toString().padStart(2)}\n`
-      })
-    }
+    filteredItems.forEach(item => {
+      const dish = dishes.find(d => d.id === item.dish_id)
+      const name = dish?.name || 'Unknown'
+      const qty = item.quantity
+      const paddedName = name.length > 18 ? name.substring(0, 17) + '.' : name
+      itemsText += `${paddedName.padEnd(18)} x${qty.toString().padStart(2)}\n`
+    })
 
     const billContent = `
 ================================
       DHOLE PATIL KHANAWAL
         RESTAURANT & BAR
 ================================
-           KOT
+        ${foodType === 'veg' ? 'VEG' : foodType === 'nonveg' ? 'NON-VEG' : 'OTHER'} KOT
 ================================
 Order ID: ${formatOrderId(order.id)}
 Date: ${new Date(order.created_at).toLocaleDateString()}
 Time: ${formatTime(order.created_at)}
 Table: ${table?.table_number || 'N/A'}
 Waiter: ${order.users?.name || 'N/A'}
+--------------------------------
+ITEMS:
 --------------------------------
 ${itemsText}
 ================================
@@ -466,7 +475,7 @@ Developed by onethynk techmedia
           </div>
         </div>
 
-        {/* Orders Grid */}
+        {/* Orders Grid - Split by Food Type */}
         {filteredOrders.length === 0 ? (
           <div className="text-center py-12 bg-white rounded-2xl shadow-lg">
             <Utensils className="w-16 h-16 text-gray-300 mx-auto mb-4" />
@@ -478,220 +487,149 @@ Developed by onethynk techmedia
               const items = orderItems[order.id] || []
               const table = tables.find(t => t.id === order.table_id)
 
-              return (
-                <div key={order.id} className="bg-white rounded-2xl shadow-lg overflow-hidden">
-                  {/* Order Header */}
-                  <div className="bg-[#8B4513] text-white p-4">
-                    <div className="flex justify-between items-start mb-2">
-                      <div>
-                        <h3 className="text-sm font-bold">Order #{formatOrderId(order.id)}</h3>
-                        <p className="text-xl font-bold">Table {table?.table_number || 'N/A'}</p>
+              // Separate items by food type
+              const vegItems = items.filter(item => {
+                const dish = dishes.find(d => d.id === item.dish_id)
+                return dish?.food_type === 'veg'
+              })
+              const nonVegItems = items.filter(item => {
+                const dish = dishes.find(d => d.id === item.dish_id)
+                return dish?.food_type === 'nonveg'
+              })
+              const otherItems = items.filter(item => {
+                const dish = dishes.find(d => d.id === item.dish_id)
+                return dish?.food_type !== 'veg' && dish?.food_type !== 'nonveg'
+              })
+
+              // Create separate KOT cards for each food type
+              const kotCards = []
+
+              if (vegItems.length > 0) {
+                kotCards.push({
+                  type: 'veg',
+                  color: 'green',
+                  items: vegItems,
+                  label: 'VEG'
+                })
+              }
+
+              if (nonVegItems.length > 0) {
+                kotCards.push({
+                  type: 'nonveg',
+                  color: 'red',
+                  items: nonVegItems,
+                  label: 'NON-VEG'
+                })
+              }
+
+              if (otherItems.length > 0) {
+                kotCards.push({
+                  type: 'other',
+                  color: 'blue',
+                  items: otherItems,
+                  label: 'OTHER'
+                })
+              }
+
+              return kotCards.map((kot, kotIndex) => {
+                const allItemsServed = kot.items.every(item => item.status === 'served')
+                const endTime = allItemsServed ? formatTime(order.updated_at || order.created_at) : null
+
+                return (
+                  <div key={`${order.id}-${kot.type}`} className="bg-white rounded-2xl shadow-lg overflow-hidden">
+                    {/* Order Header */}
+                    <div className={`bg-${kot.color === 'green' ? 'green' : kot.color === 'red' ? 'red' : 'blue'}-600 text-white p-4`}>
+                      <div className="flex justify-between items-start mb-2">
+                        <div>
+                          <h3 className="text-sm font-bold">Order #{formatOrderId(order.id)}</h3>
+                          <p className="text-xl font-bold">Table {table?.table_number || 'N/A'}</p>
+                          <p className="text-xs font-bold mt-1">{kot.label} KOT</p>
+                        </div>
+                        <span className={`px-3 py-1 rounded-full text-xs font-bold ${
+                          allItemsServed ? 'bg-white border-2 border-white text-white' :
+                          'bg-white text-gray-800'
+                        }`}>
+                          {allItemsServed ? 'COMPLETED' : 'IN PROGRESS'}
+                        </span>
                       </div>
-                      <span className={`px-3 py-1 rounded-full text-xs font-bold ${
-                        order.status === 'served' ? 'bg-white border-2 border-[#8B4513] text-[#8B4513]' :
-                        'bg-[#F5F5DC] text-[#8B4513]'
-                      }`}>
-                        {order.status}
-                      </span>
+                      <div className="flex justify-between items-center text-sm opacity-90">
+                        <span>Start: {formatTime(order.created_at)}</span>
+                        {endTime && <span>End: {endTime}</span>}
+                      </div>
+                      <div className="text-sm opacity-90 mt-1">
+                        Waiter: {order.users?.name || 'N/A'}
+                      </div>
                     </div>
-                    <div className="flex justify-between items-center text-sm opacity-90">
-                      <span>{formatTime(order.created_at)}</span>
-                      <span>Waiter: {order.users?.name || 'N/A'}</span>
+
+                    {/* Order Items */}
+                    <div className="p-4 space-y-2">
+                      {kot.items.map((item) => {
+                        const dish = dishes.find(d => d.id === item.dish_id)
+                        return (
+                          <div
+                            key={item.id}
+                            className={`p-2 rounded border ${getItemStatusColor(item.status)} transition-all`}
+                          >
+                            <div className="flex justify-between items-start">
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2">
+                                  {getFoodTypeIcon(dish?.food_type)}
+                                  <span className="font-semibold text-[#5D3A1A]">
+                                    {dish?.name || 'Unknown Dish'}
+                                  </span>
+                                  <span className={`bg-${kot.color}-600 text-white text-xs px-2 py-0.5 rounded-full`}>
+                                    x{item.quantity}
+                                  </span>
+                                </div>
+                                {item.dish_type && item.dish_type !== 'Normal' && (
+                                  <span className="text-xs text-gray-600 mt-1 block">
+                                    {item.dish_type}
+                                  </span>
+                                )}
+                              </div>
+                              <div className="text-right">
+                                <span className={`text-xs px-2 py-1 rounded-full border ${
+                                  item.status === 'served'
+                                    ? `bg-white border-2 border-${kot.color}-600 text-${kot.color}-600`
+                                    : `bg-${kot.color}-50 border-${kot.color}-600 text-${kot.color}-600`
+                                }`}>
+                                  {item.status}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        )
+                      })}
                     </div>
-                  </div>
 
-                  {/* Order Items - Separated by Veg/Non-Veg */}
-                  <div className="p-4 space-y-4">
-                    {/* Veg Items */}
-                    {items.filter(item => {
-                      const dish = dishes.find(d => d.id === item.dish_id)
-                      return dish?.food_type === 'veg'
-                    }).length > 0 && (
-                      <div className="border-2 border-green-600 rounded-lg overflow-hidden">
-                        <div className="bg-green-600 text-white px-3 py-2 font-bold text-sm">
-                          VEG ITEMS
-                        </div>
-                        <div className="p-3 space-y-2">
-                          {items.filter(item => {
-                            const dish = dishes.find(d => d.id === item.dish_id)
-                            return dish?.food_type === 'veg'
-                          }).map((item) => {
-                            const dish = dishes.find(d => d.id === item.dish_id)
-                            return (
-                              <div
-                                key={item.id}
-                                className={`p-2 rounded border ${getItemStatusColor(item.status)} transition-all`}
-                              >
-                                <div className="flex justify-between items-start">
-                                  <div className="flex-1">
-                                    <div className="flex items-center gap-2">
-                                      {getFoodTypeIcon(dish?.food_type)}
-                                      <span className="font-semibold text-[#5D3A1A]">
-                                        {dish?.name || 'Unknown Dish'}
-                                      </span>
-                                      <span className="bg-green-600 text-white text-xs px-2 py-0.5 rounded-full">
-                                        x{item.quantity}
-                                      </span>
-                                    </div>
-                                    {item.dish_type && item.dish_type !== 'Normal' && (
-                                      <span className="text-xs text-gray-600 mt-1 block">
-                                        {item.dish_type}
-                                      </span>
-                                    )}
-                                  </div>
-                                  <div className="text-right">
-                                    <span className={`text-xs px-2 py-1 rounded-full border ${
-                                      item.status === 'served'
-                                        ? 'bg-white border-2 border-green-600 text-green-600'
-                                        : 'bg-green-50 border-green-600 text-green-600'
-                                    }`}>
-                                      {item.status}
-                                    </span>
-                                  </div>
-                                </div>
-                              </div>
-                            )
-                          })}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Non-Veg Items */}
-                    {items.filter(item => {
-                      const dish = dishes.find(d => d.id === item.dish_id)
-                      return dish?.food_type === 'nonveg'
-                    }).length > 0 && (
-                      <div className="border-2 border-red-600 rounded-lg overflow-hidden">
-                        <div className="bg-red-600 text-white px-3 py-2 font-bold text-sm">
-                          NON-VEG ITEMS
-                        </div>
-                        <div className="p-3 space-y-2">
-                          {items.filter(item => {
-                            const dish = dishes.find(d => d.id === item.dish_id)
-                            return dish?.food_type === 'nonveg'
-                          }).map((item) => {
-                            const dish = dishes.find(d => d.id === item.dish_id)
-                            return (
-                              <div
-                                key={item.id}
-                                className={`p-2 rounded border ${getItemStatusColor(item.status)} transition-all`}
-                              >
-                                <div className="flex justify-between items-start">
-                                  <div className="flex-1">
-                                    <div className="flex items-center gap-2">
-                                      {getFoodTypeIcon(dish?.food_type)}
-                                      <span className="font-semibold text-[#5D3A1A]">
-                                        {dish?.name || 'Unknown Dish'}
-                                      </span>
-                                      <span className="bg-red-600 text-white text-xs px-2 py-0.5 rounded-full">
-                                        x{item.quantity}
-                                      </span>
-                                    </div>
-                                    {item.dish_type && item.dish_type !== 'Normal' && (
-                                      <span className="text-xs text-gray-600 mt-1 block">
-                                        {item.dish_type}
-                                      </span>
-                                    )}
-                                  </div>
-                                  <div className="text-right">
-                                    <span className={`text-xs px-2 py-1 rounded-full border ${
-                                      item.status === 'served'
-                                        ? 'bg-white border-2 border-red-600 text-red-600'
-                                        : 'bg-red-50 border-red-600 text-red-600'
-                                    }`}>
-                                      {item.status}
-                                    </span>
-                                  </div>
-                                </div>
-                              </div>
-                            )
-                          })}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Other Items (custom/parcel) */}
-                    {items.filter(item => {
-                      const dish = dishes.find(d => d.id === item.dish_id)
-                      return dish?.food_type !== 'veg' && dish?.food_type !== 'nonveg'
-                    }).length > 0 && (
-                      <div className="border-2 border-blue-600 rounded-lg overflow-hidden">
-                        <div className="bg-blue-600 text-white px-3 py-2 font-bold text-sm">
-                          OTHER ITEMS
-                        </div>
-                        <div className="p-3 space-y-2">
-                          {items.filter(item => {
-                            const dish = dishes.find(d => d.id === item.dish_id)
-                            return dish?.food_type !== 'veg' && dish?.food_type !== 'nonveg'
-                          }).map((item) => {
-                            const dish = dishes.find(d => d.id === item.dish_id)
-                            return (
-                              <div
-                                key={item.id}
-                                className={`p-2 rounded border ${getItemStatusColor(item.status)} transition-all`}
-                              >
-                                <div className="flex justify-between items-start">
-                                  <div className="flex-1">
-                                    <div className="flex items-center gap-2">
-                                      {getFoodTypeIcon(dish?.food_type)}
-                                      <span className="font-semibold text-[#5D3A1A]">
-                                        {dish?.name || 'Unknown Dish'}
-                                      </span>
-                                      <span className="bg-blue-600 text-white text-xs px-2 py-0.5 rounded-full">
-                                        x{item.quantity}
-                                      </span>
-                                    </div>
-                                    {item.dish_type && item.dish_type !== 'Normal' && (
-                                      <span className="text-xs text-gray-600 mt-1 block">
-                                        {item.dish_type}
-                                      </span>
-                                    )}
-                                  </div>
-                                  <div className="text-right">
-                                    <span className={`text-xs px-2 py-1 rounded-full border ${
-                                      item.status === 'served'
-                                        ? 'bg-white border-2 border-blue-600 text-blue-600'
-                                        : 'bg-blue-50 border-blue-600 text-blue-600'
-                                    }`}>
-                                      {item.status}
-                                    </span>
-                                  </div>
-                                </div>
-                              </div>
-                            )
-                          })}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Order Footer */}
-                  <div className="p-4 bg-gray-50 border-t border-gray-200">
-                    <div className="flex justify-between items-center mb-3">
-                      <span className="font-semibold text-gray-700">Total Amount</span>
-                      <span className="text-xl font-bold text-[#5D3A1A]">₹{order.total_amount.toFixed(2)}</span>
-                    </div>
-                    <div className="flex gap-2">
+                    {/* Action Buttons */}
+                    <div className="p-4 border-t border-gray-200 flex gap-2">
                       <button
-                        onClick={() => handlePrintKOT(order)}
-                        className="flex-1 flex items-center justify-center gap-2 bg-[#8B4513] text-white py-2 rounded-xl font-semibold hover:bg-[#5D3A13] transition-all"
+                        onClick={() => handlePrintKOT(order, kot.type)}
+                        className="flex-1 flex items-center justify-center gap-2 bg-[#8B4513] text-white px-4 py-2 rounded-xl font-semibold hover:bg-[#8B4513] transition-all"
                       >
                         <Printer className="w-4 h-4" />
                         Print KOT
                       </button>
-                      {order.status !== 'served' && (
+                      {allItemsServed ? (
                         <button
-                          onClick={() => handleCompleteOrder(order.id)}
-                          className="flex-1 flex items-center justify-center gap-2 bg-[#8B4513] text-white py-2 rounded-xl font-semibold hover:bg-[#5D3A13] transition-all"
+                          className="flex-1 px-4 py-2 bg-green-600 text-white rounded-xl font-semibold opacity-50 cursor-not-allowed"
+                          disabled
                         >
-                          <CheckCircle className="w-4 h-4" />
                           Completed
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => handleCompleteKOT(order.id, kot.type)}
+                          className="flex-1 px-4 py-2 bg-[#8B4513] text-white rounded-xl font-semibold hover:bg-[#8B4513] transition-all"
+                        >
+                          Complete
                         </button>
                       )}
                     </div>
                   </div>
-                </div>
-              )
+                )
+              })
             })}
           </div>
         )}
