@@ -272,34 +272,30 @@ export default function ChefStation() {
       return dish?.food_type !== 'veg' && dish?.food_type !== 'nonveg'
     })
 
-    // Build items text
+    // Build items text with bold quantities
     let itemsText = ''
     filteredItems.forEach(item => {
       const dish = dishes.find(d => d.id === item.dish_id)
       const name = dish?.name || 'Unknown'
       const qty = item.quantity
-      const paddedName = name.length > 18 ? name.substring(0, 17) + '.' : name
-      itemsText += `${paddedName.padEnd(18)} x${qty.toString().padStart(2)}\n`
+      itemsText += `${name}  <b>${qty}x</b>\n`
     })
+
+    // Get table display - for master tables, show only master table number
+    const tableDisplay = table?.is_master ? `Table ${table?.table_number} (MASTER)` : `Table ${table?.table_number || 'N/A'}`
 
     const billContent = `
 ================================
       DHOLE PATIL KHANAWAL
-        RESTAURANT & BAR
 ================================
-        ${foodType === 'veg' ? 'VEG' : foodType === 'nonveg' ? 'NON-VEG' : 'OTHER'} KOT
+      ${foodType === 'veg' ? 'VEG' : foodType === 'nonveg' ? 'NON-VEG' : 'OTHER'} KOT
 ================================
+<b>TABLE: ${tableDisplay}</b>
 Order ID: ${formatOrderId(order.id)}
-Date: ${new Date(order.created_at).toLocaleDateString()}
 Time: ${formatTime(order.created_at)}
-Table: ${table?.table_number || 'N/A'}
 Waiter: ${order.users?.name || 'N/A'}
 --------------------------------
-ITEMS:
---------------------------------
 ${itemsText}
-================================
-Developed by onethynk techmedia
 ================================
       `
 
@@ -313,31 +309,40 @@ Developed by onethynk techmedia
             <style>
               body {
                 font-family: 'Courier New', monospace;
-                font-size: 12px;
-                padding: 10px;
+                font-size: 10px;
+                padding: 5px;
                 margin: 0;
                 text-align: center;
                 background: white;
+                line-height: 1.2;
               }
-              pre {
+              .kot-content {
                 white-space: pre-wrap;
                 word-wrap: break-word;
                 text-align: center;
                 display: inline-block;
+                font-weight: normal;
+              }
+              b {
                 font-weight: bold;
+                font-size: 12px;
               }
               @media print {
                 body {
                   padding: 0;
+                  margin: 0;
                 }
-                pre {
-                  font-size: 10px;
+                .kot-content {
+                  font-size: 9px;
+                }
+                @page {
+                  margin: 5mm;
                 }
               }
             </style>
           </head>
           <body>
-            <pre>${billContent}</pre>
+            <div class="kot-content">${billContent}</div>
           </body>
         </html>
       `)
