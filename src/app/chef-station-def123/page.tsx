@@ -264,8 +264,22 @@ export default function ChefStation() {
     const items = orderItems[order.id] || []
     const table = tables.find(t => t.id === order.table_id)
 
-    // Filter items by food type
-    const filteredItems = items.filter(item => {
+    // Group items by dish_id to combine quantities
+    const groupedItems = items.reduce((acc: any[], item) => {
+      const existing = acc.find(i => i.dish_id === item.dish_id && i.dish_type === item.dish_type)
+      if (existing) {
+        existing.quantity += item.quantity
+      } else {
+        acc.push({
+          ...item,
+          quantity: item.quantity
+        })
+      }
+      return acc
+    }, [])
+
+    // Filter grouped items by food type
+    const filteredItems = groupedItems.filter(item => {
       const dish = dishes.find(d => d.id === item.dish_id)
       if (foodType === 'veg') return dish?.food_type === 'veg'
       if (foodType === 'nonveg') return dish?.food_type === 'nonveg'
@@ -278,25 +292,25 @@ export default function ChefStation() {
       const dish = dishes.find(d => d.id === item.dish_id)
       const name = dish?.name || 'Unknown'
       const qty = item.quantity
-      itemsText += `${name} <b>${qty}x</b>\n`
+      itemsText += `<b>${name} ${qty}x</b>\n`
     })
 
     // Get table display - for master tables, show only master table number
     const tableDisplay = table?.is_master ? `Table ${table?.table_number} (MASTER)` : `Table ${table?.table_number || 'N/A'}`
 
     const billContent = `
-====================
-DHOLE PATIL KHANAWAL
-====================
-${foodType === 'veg' ? 'VEG' : foodType === 'nonveg' ? 'NON-VEG' : 'OTHER'} KOT
-====================
-TABLE: ${tableDisplay}
+<b>====================</b>
+<b>DHOLE PATIL KHANAWAL</b>
+<b>====================</b>
+<b>${foodType === 'veg' ? 'VEG' : foodType === 'nonveg' ? 'NON-VEG' : 'OTHER'} KOT</b>
+<b>====================</b>
+<b>TABLE: ${tableDisplay}</b>
 Order ID: ${formatOrderId(order.id)}
 Time: ${formatTime(order.created_at)}
 Waiter: ${order.users?.name || 'N/A'}
 --------------------
 ${itemsText}
-====================
+<b>====================</b>
       `
 
     // Create a new window to print
@@ -324,7 +338,8 @@ ${itemsText}
                 margin: 0 auto;
               }
               b {
-                font-weight: bold;
+                font-weight: 900;
+                font-size: 14px;
               }
               @media print {
                 body {
@@ -333,6 +348,9 @@ ${itemsText}
                 }
                 .kot-content {
                   font-size: 10px;
+                }
+                b {
+                  font-size: 12px;
                 }
                 @page {
                   margin: 5mm;
@@ -492,16 +510,32 @@ ${itemsText}
               const items = orderItems[order.id] || []
               const table = tables.find(t => t.id === order.table_id)
 
-              // Separate items by food type
-              const vegItems = items.filter(item => {
+              // Group items by dish_id to combine quantities
+              const groupedItems = items.reduce((acc: any[], item) => {
+                const existing = acc.find(i => i.dish_id === item.dish_id && i.dish_type === item.dish_type)
+                if (existing) {
+                  existing.quantity += item.quantity
+                  existing.itemIds.push(item.id) // Track all item IDs for status checking
+                } else {
+                  acc.push({
+                    ...item,
+                    quantity: item.quantity,
+                    itemIds: [item.id]
+                  })
+                }
+                return acc
+              }, [])
+
+              // Separate grouped items by food type
+              const vegItems = groupedItems.filter(item => {
                 const dish = dishes.find(d => d.id === item.dish_id)
                 return dish?.food_type === 'veg'
               })
-              const nonVegItems = items.filter(item => {
+              const nonVegItems = groupedItems.filter(item => {
                 const dish = dishes.find(d => d.id === item.dish_id)
                 return dish?.food_type === 'nonveg'
               })
-              const otherItems = items.filter(item => {
+              const otherItems = groupedItems.filter(item => {
                 const dish = dishes.find(d => d.id === item.dish_id)
                 return dish?.food_type !== 'veg' && dish?.food_type !== 'nonveg'
               })
@@ -537,7 +571,13 @@ ${itemsText}
               }
 
               return kotCards.map((kot, kotIndex) => {
-                const allItemsServed = kot.items.every(item => item.status === 'served')
+                // Check if all items in this KOT are served (checking all original item IDs)
+                const allItemsServed = kot.items.every(item =>
+                  item.itemIds.every((itemId: string) => {
+                    const originalItem = items.find(i => i.id === itemId)
+                    return originalItem?.status === 'served'
+                  })
+                )
                 const endTime = allItemsServed ? formatTime(order.updated_at || order.created_at) : null
 
                 return (

@@ -137,30 +137,23 @@ export default function WaiterPage() {
   const handleTableSelect = async (table: Table) => {
     setSelectedTable(table)
 
-    // For master tables, always allow taking orders (regardless of occupied status)
-    if (table.is_master) {
-      setCurrentStep('dishes')
-      return
-    }
-
     // For child tables (part of master table), show error
     if (table.master_table_id) {
       alert('This table is part of a master table. Please use the master table to place orders.')
       return
     }
 
-    // For regular tables, check if occupied
+    // For master tables and regular tables, check if occupied and show bill if there's an active order
     if (table.is_occupied) {
       const tableOrder = orders.find(o => o.table_id === table.id && !['paid', 'completed'].includes(o.status))
       if (tableOrder) {
         handleViewBill(tableOrder)
-      } else {
-        alert('No active order found for this table.')
+        return
       }
-      return
+      // If occupied but no active order (rare case), allow new order
     }
 
-    // For available regular tables, go to dishes
+    // For available tables (or master tables without active orders), go to dishes
     setCurrentStep('dishes')
   }
 
@@ -1512,7 +1505,7 @@ ${itemsList}
                   </button>
                   <button
                     onClick={() => { playClickSound(); handleTableSelect(table) }}
-                    disabled={table.is_occupied}
+                    disabled={table.is_occupied && !table.is_master}
                     className="w-full text-left"
                   >
                     <div className="flex justify-between items-start mb-4 pr-8">
@@ -1520,11 +1513,13 @@ ${itemsList}
                         <Users className="w-5 h-5 sm:w-6 sm:h-6 text-[#5D3A1A]" />
                       </div>
                       <span className={`px-2 sm:px-3 py-1 rounded-full text-xs font-bold ${
-                        table.is_occupied 
-                          ? 'bg-red-100 text-red-800' 
+                        table.is_master && table.is_occupied
+                          ? 'bg-green-100 text-green-800'
+                          : table.is_occupied
+                          ? 'bg-red-100 text-red-800'
                           : 'bg-[#F5F5DC] text-[#5D3A1A]'
                       }`}>
-                        {table.is_occupied ? 'Occupied' : 'Available'}
+                        {table.is_master && table.is_occupied ? 'Active' : table.is_occupied ? 'Occupied' : 'Available'}
                       </span>
                     </div>
                     <h3 className="text-lg sm:text-xl font-bold text-gray-900 mb-2">
@@ -1539,6 +1534,11 @@ ${itemsList}
                     {table.is_occupied && !table.is_master && (
                       <p className="text-xs text-red-600 font-semibold mt-2">
                         This table is currently occupied
+                      </p>
+                    )}
+                    {table.is_occupied && table.is_master && (
+                      <p className="text-xs text-green-600 font-semibold mt-2">
+                        Master table - Can add orders
                       </p>
                     )}
                   </button>
