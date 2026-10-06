@@ -278,25 +278,25 @@ export default function ChefStation() {
       const dish = dishes.find(d => d.id === item.dish_id)
       const name = dish?.name || 'Unknown'
       const qty = item.quantity
-      itemsText += `${name}  <b>${qty}x</b>\n`
+      itemsText += `${name} <b>${qty}x</b>\n`
     })
 
     // Get table display - for master tables, show only master table number
     const tableDisplay = table?.is_master ? `Table ${table?.table_number} (MASTER)` : `Table ${table?.table_number || 'N/A'}`
 
     const billContent = `
-================================
-      DHOLE PATIL KHANAWAL
-================================
-      ${foodType === 'veg' ? 'VEG' : foodType === 'nonveg' ? 'NON-VEG' : 'OTHER'} KOT
-================================
-<b>TABLE: ${tableDisplay}</b>
+====================
+DHOLE PATIL KHANAWAL
+====================
+${foodType === 'veg' ? 'VEG' : foodType === 'nonveg' ? 'NON-VEG' : 'OTHER'} KOT
+====================
+TABLE: ${tableDisplay}
 Order ID: ${formatOrderId(order.id)}
 Time: ${formatTime(order.created_at)}
 Waiter: ${order.users?.name || 'N/A'}
---------------------------------
+--------------------
 ${itemsText}
-================================
+====================
       `
 
     // Create a new window to print
@@ -309,34 +309,34 @@ ${itemsText}
             <style>
               body {
                 font-family: 'Courier New', monospace;
-                font-size: 10px;
-                padding: 5px;
+                font-size: 12px;
+                padding: 10px;
                 margin: 0;
                 text-align: center;
                 background: white;
-                line-height: 1.2;
+                line-height: 1.4;
               }
               .kot-content {
-                white-space: pre-wrap;
-                word-wrap: break-word;
+                white-space: pre;
                 text-align: center;
                 display: inline-block;
                 font-weight: normal;
+                margin: 0 auto;
               }
               b {
                 font-weight: bold;
-                font-size: 12px;
               }
               @media print {
                 body {
-                  padding: 0;
+                  padding: 5px;
                   margin: 0;
                 }
                 .kot-content {
-                  font-size: 9px;
+                  font-size: 10px;
                 }
                 @page {
                   margin: 5mm;
+                  size: 80mm auto;
                 }
               }
             </style>
