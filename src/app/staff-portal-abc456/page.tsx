@@ -662,10 +662,6 @@ export default function WaiterPage() {
     setCurrentStep('alter-table')
   }
 
-  const handleViewMasterTableOrders = (table: Table) => {
-    setSelectedMasterTable(table)
-  }
-
   const handleConfirmOrder = async (orderId: string) => {
     setConfirmingOrder(true)
     try {
@@ -1403,12 +1399,6 @@ ${itemsList}
       console.error('Error initializing tables:', error)
       alert('Failed to initialize tables')
     }
-  }
-
-  const handleSelectMasterTable = (table: Table) => {
-    setSelectedMasterTable(table)
-    setMasterTableCart([])
-    setCurrentStep('master-station-detail')
   }
 
   const filteredDishes = dishes.filter(dish => {
