@@ -305,9 +305,9 @@ export default function ChefStation() {
 <b>${foodType === 'veg' ? 'VEG' : foodType === 'nonveg' ? 'NON-VEG' : 'OTHER'} KOT</b>
 <b>====================</b>
 <b>TABLE: ${tableDisplay}</b>
-Order ID: ${formatOrderId(order.id)}
-Time: ${formatTime(order.created_at)}
-Waiter: ${order.users?.name || 'N/A'}
+<b>Order ID: ${formatOrderId(order.id)}</b>
+<b>Time: ${formatTime(order.created_at)}</b>
+<b>Waiter: ${order.users?.name || 'N/A'}</b>
 --------------------
 ${itemsText}
 <b>====================</b>
@@ -372,11 +372,11 @@ ${itemsText}
   const getItemStatusColor = (status: string) => {
     switch (status) {
       case 'pending':
-        return 'bg-[#F5F5DC] border-[#8B4513] text-[#8B4513]'
+        return 'bg-[#F5F5DC] text-[#8B4513]'
       case 'served':
-        return 'bg-white border-2 border-[#8B4513] text-[#8B4513]'
+        return 'bg-white text-[#8B4513]'
       default:
-        return 'bg-[#F5F5DC] border-[#8B4513] text-[#8B4513]'
+        return 'bg-[#F5F5DC] text-[#8B4513]'
     }
   }
 
@@ -546,7 +546,7 @@ ${itemsText}
               if (vegItems.length > 0) {
                 kotCards.push({
                   type: 'veg',
-                  color: 'green',
+                  bgColor: 'bg-green-50',
                   items: vegItems,
                   label: 'VEG'
                 })
@@ -555,7 +555,7 @@ ${itemsText}
               if (nonVegItems.length > 0) {
                 kotCards.push({
                   type: 'nonveg',
-                  color: 'red',
+                  bgColor: 'bg-stone-200',
                   items: nonVegItems,
                   label: 'NON-VEG'
                 })
@@ -564,7 +564,7 @@ ${itemsText}
               if (otherItems.length > 0) {
                 kotCards.push({
                   type: 'other',
-                  color: 'blue',
+                  bgColor: 'bg-blue-50',
                   items: otherItems,
                   label: 'OTHER'
                 })
@@ -581,27 +581,27 @@ ${itemsText}
                 const endTime = allItemsServed ? formatTime(order.updated_at || order.created_at) : null
 
                 return (
-                  <div key={`${order.id}-${kot.type}`} className="bg-white rounded-2xl shadow-lg overflow-hidden">
+                  <div key={`${order.id}-${kot.type}`} className={`${kot.bgColor} rounded-2xl shadow-lg overflow-hidden`}>
                     {/* Order Header */}
-                    <div className={`bg-${kot.color === 'green' ? 'green' : kot.color === 'red' ? 'red' : 'blue'}-600 text-white p-4`}>
+                    <div className="p-4">
                       <div className="flex justify-between items-start mb-2">
                         <div>
-                          <h3 className="text-sm font-bold">Order #{formatOrderId(order.id)}</h3>
-                          <p className="text-xl font-bold">Table {table?.table_number || 'N/A'}</p>
-                          <p className="text-xs font-bold mt-1">{kot.label} KOT</p>
+                          <h3 className="text-sm font-bold text-gray-700">Order #{formatOrderId(order.id)}</h3>
+                          <p className="text-4xl font-black text-[#8B4513]">Table {table?.table_number || 'N/A'}</p>
+                          <p className="text-xs font-bold mt-1 text-gray-600">{kot.label} KOT</p>
                         </div>
                         <span className={`px-3 py-1 rounded-full text-xs font-bold ${
-                          allItemsServed ? 'bg-white border-2 border-white text-white' :
-                          'bg-white text-gray-800'
+                          allItemsServed ? 'bg-white text-[#8B4513] border-2 border-[#8B4513]' :
+                          'bg-[#8B4513] text-white'
                         }`}>
-                          {allItemsServed ? 'COMPLETED' : 'IN PROGRESS'}
+                          {allItemsServed ? 'SERVED' : 'IN PROGRESS'}
                         </span>
                       </div>
-                      <div className="flex justify-between items-center text-sm opacity-90">
+                      <div className="flex justify-between items-center text-sm text-gray-600">
                         <span>Start: {formatTime(order.created_at)}</span>
                         {endTime && <span>End: {endTime}</span>}
                       </div>
-                      <div className="text-sm opacity-90 mt-1">
+                      <div className="text-sm text-gray-600 mt-1">
                         Waiter: {order.users?.name || 'N/A'}
                       </div>
                     </div>
@@ -613,7 +613,7 @@ ${itemsText}
                         return (
                           <div
                             key={item.id}
-                            className={`p-2 rounded border ${getItemStatusColor(item.status)} transition-all`}
+                            className={`p-2 rounded ${getItemStatusColor(item.status)} transition-all`}
                           >
                             <div className="flex justify-between items-start">
                               <div className="flex-1">
@@ -622,7 +622,7 @@ ${itemsText}
                                   <span className="font-semibold text-[#5D3A1A]">
                                     {dish?.name || 'Unknown Dish'}
                                   </span>
-                                  <span className={`bg-${kot.color}-600 text-white text-xs px-2 py-0.5 rounded-full`}>
+                                  <span className="bg-[#8B4513] text-white text-xs px-2 py-0.5 rounded-full">
                                     x{item.quantity}
                                   </span>
                                 </div>
@@ -633,12 +633,12 @@ ${itemsText}
                                 )}
                               </div>
                               <div className="text-right">
-                                <span className={`text-xs px-2 py-1 rounded-full border ${
+                                <span className={`text-xs px-2 py-1 rounded-full ${
                                   item.status === 'served'
-                                    ? `bg-white border-2 border-${kot.color}-600 text-${kot.color}-600`
-                                    : `bg-${kot.color}-50 border-${kot.color}-600 text-${kot.color}-600`
+                                    ? 'bg-white text-[#8B4513] font-bold'
+                                    : 'bg-[#F5F5DC] text-[#8B4513] font-bold'
                                 }`}>
-                                  {item.status}
+                                  {item.status === 'served' ? 'Served' : item.status}
                                 </span>
                               </div>
                             </div>
@@ -658,10 +658,10 @@ ${itemsText}
                       </button>
                       {allItemsServed ? (
                         <button
-                          className="flex-1 px-4 py-2 bg-green-600 text-white rounded-xl font-semibold opacity-50 cursor-not-allowed"
+                          className="flex-1 px-4 py-2 bg-white text-[#8B4513] border-2 border-[#8B4513] rounded-xl font-semibold opacity-50 cursor-not-allowed"
                           disabled
                         >
-                          Completed
+                          Served
                         </button>
                       ) : (
                         <button
