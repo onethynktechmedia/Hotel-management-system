@@ -358,6 +358,9 @@ export default function OfflineAdminPage() {
       // Generate properly formatted plain text bill content for thermal printer
       // 58mm paper width = approximately 32-35 characters per line
       const plainText = `
+<div style="text-align: center; margin-bottom: 8px;">
+  <img src="/dhole patil logo-03.png" alt="Dhole Patil Logo" style="width: 120px; height: auto; margin-bottom: 8px;" />
+</div>
 <strong class="header">DHOLE PATIL Khanawal</strong><br>
 Restaurant & Bar<br>
 ================================<br>

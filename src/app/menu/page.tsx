@@ -103,10 +103,13 @@ export default function MenuPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-16">
             <div className="flex items-center gap-3">
-              <img src="/logo.png" alt="Dhole Patil Hotel Logo" className="w-10 h-10 rounded-full object-cover" />
-              <Link href="/" className="text-2xl font-bold text-[#5D3A1A]">
-                Dhole Patil Khanawal
-              </Link>
+              <img src="/logo.png" alt="Dhole Patil Hotel Logo" className="w-12 h-12 rounded-full object-cover flex-shrink-0" />
+              <div className="flex flex-col">
+                <Link href="/" className="text-xl font-bold text-[#5D3A1A] leading-tight">
+                  Dhole Patil
+                </Link>
+                <p className="text-sm text-gray-600 leading-tight font-semibold">Khanawal</p>
+              </div>
             </div>
             
             {/* Desktop Navigation */}

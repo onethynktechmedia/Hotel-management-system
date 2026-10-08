@@ -358,6 +358,9 @@ export default function OfflineAdminPage() {
       // Generate properly formatted plain text bill content for thermal printer
       // 58mm paper width = approximately 32-35 characters per line
       const plainText = `
+<div style="text-align: center; margin-bottom: 8px;">
+  <img src="/dhole patil logo-03.png" alt="Dhole Patil Logo" style="width: 120px; height: auto; margin-bottom: 8px;" />
+</div>
 <strong class="header">DHOLE PATIL Khanawal</strong><br>
 Restaurant & Bar<br>
 ================================<br>
@@ -529,7 +532,7 @@ Visit Us Again<br>
             <div className="flex items-center gap-4">
               {/* Switch to Online Mode Button */}
               <button
-                onClick={handleSwitchToOnline}
+                onClick={() => { playClickSound(); handleSwitchToOnline() }}
                 className={`p-2 rounded-full transition-colors ${isOnline ? 'bg-[#F5F5DC] hover:bg-[#DEB887]' : 'bg-gray-100 hover:bg-gray-200'}`}
                 title="Switch to Online Mode"
               >
@@ -1061,7 +1064,7 @@ Visit Us Again<br>
           <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-2xl font-bold text-green-700">Bill Preview</h2>
-              <button onClick={() => setShowBillPreview(false)} className="text-gray-500"><X className="w-6 h-6" /></button>
+              <button onClick={() => { playClickSound(); setShowBillPreview(false) }} className="text-gray-500"><X className="w-6 h-6" /></button>
             </div>
             <div className="space-y-4">
               <div className="bg-gray-50 rounded-lg p-4">
@@ -1083,9 +1086,9 @@ Visit Us Again<br>
               </div>
             </div>
             <div className="flex gap-3 mt-6">
-              <button onClick={() => setShowBillPreview(false)} className="flex-1 px-6 py-3 border-2 border-[#8B4513] text-[#5D3A1A] rounded-xl">Close</button>
-              <button onClick={handlePrintBill} className="flex-1 px-6 py-3 bg-[#5D3A1A] text-white rounded-xl">Print Bill</button>
-              <button onClick={createOfflineOrder} className="flex-1 px-6 py-3 bg-blue-600 text-white rounded-xl">Create Order</button>
+              <button onClick={() => { playClickSound(); setShowBillPreview(false) }} className="flex-1 px-6 py-3 border-2 border-[#8B4513] text-[#5D3A1A] rounded-xl">Close</button>
+              <button onClick={() => { playClickSound(); handlePrintBill() }} className="flex-1 px-6 py-3 bg-[#5D3A1A] text-white rounded-xl">Print Bill</button>
+              <button onClick={() => { playClickSound(); createOfflineOrder() }} className="flex-1 px-6 py-3 bg-blue-600 text-white rounded-xl">Create Order</button>
             </div>
           </div>
         </div>
@@ -1097,7 +1100,7 @@ Visit Us Again<br>
           <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-2xl font-bold text-green-700">Print Bill</h2>
-              <button onClick={() => setSelectedOrderForBilling(null)} className="text-gray-500"><Trash2 className="w-6 h-6" /></button>
+              <button onClick={() => { playClickSound(); setSelectedOrderForBilling(null) }} className="text-gray-500"><Trash2 className="w-6 h-6" /></button>
             </div>
             <div className="space-y-4">
               <div className="bg-gray-50 rounded-lg p-4">
@@ -1120,10 +1123,10 @@ Visit Us Again<br>
               </div>
             </div>
             <div className="flex gap-3 mt-6">
-              <button onClick={() => setSelectedOrderForBilling(null)} className="flex-1 px-6 py-3 border-2 border-[#8B4513] text-[#5D3A1A] rounded-xl">Close</button>
-              <button onClick={handleConnectPrinter} className="flex-1 px-6 py-3 bg-blue-600 text-white rounded-xl"><Printer className="w-4 h-4 inline" /> {printerConnected ? 'Connected' : 'Connect'}</button>
-              <button onClick={handleThermalPrint} className="flex-1 px-6 py-3 bg-[#5D3A1A] text-white rounded-xl">Print Bill</button>
-              <button onClick={() => handleMarkAsPaid(selectedOrderForBilling)} className="flex-1 px-6 py-3 bg-[#5D3A1A] text-white rounded-xl">Mark Paid</button>
+              <button onClick={() => { playClickSound(); setSelectedOrderForBilling(null) }} className="flex-1 px-6 py-3 border-2 border-[#8B4513] text-[#5D3A1A] rounded-xl">Close</button>
+              <button onClick={() => { playClickSound(); handleConnectPrinter() }} className="flex-1 px-6 py-3 bg-blue-600 text-white rounded-xl"><Printer className="w-4 h-4 inline" /> {printerConnected ? 'Connected' : 'Connect'}</button>
+              <button onClick={() => { playClickSound(); handleThermalPrint() }} className="flex-1 px-6 py-3 bg-[#5D3A1A] text-white rounded-xl">Print Bill</button>
+              <button onClick={() => { playClickSound(); handleMarkAsPaid(selectedOrderForBilling) }} className="flex-1 px-6 py-3 bg-[#5D3A1A] text-white rounded-xl">Mark Paid</button>
             </div>
           </div>
         </div>

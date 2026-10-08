@@ -3,12 +3,12 @@
 import React, { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { User, Order, Dish, Table, Payment, Notification } from '@/types'
-import { Plus, Edit, Trash2, DollarSign, Users, Utensils, User as UserIcon, Search, Filter, HelpCircle, Bell, LogOut, Download, Printer, Layers } from 'lucide-react'
+import { Plus, Edit, Trash2, DollarSign, Users, Utensils, User as UserIcon, Search, Filter, HelpCircle, Bell, LogOut, Download, Printer, Layers, Minus, X } from 'lucide-react'
 import Sidebar from '@/components/Sidebar'
 import WaiterStatus from '@/components/WaiterStatus'
 import Reports from '@/components/Reports'
 import { WebUSBPrinter } from '@/lib/webusb-printer'
-import { playNotificationSound } from '@/lib/sound-effects'
+import { playClickSound, playNotificationSound, playSuccessSound, playErrorSound } from '@/lib/sound-effects'
 
 // Utility function to format order ID as DPK-XXX
 const formatOrderId = (orderId: string) => {
@@ -127,7 +127,7 @@ export default function AdminDashboard() {
   const [sgstRate, setSgstRate] = useState('2.5')
   const [showCartModal, setShowCartModal] = useState(false)
   const [addedDishIds, setAddedDishIds] = useState<Set<string>>(new Set())
-  const [billPaymentType, setBillPaymentType] = useState<'cash' | 'online'>('cash')
+  const [billPaymentType, setBillPaymentType] = useState<'cash' | 'upi' | 'card'>('cash')
 
   useEffect(() => {
     // Check for session cookie instead of localStorage
@@ -394,6 +394,7 @@ export default function AdminDashboard() {
   }
 
   const handleAddDish = () => {
+    playClickSound()
     setEditingDish(null)
     setDishForm({
       name: '',
@@ -422,6 +423,7 @@ export default function AdminDashboard() {
   }
 
   const handleDeleteDish = async (id: string) => {
+    playClickSound()
     if (!confirm('Are you sure you want to delete this dish?')) return
 
     try {
@@ -507,7 +509,7 @@ export default function AdminDashboard() {
   const handleGenerateBill = async (order: Order) => {
     try {
       console.log('Generating bill for order:', order.id)
-      
+
       // Set viewing bill state to show preview modal
       setViewingBill(order)
       setBillOrderItems(order.order_items || [])
@@ -515,7 +517,10 @@ export default function AdminDashboard() {
       // Reset discount and tax values
       setBillDiscountAmount('')
       setBillDiscountPercentage('')
-      
+      // Set payment type from order (map 'online' to 'upi' for consistency)
+      const orderPaymentType = (order as any).payment_type
+      setBillPaymentType(orderPaymentType === 'upi' ? 'upi' : orderPaymentType === 'card' ? 'card' : 'cash')
+
     } catch (error: any) {
       console.error('Error generating bill:', error)
     }
@@ -550,13 +555,14 @@ export default function AdminDashboard() {
   }
 
   const handleUpdateBillItem = (itemId: string, newQuantity: number) => {
-    const updatedItems = billOrderItems.map(item => 
+    playClickSound()
+    const updatedItems = billOrderItems.map(item =>
       item.id === itemId ? { ...item, quantity: newQuantity } : item
     )
     setBillOrderItems(updatedItems)
-    
+
     // Recalculate total
-    const newTotal = updatedItems.reduce((sum, item) => 
+    const newTotal = updatedItems.reduce((sum, item) =>
       sum + (item.dishes?.price || item.dish?.price || item.price || 0) * item.quantity, 0
     )
     if (viewingBill) {
@@ -564,12 +570,12 @@ export default function AdminDashboard() {
     }
   }
 
-  const handleDeleteBillItem = (itemId: string) => {
+  const handleRemoveBillItem = (itemId: string) => {
     const updatedItems = billOrderItems.filter(item => item.id !== itemId)
     setBillOrderItems(updatedItems)
-    
+
     // Recalculate total
-    const newTotal = updatedItems.reduce((sum, item) => 
+    const newTotal = updatedItems.reduce((sum, item) =>
       sum + (item.dishes?.price || item.dish?.price || item.price || 0) * item.quantity, 0
     )
     if (viewingBill) {
@@ -598,7 +604,21 @@ export default function AdminDashboard() {
     if (!viewingBill) return
 
     try {
-      // Update order items in database
+      // Get original order items to identify which ones were removed
+      const originalItems = viewingBill.order_items || []
+      const currentItemIds = billOrderItems.map(item => item.id)
+      const removedItemIds = originalItems
+        .filter((item: any) => !currentItemIds.includes(item.id))
+        .map((item: any) => item.id)
+
+      // Delete removed items from database
+      for (const itemId of removedItemIds) {
+        await fetch(`/api/order-items/${itemId}`, {
+          method: 'DELETE'
+        })
+      }
+
+      // Update quantities for existing items
       for (const item of billOrderItems) {
         await fetch(`/api/order-items/${item.id}`, {
           method: 'PATCH',
@@ -607,17 +627,24 @@ export default function AdminDashboard() {
         })
       }
 
-      // Update order total
+      // Update order total and payment type
       await fetch(`/api/orders/${viewingBill.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ total_amount: viewingBill.total_amount })
+        body: JSON.stringify({
+          total_amount: viewingBill.total_amount,
+          payment_type: billPaymentType
+        })
       })
 
       setIsEditingBill(false)
       fetchData() // Refresh data
+      playSuccessSound()
+      alert('Bill updated successfully!')
     } catch (error) {
       console.error('Error saving bill edits:', error)
+      playErrorSound()
+      alert('Failed to update bill. Please try again.')
     }
   }
 
@@ -654,6 +681,7 @@ export default function AdminDashboard() {
       escposContent += `Time: ${new Date(viewingBill.created_at).toLocaleTimeString()}\n`
       escposContent += `Table: ${viewingBill.tables?.is_master ? `${viewingBill.tables?.table_number || 'N/A'} (M)` : (viewingBill.tables?.table_number || 'N/A')}\n`
       escposContent += `Waiter: ${viewingBill.users?.name || 'N/A'}\n`
+      escposContent += `Payment: ${billPaymentType === 'upi' ? 'UPI' : billPaymentType === 'card' ? 'CARD' : billPaymentType === 'cash' ? 'CASH' : 'CASH'}\n`
       escposContent += '--------------------------\n'
       
       // Items Header
@@ -726,6 +754,7 @@ export default function AdminDashboard() {
         const isMasterTable = viewingBill.tables?.is_master || false
         const plainText = `
 <div style="text-align: center; margin-bottom: 8px;">
+  <img src="/dhole patil logo-03.png" alt="Dhole Patil Logo" style="width: 120px; height: auto; margin-bottom: 8px;" />
   <div style="font-size: 18px; font-weight: 900; color: #000;">DHOLE PATIL KHANAWAL</div>
   <div style="font-size: 12px; font-weight: bold; color: #000;">VEG & NON-VEG</div>
 </div>
@@ -763,6 +792,10 @@ export default function AdminDashboard() {
   <div style="display: flex; justify-content: space-between;">
     <span>CUSTOMER:</span>
     <span>${viewingBill.customer_name || 'GUEST'}</span>
+  </div>
+  <div style="display: flex; justify-content: space-between;">
+    <span>PAYMENT:</span>
+    <span>${billPaymentType === 'upi' ? 'UPI' : billPaymentType === 'card' ? 'CARD' : billPaymentType === 'cash' ? 'CASH' : 'CASH'}</span>
   </div>
 </div>
 <div style="border-top: 1px dashed #000; margin: 4px 0;"></div>
@@ -927,7 +960,7 @@ ${groupOrderItems(billOrderItems).map((item: any) => {
       escposContent += `Table: ${selectedOrderForBilling.tables?.is_master ? `${selectedOrderForBilling.tables?.table_number} (M)` : selectedOrderForBilling.tables?.table_number}\n`
       escposContent += `Waiter: ${selectedOrderForBilling.users?.name}\n`
       escposContent += `Customer: ${selectedOrderForBilling.customer_name || 'Guest'}\n`
-      escposContent += `Payment: ${billPaymentType === 'cash' ? 'CASH' : 'ONLINE'}\n`
+      escposContent += `Payment: ${billPaymentType === 'upi' ? 'UPI' : billPaymentType === 'card' ? 'CARD' : billPaymentType === 'cash' ? 'CASH' : 'CASH'}\n`
       escposContent += '--------------------------\n'
       
       // Items Header
@@ -1042,6 +1075,10 @@ ${groupOrderItems(billOrderItems).map((item: any) => {
   <div style="display: flex; justify-content: space-between;">
     <span>CUSTOMER:</span>
     <span>${selectedOrderForBilling.customer_name || 'GUEST'}</span>
+  </div>
+  <div style="display: flex; justify-content: space-between;">
+    <span>PAYMENT:</span>
+    <span>${billPaymentType === 'upi' ? 'UPI' : billPaymentType === 'card' ? 'CARD' : billPaymentType === 'cash' ? 'CASH' : 'CASH'}</span>
   </div>
 </div>
 <div style="border-top: 1px dashed #000; margin: 4px 0;"></div>
@@ -1247,11 +1284,11 @@ For technical support, contact: support@everycom.com
 
   const handleMarkAsPaid = async (order: Order) => {
     try {
-      // Update order status to paid
+      // Update order status to paid and save payment type
       await fetch('/api/orders', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: order.id, status: 'paid' })
+        body: JSON.stringify({ id: order.id, status: 'paid', payment_type: billPaymentType })
       })
 
       // Check if this is a master table
@@ -1260,6 +1297,11 @@ For technical support, contact: support@everycom.com
       if (table?.is_master) {
         // Release all child tables
         const childTables = tables.filter(t => t.master_table_id === order.table_id)
+
+        // Calculate the original capacity by subtracting child table capacities
+        const childTablesCapacity = childTables.reduce((sum, child) => sum + (child.capacity || 0), 0)
+        const originalCapacity = Math.max(0, (table.capacity || 0) - childTablesCapacity)
+
         for (const childTable of childTables) {
           await fetch('/api/tables', {
             method: 'PATCH',
@@ -1272,13 +1314,14 @@ For technical support, contact: support@everycom.com
           })
         }
 
-        // Remove master status from the table
+        // Remove master status from the table and reset capacity to original
         await fetch('/api/tables', {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             id: order.table_id,
-            is_master: false
+            is_master: false,
+            capacity: originalCapacity
           })
         })
       }
@@ -1304,6 +1347,7 @@ For technical support, contact: support@everycom.com
   }
 
   const handleLogout = () => {
+    playClickSound()
     // Clear cookies
     document.cookie = 'hotel_session=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT'
     document.cookie = 'hotel_role=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT'
@@ -1315,6 +1359,7 @@ For technical support, contact: support@everycom.com
 
   // Table Management Functions
   const handleAddTable = () => {
+    playClickSound()
     setEditingTable(null)
     setTableForm({
       table_number: '',
@@ -1490,6 +1535,11 @@ For technical support, contact: support@everycom.com
       // If this is a master table, release all child tables first
       if (table?.is_master) {
         const childTables = tables.filter(t => t.master_table_id === tableId)
+
+        // Calculate the original capacity by subtracting child table capacities
+        const childTablesCapacity = childTables.reduce((sum, child) => sum + (child.capacity || 0), 0)
+        const originalCapacity = Math.max(0, (table.capacity || 0) - childTablesCapacity)
+
         for (const childTable of childTables) {
           await fetch('/api/tables', {
             method: 'PATCH',
@@ -1502,14 +1552,15 @@ For technical support, contact: support@everycom.com
           })
         }
 
-        // Also release the master table and remove master status
+        // Also release the master table, remove master status, and reset capacity
         await fetch('/api/tables', {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             id: tableId,
             is_occupied: false,
-            is_master: false
+            is_master: false,
+            capacity: originalCapacity
           })
         })
       } else {
@@ -1702,6 +1753,9 @@ For technical support, contact: support@everycom.com
   const printOfflineBill = async (order: any) => {
     try {
       const plainText = `
+<div style="text-align: center; margin-bottom: 8px;">
+  <img src="/dhole patil logo-03.png" alt="Dhole Patil Logo" style="width: 120px; height: auto; margin-bottom: 8px;" />
+</div>
 <div class="header">DHOLE PATIL KHANAWAL</div>
 <div class="subheader">Restaurant & Bar</div>
 <div class="divider">================================</div>
@@ -1975,9 +2029,10 @@ ${(() => {
   }
 
   const handleCreateBill = () => {
+    playClickSound()
     console.log('Creating bill - Cart items:', offlineCart)
     console.log('Selected table:', selectedTable)
-    
+
     if (offlineCart.length === 0) {
       alert('Please add items to cart first')
       return
@@ -2007,6 +2062,9 @@ ${(() => {
     console.log('Waiter name:', waiterName)
     
     const plainText = `
+<div style="text-align: center; margin-bottom: 8px;">
+  <img src="/dhole patil logo-03.png" alt="Dhole Patil Logo" style="width: 120px; height: auto; margin-bottom: 8px;" />
+</div>
 <strong class="header">DHOLE PATIL KHANAWAL</strong><br>
 <strong>VEG & NON-VEG</strong><br>
 ================================<br>
@@ -2232,30 +2290,28 @@ ${(() => {
 
   return (
     <div className="min-h-screen bg-[#F5F5DC] flex">
-      <Sidebar 
-        activeTab={activeTab} 
-        setActiveTab={setActiveTab} 
-        user={user} 
+      <Sidebar
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+        user={user}
       />
 
       <div className="flex-1 lg:ml-72">
         {/* Top Header Bar */}
         <header className="fixed top-0 right-0 left-0 lg:left-72 bg-white/95 backdrop-blur-sm shadow-md z-30 px-4 lg:px-8 py-4">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <div className="w-10 h-10 bg-[#5D3A1A] rounded-xl flex items-center justify-center">
-                <span className="text-white font-bold text-lg">H</span>
-              </div>
-              <div>
-                <h1 className="text-lg font-bold text-gray-900">Hotel Admin</h1>
-                <p className="text-xs text-gray-600">Management System</p>
+            <div className="flex items-center gap-3">
+              <img src="/logo.png" alt="Dhole Patil Hotel Logo" className="w-12 h-12 rounded-full object-cover flex-shrink-0" />
+              <div className="flex flex-col">
+                <h1 className="text-lg font-bold text-[#5D3A1A] leading-tight">Dhole Patil</h1>
+                <p className="text-sm text-gray-600 leading-tight font-semibold">Khanawal</p>
               </div>
             </div>
             
             <div className="flex items-center gap-3">
               {/* Support Button */}
               <button
-                onClick={() => alert('Support: Contact admin@hotel.com for assistance')}
+                onClick={() => { playClickSound(); alert('Support: Contact admin@hotel.com for assistance') }}
                 className="p-2 rounded-xl bg-[#F5F5DC] text-[#5D3A1A] hover:bg-[#DEB887] transition-all duration-300"
                 title="Support"
               >
@@ -2265,7 +2321,7 @@ ${(() => {
               {/* Notification Button */}
               <div className="relative">
                 <button
-                  onClick={() => setShowNotifications(!showNotifications)}
+                  onClick={() => { playClickSound(); setShowNotifications(!showNotifications) }}
                   className="p-2 rounded-xl bg-[#F5F5DC] text-[#5D3A1A] hover:bg-[#DEB887] transition-all duration-300 relative"
                   title="Notifications"
                 >
@@ -2284,6 +2340,7 @@ ${(() => {
                       <p className="font-semibold text-gray-900">Notifications</p>
                       <button
                         onClick={() => {
+                          playClickSound()
                           notifications.forEach(n => {
                             fetch(`/api/notifications/${n.id}`, {
                               method: 'PATCH',
@@ -2309,6 +2366,7 @@ ${(() => {
                             key={notification.id}
                             className={`px-4 py-3 hover:bg-amber-50 transition-colors cursor-pointer ${!notification.is_read ? 'bg-amber-50' : ''}`}
                             onClick={() => {
+                              playClickSound()
                               fetch(`/api/notifications/${notification.id}`, {
                                 method: 'PATCH',
                                 headers: { 'Content-Type': 'application/json' },
@@ -2337,7 +2395,7 @@ ${(() => {
               {/* Profile Menu */}
               <div className="relative">
                 <button
-                  onClick={() => setShowProfileMenu(!showProfileMenu)}
+                  onClick={() => { playClickSound(); setShowProfileMenu(!showProfileMenu) }}
                   className="flex items-center gap-2 p-2 rounded-xl bg-[#F5F5DC] hover:bg-[#DEB887] transition-all duration-300"
                 >
                   <div className="w-8 h-8 bg-[#5D3A1A] rounded-full flex items-center justify-center text-white font-bold text-sm">
@@ -2354,7 +2412,7 @@ ${(() => {
                       <p className="text-xs text-gray-600">{user?.email || 'admin@hotel.com'}</p>
                     </div>
                     <button
-                      onClick={handleLogout}
+                      onClick={() => { playClickSound(); handleLogout() }}
                       className="w-full flex items-center gap-2 px-4 py-2 text-left text-red-600 hover:text-red-800 font-semibold"
                     >
                       <LogOut className="w-4 h-4" />
@@ -2372,7 +2430,7 @@ ${(() => {
         {activeTab === 'overview' && (
           <>
             <div className="mb-6 animate-fade-in">
-              <h1 className="text-3xl font-bold text-[#5D3A1A]">
+              <h1 className="text-3xl font-bold text-[#5D3A1A] pt-5">
                 Welcome, {user?.name || 'Admin'}!
               </h1>
               <p className="text-gray-600 mt-2 text-sm">
@@ -2412,13 +2470,13 @@ ${(() => {
               </div>
             </div>
             {/* Revenue Insights - Recent Orders */}
-            <div className="bg-white/95 backdrop-blur-sm rounded-2xl shadow-xl overflow-hidden animate-fade-in">
-              <div className="p-6 border-b border-gray-200 bg-[#F5F5DC]">
+            <div className="bg-white rounded-2xl shadow-xl overflow-hidden animate-fade-in">
+              <div className="p-6 border-b border-gray-200 bg-white">
                 <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-4">
                   <h3 className="text-xl font-bold text-gray-900">Recent Orders</h3>
                   <div className="flex flex-wrap gap-2">
                     <button
-                      onClick={fetchData}
+                      onClick={() => { playClickSound(); fetchData() }}
                       className="flex items-center gap-2 bg-[#5D3A1A] text-white px-4 py-2 rounded-xl font-semibold hover:shadow-lg transition-all duration-300 transform hover:scale-105"
                     >
                       <Search className="w-4 h-4" />
@@ -2453,7 +2511,7 @@ ${(() => {
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full">
-                  <thead className="bg-[#F5F5DC]">
+                  <thead className="bg-gray-50">
                     <tr>
                       <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Table No</th>
                       <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Order ID</th>
@@ -2519,6 +2577,7 @@ ${(() => {
                             <button
                               onClick={(e) => {
                                 e.stopPropagation()
+                                playClickSound()
                                 handleGenerateBill(order)
                               }}
                               className="bg-[#5D3A1A] text-white px-3 py-1 rounded-lg text-xs font-semibold hover:bg-[#8B4513] transition-all duration-300"
@@ -2584,7 +2643,7 @@ ${(() => {
               <div className="p-6 border-b border-gray-200 bg-[#F5F5DC] flex justify-between items-center">
                 <h3 className="text-xl font-bold text-gray-900">All Orders</h3>
               <button
-                onClick={fetchData}
+                onClick={() => { playClickSound(); fetchData() }}
                 className="flex items-center bg-[#5D3A1A] text-white px-4 py-2 rounded-xl font-semibold hover:shadow-lg transition-all duration-300 transform hover:scale-105"
               >
                 🔄 Refresh
@@ -2645,6 +2704,7 @@ ${(() => {
                           <button
                             onClick={(e) => {
                               e.stopPropagation()
+                              playClickSound()
                               handleGenerateBill(order)
                             }}
                             className="bg-[#5D3A1A] text-white px-3 py-1 rounded-lg text-xs font-semibold hover:bg-[#8B4513] transition-all duration-300"
@@ -2710,7 +2770,7 @@ ${(() => {
               <div className="p-6 border-b border-gray-200 bg-[#F5F5DC] flex justify-between items-center">
                 <h3 className="text-xl font-bold text-gray-900">Dishes</h3>
               <button
-                onClick={handleAddDish}
+                onClick={() => { playClickSound(); handleAddDish() }}
                 className="flex items-center bg-[#5D3A1A] text-white px-4 py-2 rounded-xl font-semibold hover:shadow-lg transition-all duration-300 transform hover:scale-105"
               >
                 <Plus className="w-4 h-4 mr-2" />
@@ -2748,6 +2808,7 @@ ${(() => {
                           <button
                             onClick={(e) => {
                               e.stopPropagation()
+                              playClickSound()
                               handleToggleDishAvailability(dish)
                             }}
                             className={`px-3 py-1 rounded-full text-xs font-bold cursor-pointer transition-all ${
@@ -2761,6 +2822,7 @@ ${(() => {
                           <button
                             onClick={(e) => {
                               e.stopPropagation()
+                              playClickSound()
                               handleEditDish(dish)
                             }}
                             className="text-blue-600 hover:text-blue-800 transition-colors"
@@ -2800,6 +2862,7 @@ ${(() => {
                                 <button
                                   onClick={(e) => {
                                     e.stopPropagation()
+                                    playClickSound()
                                     handleToggleDishAvailability(dish)
                                   }}
                                   className={`px-3 py-1 rounded-full text-xs font-bold cursor-pointer transition-all ${
@@ -2830,7 +2893,7 @@ ${(() => {
                 <h3 className="text-xl font-bold text-gray-900">Tables</h3>
                 <div className="flex gap-3">
                   <button
-                    onClick={() => setShowMasterTableModal(true)}
+                    onClick={() => { playClickSound(); setShowMasterTableModal(true) }}
                     className="flex items-center bg-[#8B4513] text-white px-4 py-2 rounded-xl font-semibold hover:shadow-lg transition-all duration-300 transform hover:scale-105"
                   >
                     <Layers className="w-4 h-4 mr-2" />
@@ -3858,7 +3921,7 @@ ${(() => {
               <h3 className="font-semibold text-gray-900 mb-3">Payment Type</h3>
               <div className="flex gap-2">
                 <button
-                  onClick={() => setBillPaymentType('cash')}
+                  onClick={() => { playClickSound(); setBillPaymentType('cash') }}
                   className={`flex-1 px-4 py-2 rounded-lg font-semibold transition-colors ${
                     billPaymentType === 'cash'
                       ? 'bg-[#8B4513] text-white'
@@ -3868,14 +3931,24 @@ ${(() => {
                   Cash
                 </button>
                 <button
-                  onClick={() => setBillPaymentType('online')}
+                  onClick={() => { playClickSound(); setBillPaymentType('upi') }}
                   className={`flex-1 px-4 py-2 rounded-lg font-semibold transition-colors ${
-                    billPaymentType === 'online'
+                    billPaymentType === 'upi'
                       ? 'bg-[#8B4513] text-white'
                       : 'bg-white text-gray-700 border-2 border-[#8B4513]'
                   }`}
                 >
-                  Online
+                  UPI
+                </button>
+                <button
+                  onClick={() => { playClickSound(); setBillPaymentType('card') }}
+                  className={`flex-1 px-4 py-2 rounded-lg font-semibold transition-colors ${
+                    billPaymentType === 'card'
+                      ? 'bg-[#8B4513] text-white'
+                      : 'bg-white text-gray-700 border-2 border-[#8B4513]'
+                  }`}
+                >
+                  Card
                 </button>
               </div>
             </div>
@@ -4012,14 +4085,31 @@ ${(() => {
                     </span>
                   </div>
                 </div>
+                <div className="flex justify-between items-center">
+                  <div>
+                    <p className="font-bold text-gray-900">Payment Type</p>
+                    <p className="text-sm text-gray-600 capitalize">{billPaymentType || 'Not specified'}</p>
+                  </div>
+                  <div className="text-right">
+                    <span className={`px-3 py-1 rounded-full text-xs font-bold ${
+                      billPaymentType === 'cash' ? 'bg-green-100 text-green-700' :
+                      billPaymentType === 'upi' ? 'bg-purple-100 text-purple-700' :
+                      billPaymentType === 'card' ? 'bg-blue-100 text-blue-700' :
+                      'bg-gray-100 text-gray-800'
+                    }`}>
+                      {billPaymentType ? billPaymentType.toUpperCase() : 'N/A'}
+                    </span>
+                  </div>
+                </div>
               </div>
 
               {/* Items Table */}
               <div className="mb-4">
                 <div className="flex items-center justify-between text-xs font-bold text-gray-500 uppercase tracking-wide mb-2 pb-2 border-b border-gray-200">
                   <span className="flex-1">Item</span>
-                  <span className="w-16 text-center">Qty</span>
+                  <span className="w-24 text-center">Qty</span>
                   <span className="w-20 text-right">Amount</span>
+                  {isEditingBill && <span className="w-12 text-center">Action</span>}
                 </div>
                 {billOrderItems.length === 0 ? (
                   <div className="text-center py-8 bg-gray-50 rounded-xl">
@@ -4033,8 +4123,40 @@ ${(() => {
                           {getFoodTypeIcon(item.dishes?.food_type)}
                           <p className="font-semibold text-gray-900">{item.dishes?.name || item.dish?.name}</p>
                         </div>
-                        <span className="w-16 text-center text-sm text-gray-600">{item.quantity}x</span>
-                        <span className="w-20 text-right font-bold text-gray-900 text-sm">₹{((item.dishes?.price || item.dish?.price || item.price || 0) * item.quantity).toFixed(2)}</span>
+                        {isEditingBill ? (
+                          <>
+                            <div className="w-24 text-center flex items-center justify-center gap-2">
+                              <button
+                                onClick={() => handleUpdateBillItem(item.id, Math.max(1, item.quantity - 1))}
+                                className="w-7 h-7 rounded-full bg-gray-200 hover:bg-gray-300 flex items-center justify-center transition-colors"
+                              >
+                                <Minus className="w-4 h-4 text-gray-700" />
+                              </button>
+                              <span className="w-8 text-center font-bold text-gray-900">{item.quantity}</span>
+                              <button
+                                onClick={() => handleUpdateBillItem(item.id, item.quantity + 1)}
+                                className="w-7 h-7 rounded-full bg-[#5D3A1A] hover:bg-[#8B4513] flex items-center justify-center transition-colors"
+                              >
+                                <Plus className="w-4 h-4 text-white" />
+                              </button>
+                            </div>
+                            <span className="w-20 text-right font-bold text-gray-900 text-sm">₹{((item.dishes?.price || item.dish?.price || item.price || 0) * item.quantity).toFixed(2)}</span>
+                            <div className="w-12 text-center">
+                              <button
+                                onClick={() => { playClickSound(); handleRemoveBillItem(item.id) }}
+                                className="p-1.5 rounded-lg bg-red-100 hover:bg-red-200 text-red-600 transition-colors"
+                                title="Remove item"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            <span className="w-24 text-center text-sm text-gray-600">{item.quantity}x</span>
+                            <span className="w-20 text-right font-bold text-gray-900 text-sm">₹{((item.dishes?.price || item.dish?.price || item.price || 0) * item.quantity).toFixed(2)}</span>
+                          </>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -4098,7 +4220,7 @@ ${(() => {
                     <span className="font-bold text-gray-700 block mb-3">Payment Type</span>
                     <div className="flex gap-2">
                       <button
-                        onClick={() => setBillPaymentType('cash')}
+                        onClick={() => { playClickSound(); setBillPaymentType('cash') }}
                         className={`flex-1 px-4 py-2 rounded-lg font-semibold transition-colors ${
                           billPaymentType === 'cash'
                             ? 'bg-[#8B4513] text-white'
@@ -4108,14 +4230,24 @@ ${(() => {
                         Cash
                       </button>
                       <button
-                        onClick={() => setBillPaymentType('online')}
+                        onClick={() => { playClickSound(); setBillPaymentType('upi') }}
                         className={`flex-1 px-4 py-2 rounded-lg font-semibold transition-colors ${
-                          billPaymentType === 'online'
+                          billPaymentType === 'upi'
                             ? 'bg-[#8B4513] text-white'
                             : 'bg-white text-gray-700 border-2 border-gray-300'
                         }`}
                       >
-                        Online
+                        UPI
+                      </button>
+                      <button
+                        onClick={() => { playClickSound(); setBillPaymentType('card') }}
+                        className={`flex-1 px-4 py-2 rounded-lg font-semibold transition-colors ${
+                          billPaymentType === 'card'
+                            ? 'bg-[#8B4513] text-white'
+                            : 'bg-white text-gray-700 border-2 border-gray-300'
+                        }`}
+                      >
+                        Card
                       </button>
                     </div>
                   </div>
@@ -4177,7 +4309,7 @@ ${(() => {
                 {!isEditingBill ? (
                   <>
                     <button
-                      onClick={() => setIsEditingBill(true)}
+                      onClick={() => { playClickSound(); setIsEditingBill(true) }}
                       className="w-full flex items-center justify-center gap-2 bg-gray-500 text-white px-6 py-3 rounded-xl font-semibold hover:bg-gray-600 transition-all duration-300"
                     >
                       <Edit className="w-5 h-5" />
@@ -4194,7 +4326,7 @@ ${(() => {
                 ) : (
                   <>
                     <button
-                      onClick={handleSaveBillEdits}
+                      onClick={() => { playClickSound(); handleSaveBillEdits() }}
                       className="w-full flex items-center justify-center gap-2 bg-[#5D3A1A] text-white px-6 py-3 rounded-xl font-semibold hover:bg-[#8B4513] transition-all duration-300"
                     >
                       Save Changes

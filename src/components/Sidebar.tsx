@@ -66,7 +66,7 @@ export default function Sidebar({ activeTab, setActiveTab, user }: SidebarProps)
     <>
       {/* Mobile menu button */}
       <button
-        onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+        onClick={() => { playClickSound(); setIsMobileMenuOpen(!isMobileMenuOpen) }}
         className="lg:hidden fixed top-4 left-4 z-50 bg-[#5D3A1A] text-white p-3 rounded-xl shadow-lg hover:bg-[#8B4513] transition-all duration-300"
         style={{ left: isMobileMenuOpen ? '280px' : '16px' }}
       >
@@ -77,7 +77,7 @@ export default function Sidebar({ activeTab, setActiveTab, user }: SidebarProps)
       {isMobileMenuOpen && (
         <div
           className="lg:hidden fixed inset-0 bg-black/50 z-40"
-          onClick={() => setIsMobileMenuOpen(false)}
+          onClick={() => { playClickSound(); setIsMobileMenuOpen(false) }}
         />
       )}
 
@@ -89,13 +89,14 @@ export default function Sidebar({ activeTab, setActiveTab, user }: SidebarProps)
       >
         {/* Logo/Brand */}
         <div className="p-6 border-b border-[#5D3A1A]">
-          <div className="flex items-center gap-3">
-            <img src="/logo.png" alt="Dhole Patil Hotel Logo" className="w-16 h-16 rounded-full object-cover" />
-            <div>
-              <h1 className="text-xl font-bold text-[#5D3A1A]">
-                Dhole Patil Khanawal
+          <div className="flex items-center gap-4">
+            <img src="/logo.png" alt="Dhole Patil Hotel Logo" className="w-20 h-20 rounded-full object-cover flex-shrink-0" />
+            <div className="min-w-0">
+              <h1 className="text-xl font-bold text-[#5D3A1A] leading-tight">
+                Dhole Patil
               </h1>
-              <p className="text-sm text-gray-600">Management Dashboard</p>
+              <p className="text-base text-gray-600 leading-tight font-semibold">Khanawal</p>
+              <p className="text-sm text-gray-500 leading-tight">Management Dashboard</p>
             </div>
           </div>
         </div>

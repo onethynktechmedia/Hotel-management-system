@@ -26,20 +26,20 @@ const formatTime = (dateString: string) => {
 const getFoodTypeIcon = (foodType?: string) => {
   if (foodType === 'veg') {
     return (
-      <div className="w-5 h-5 flex items-center justify-center border-2 border-green-600 bg-green-50 rounded-sm">
-        <div className="w-2.5 h-2.5 bg-green-600 rounded-full"></div>
+      <div className="w-5 h-5 flex items-center justify-center border-2 border-emerald-600 bg-emerald-50 rounded-sm">
+        <div className="w-2.5 h-2.5 bg-emerald-600 rounded-full"></div>
       </div>
     )
   } else if (foodType === 'nonveg') {
     return (
-      <div className="w-5 h-5 flex items-center justify-center border-2 border-red-600 bg-red-50 rounded-sm">
-        <div className="w-2.5 h-2.5 bg-red-600 rounded-full"></div>
+      <div className="w-5 h-5 flex items-center justify-center border-2 border-rose-600 bg-rose-50 rounded-sm">
+        <div className="w-2.5 h-2.5 bg-rose-600 rounded-full"></div>
       </div>
     )
   } else if (foodType === 'custom' || foodType === 'parcel') {
     return (
-      <div className="w-5 h-5 flex items-center justify-center border-2 border-blue-600 bg-blue-50 rounded-sm">
-        <span className="text-xs font-bold text-blue-600">C</span>
+      <div className="w-5 h-5 flex items-center justify-center border-2 border-violet-600 bg-violet-50 rounded-sm">
+        <span className="text-xs font-bold text-violet-600">C</span>
       </div>
     )
   }
@@ -402,12 +402,10 @@ ${itemsText}
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex justify-between items-center">
             <div className="flex items-center gap-3">
-              <div className="bg-[#8B4513] p-2 rounded-xl">
-                <ChefHat className="w-6 h-6 text-white" />
-              </div>
-              <div>
-                <h1 className="text-xl font-bold text-gray-900">Chef Station</h1>
-                <p className="text-sm text-gray-600">Kitchen Order Management</p>
+              <img src="/logo.png" alt="Dhole Patil Hotel Logo" className="w-12 h-12 rounded-full object-cover flex-shrink-0" />
+              <div className="flex flex-col">
+                <h1 className="text-lg font-bold text-[#5D3A1A] leading-tight">Dhole Patil</h1>
+                <p className="text-sm text-gray-600 leading-tight font-semibold">Khanawal - Chef Station</p>
               </div>
             </div>
             <div className="flex items-center gap-3">
@@ -546,7 +544,7 @@ ${itemsText}
               if (vegItems.length > 0) {
                 kotCards.push({
                   type: 'veg',
-                  bgColor: 'bg-green-50',
+                  bgColor: 'bg-emerald-50',
                   items: vegItems,
                   label: 'VEG'
                 })
@@ -555,7 +553,7 @@ ${itemsText}
               if (nonVegItems.length > 0) {
                 kotCards.push({
                   type: 'nonveg',
-                  bgColor: 'bg-stone-200',
+                  bgColor: 'bg-rose-50',
                   items: nonVegItems,
                   label: 'NON-VEG'
                 })
@@ -564,7 +562,7 @@ ${itemsText}
               if (otherItems.length > 0) {
                 kotCards.push({
                   type: 'other',
-                  bgColor: 'bg-blue-50',
+                  bgColor: 'bg-violet-50',
                   items: otherItems,
                   label: 'OTHER'
                 })
@@ -588,11 +586,17 @@ ${itemsText}
                         <div>
                           <h3 className="text-sm font-bold text-gray-700">Order #{formatOrderId(order.id)}</h3>
                           <p className="text-4xl font-black text-[#8B4513]">Table {table?.table_number || 'N/A'}</p>
-                          <p className="text-xs font-bold mt-1 text-gray-600">{kot.label} KOT</p>
+                          <p className={`text-xs font-bold mt-1 ${
+                            kot.type === 'veg' ? 'text-emerald-700' :
+                            kot.type === 'nonveg' ? 'text-rose-700' :
+                            'text-violet-700'
+                          }`}>{kot.label} KOT</p>
                         </div>
                         <span className={`px-3 py-1 rounded-full text-xs font-bold ${
-                          allItemsServed ? 'bg-white text-[#8B4513] border-2 border-[#8B4513]' :
-                          'bg-[#8B4513] text-white'
+                          allItemsServed ? 'bg-white text-gray-600 border-2 border-gray-300' :
+                          kot.type === 'veg' ? 'bg-emerald-600 text-white' :
+                          kot.type === 'nonveg' ? 'bg-rose-600 text-white' :
+                          'bg-violet-600 text-white'
                         }`}>
                           {allItemsServed ? 'SERVED' : 'IN PROGRESS'}
                         </span>

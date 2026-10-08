@@ -174,6 +174,15 @@ function openBrowserPrint(plainText: string): void {
             -moz-osx-font-smoothing: grayscale;
             image-rendering: crisp-edges;
           }
+          .logo-container {
+            text-align: center;
+            margin-bottom: 4mm;
+          }
+          .logo-container img {
+            width: 120px;
+            height: auto;
+            max-width: 100%;
+          }
           .header {
             font-size: 18px;
             font-weight: 900;

@@ -42,7 +42,8 @@ export default function LoginPage() {
       document.cookie = `hotel_session=${data.session_token || data.user.id}; path=/; ${isSecure ? 'secure;' : ''} samesite=strict; max-age=86400`
       document.cookie = `hotel_role=${data.user.role}; path=/; ${isSecure ? 'secure;' : ''} samesite=strict; max-age=86400`
       document.cookie = `hotel_user_id=${data.user.id}; path=/; ${isSecure ? 'secure;' : ''} samesite=strict; max-age=86400`
-      
+      document.cookie = `hotel_user_name=${encodeURIComponent(data.user.name || '')}; path=/; ${isSecure ? 'secure;' : ''} samesite=strict; max-age=86400`
+
       // Store minimal user data in localStorage for UI (non-sensitive)
       localStorage.setItem('user_name', data.user.name || '')
       localStorage.setItem('user_role', data.user.role || '')
@@ -79,11 +80,12 @@ export default function LoginPage() {
       <div className="max-w-md w-full bg-white rounded-2xl shadow-xl p-8 border-2 border-[#5D3A1A]">
         <div className="text-center mb-8">
           <div className="mb-4">
-            <img src="/logo.png" alt="Dhole Patil Hotel Logo" className="w-24 h-24 mx-auto rounded-full object-cover" />
+            <img src="/logo.png" alt="Dhole Patil Hotel Logo" className="w-20 h-20 mx-auto rounded-full object-cover" />
           </div>
-          <h1 className="text-3xl font-bold text-[#5D3A1A] mb-2">
-            Dhole Patil Hotel
+          <h1 className="text-3xl font-bold text-[#5D3A1A] mb-1">
+            Dhole Patil
           </h1>
+          <p className="text-xl font-semibold text-[#5D3A1A] mb-2">Khanawal</p>
           <p className="text-gray-600">Staff Login</p>
           <p className="text-sm text-gray-500 mt-1">Enter your credentials to access the system</p>
         </div>

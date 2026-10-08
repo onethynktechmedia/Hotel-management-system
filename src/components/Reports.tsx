@@ -284,8 +284,8 @@ export default function Reports({ orders, payments, dishes }: ReportsProps) {
       // Add title
       doc.setFontSize(18)
       doc.setTextColor(139, 69, 19)
-      doc.text('Dhole Patil Hotel', 14, 20)
-      
+      doc.text('Dhole Patil Khanawal', 14, 20)
+
       doc.setFontSize(12)
       doc.setTextColor(100, 100, 100)
       doc.text('Sales Report', 14, 28)
