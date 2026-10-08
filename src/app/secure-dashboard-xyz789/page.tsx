@@ -754,16 +754,15 @@ export default function AdminDashboard() {
         const isMasterTable = viewingBill.tables?.is_master || false
         const plainText = `
 <div style="text-align: center; margin-bottom: 8px;">
-  <img src="/dhole patil logo-03.png" alt="Dhole Patil Logo" style="width: 120px; height: auto; margin-bottom: 8px;" />
+  <img src="/logo.png" alt="Dhole Patil Logo" style="width: 120px; height: auto; margin-bottom: 8px;" />
   <div style="font-size: 18px; font-weight: 900; color: #000;">DHOLE PATIL KHANAWAL</div>
   <div style="font-size: 12px; font-weight: bold; color: #000;">VEG & NON-VEG</div>
 </div>
 <div style="border-top: 1px dashed #000; margin: 4px 0;"></div>
 <div style="text-align: center; font-size: 10px; margin-bottom: 4px; font-weight: bold; color: #000;">
-  <div>Sangamner</div>
-  <div>CITY, STATE - 123456</div>
-  <div>PHONE: +91 98765 43210</div>
-  <div>GSTIN: 29ABCDE1234F1Z5</div>
+  <div>New Gunjalwadi Road</div>
+  <div>Gunjalwadi, Sangamner</div>
+  <div>PHONE: +91 9371967595</div>
 </div>
 <div style="border-top: 1px dashed #000; margin: 4px 0;"></div>
 <div style="text-align: center; font-size: 12px; font-weight: 900; margin: 4px 0; color: #000;">BILL / INVOICE</div>
