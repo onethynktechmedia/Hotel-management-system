@@ -71,7 +71,6 @@ export default function AdminDashboard() {
   const [discountAmount, setDiscountAmount] = useState('')
   const [discountPercentage, setDiscountPercentage] = useState('')
   const [discountType, setDiscountType] = useState<'amount' | 'percentage'>('amount')
-  const [paymentType, setPaymentType] = useState<'cash' | 'online'>('cash')
   const [viewingBill, setViewingBill] = useState<Order | null>(null)
   const [billOrderItems, setBillOrderItems] = useState<any[]>([])
   const [billCGST, setBillCGST] = useState('5')
@@ -551,60 +550,13 @@ export default function AdminDashboard() {
   }
 
   const handleUpdateBillItem = (itemId: string, newQuantity: number) => {
-    const updatedItems = billOrderItems.map(item =>
+    const updatedItems = billOrderItems.map(item => 
       item.id === itemId ? { ...item, quantity: newQuantity } : item
     )
     setBillOrderItems(updatedItems)
-
+    
     // Recalculate total
-    const newTotal = updatedItems.reduce((sum, item) =>
-      sum + (item.dishes?.price || item.dish?.price || item.price || 0) * item.quantity, 0
-    )
-    if (viewingBill) {
-      setViewingBill({ ...viewingBill, total_amount: newTotal })
-    }
-  }
-
-  const handleUpdateGroupedItem = (dishId: string, newQuantity: number) => {
-    // Find all items with this dish_id
-    const itemsWithDishId = billOrderItems.filter(item =>
-      (item.dishes?.id || item.dish_id) === dishId
-    )
-
-    if (itemsWithDishId.length === 0) return
-
-    // Calculate the new total quantity and distribute across items
-    const totalQuantity = itemsWithDishId.reduce((sum, item) => sum + item.quantity, 0)
-    const quantityRatio = newQuantity / totalQuantity
-
-    // Update each item proportionally
-    const updatedItems = billOrderItems.map(item => {
-      if ((item.dishes?.id || item.dish_id) === dishId) {
-        const newQty = Math.max(1, Math.round(item.quantity * quantityRatio))
-        return { ...item, quantity: newQty }
-      }
-      return item
-    })
-
-    // Ensure the total matches exactly by adjusting the first item
-    const finalTotal = updatedItems
-      .filter(item => (item.dishes?.id || item.dish_id) === dishId)
-      .reduce((sum, item) => sum + item.quantity, 0)
-
-    if (finalTotal !== newQuantity) {
-      const diff = newQuantity - finalTotal
-      const firstItemIndex = updatedItems.findIndex(item =>
-        (item.dishes?.id || item.dish_id) === dishId
-      )
-      if (firstItemIndex !== -1) {
-        updatedItems[firstItemIndex].quantity = Math.max(1, updatedItems[firstItemIndex].quantity + diff)
-      }
-    }
-
-    setBillOrderItems(updatedItems)
-
-    // Recalculate total
-    const newTotal = updatedItems.reduce((sum, item) =>
+    const newTotal = updatedItems.reduce((sum, item) => 
       sum + (item.dishes?.price || item.dish?.price || item.price || 0) * item.quantity, 0
     )
     if (viewingBill) {
@@ -615,9 +567,9 @@ export default function AdminDashboard() {
   const handleDeleteBillItem = (itemId: string) => {
     const updatedItems = billOrderItems.filter(item => item.id !== itemId)
     setBillOrderItems(updatedItems)
-
+    
     // Recalculate total
-    const newTotal = updatedItems.reduce((sum, item) =>
+    const newTotal = updatedItems.reduce((sum, item) => 
       sum + (item.dishes?.price || item.dish?.price || item.price || 0) * item.quantity, 0
     )
     if (viewingBill) {
@@ -625,24 +577,26 @@ export default function AdminDashboard() {
     }
   }
 
-  const handleDeleteGroupedItem = (dishId: string) => {
-    const updatedItems = billOrderItems.filter(item =>
-      (item.dishes?.id || item.dish_id) !== dishId
-    )
-    setBillOrderItems(updatedItems)
-
-    // Recalculate total
-    const newTotal = updatedItems.reduce((sum, item) =>
-      sum + (item.dishes?.price || item.dish?.price || item.price || 0) * item.quantity, 0
-    )
-    if (viewingBill) {
-      setViewingBill({ ...viewingBill, total_amount: newTotal })
-    }
+  // Helper function to group order items by dish and aggregate quantities
+  const groupOrderItems = (items: any[]) => {
+    return items.reduce((acc: any[], item: any) => {
+      const dishId = item.dish_id || item.dishes?.id
+      const existing = acc.find((i: any) => i.dish_id === dishId)
+      if (existing) {
+        existing.quantity += item.quantity
+      } else {
+        acc.push({
+          ...item,
+          quantity: item.quantity
+        })
+      }
+      return acc
+    }, [])
   }
 
   const handleSaveBillEdits = async () => {
     if (!viewingBill) return
-    
+
     try {
       // Update order items in database
       for (const item of billOrderItems) {
@@ -652,14 +606,14 @@ export default function AdminDashboard() {
           body: JSON.stringify({ quantity: item.quantity })
         })
       }
-      
+
       // Update order total
       await fetch(`/api/orders/${viewingBill.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ total_amount: viewingBill.total_amount })
       })
-      
+
       setIsEditingBill(false)
       fetchData() // Refresh data
     } catch (error) {
@@ -690,7 +644,7 @@ export default function AdminDashboard() {
       escposContent += '\x1B\x21\x30' // Double width and height
       escposContent += 'DHOLE PATIL KHANAWAL\n'
       escposContent += '\x1B\x21\x00' // Normal
-      escposContent += 'Veg & Non-Veg\n'
+      escposContent += 'Restaurant & Bar\n'
       escposContent += '================================\n'
       
       // Left align for bill info
@@ -700,41 +654,23 @@ export default function AdminDashboard() {
       escposContent += `Time: ${new Date(viewingBill.created_at).toLocaleTimeString()}\n`
       escposContent += `Table: ${viewingBill.tables?.is_master ? `${viewingBill.tables?.table_number || 'N/A'} (M)` : (viewingBill.tables?.table_number || 'N/A')}\n`
       escposContent += `Waiter: ${viewingBill.users?.name || 'N/A'}\n`
-      escposContent += `Payment: ${paymentType === 'cash' ? 'CASH' : 'ONLINE'}\n`
       escposContent += '--------------------------\n'
-
+      
       // Items Header
       escposContent += '\x1B\x21\x08' // Bold
-      escposContent += '  ITEM                   QTY   AMT\n'
-      escposContent += '---------------------------\n'
+      escposContent += '  ITEM                  QTY  AMT\n'
+      escposContent += '--------------------------\n'
       escposContent += '\x1B\x21\x00' // Normal font for items
-
-      // Group items by dish_id to consolidate duplicates
-      const groupedItems = orderItems.reduce((acc: any[], item: any) => {
-        const dishId = item.dishes?.id || item.dish_id
-        const existing = acc.find(i => i.dish_id === dishId)
-        if (existing) {
-          existing.quantity += item.quantity
-        } else {
-          acc.push({
-            dish_id: dishId,
-            name: item.dishes?.name || item.dish?.name || 'Unknown',
-            quantity: item.quantity,
-            price: item.dishes?.price || item.dish?.price || item.price || 0
-          })
-        }
-        return acc
-      }, [])
-
-      // Items
+      
+      // Items - Group by dish to aggregate quantities
+      const groupedItems = groupOrderItems(orderItems)
       groupedItems.forEach((item: any) => {
-        const name = item.name
+        const name = item.dishes?.name || item.dish?.name || 'Unknown'
         const qty = item.quantity
-        const price = item.price
+        const price = item.dishes?.price || item.dish?.price || item.price || 0
         const total = (price * qty).toFixed(2)
-        const itemName = name.length > 20 ? name.substring(0, 19) + '.' : name
-        const qtyText = `${qty}x`
-        escposContent += `${itemName.padEnd(20)} ${qtyText.padStart(5)} ${total.padStart(7)}\n`
+        const itemName = name.length > 14 ? name.substring(0, 13) + '.' : name
+        escposContent += `${itemName.padEnd(14)} ${qty.toString().padStart(2)}x ${total.padStart(7)}\n`
       })
       escposContent += '\x1B\x21\x00' // Ensure normal text
       
@@ -828,10 +764,6 @@ export default function AdminDashboard() {
     <span>CUSTOMER:</span>
     <span>${viewingBill.customer_name || 'GUEST'}</span>
   </div>
-  <div style="display: flex; justify-content: space-between;">
-    <span>PAYMENT:</span>
-    <span>${paymentType === 'cash' ? 'CASH' : 'ONLINE'}</span>
-  </div>
 </div>
 <div style="border-top: 1px dashed #000; margin: 4px 0;"></div>
 <div style="font-size: 10px; font-weight: 900; margin: 4px 0; color: #000;">ITEM DETAILS</div>
@@ -842,37 +774,18 @@ export default function AdminDashboard() {
   <span style="flex: 1; text-align: right;">AMT</span>
 </div>
 <div style="border-top: 1px dashed #000; margin: 2px 0;"></div>
-${(() => {
-  // Group items by dish_id to consolidate duplicates
-  const groupedItems = billOrderItems.reduce((acc: any[], item: any) => {
-    const dishId = item.dishes?.id || item.dish_id
-    const existing = acc.find(i => i.dish_id === dishId)
-    if (existing) {
-      existing.quantity += item.quantity
-      existing.total += (item.dishes?.price || item.price || 0) * item.quantity
-    } else {
-      acc.push({
-        dish_id: dishId,
-        name: item.dishes?.name || 'Unknown',
-        quantity: item.quantity,
-        total: (item.dishes?.price || item.price || 0) * item.quantity
-      })
-    }
-    return acc
-  }, [])
-  return groupedItems.map((item: any) => {
-    const name = item.name
-    const qty = item.quantity
-    const total = item.total
-    const itemName = name.length > 20 ? name.substring(0, 19) + '.' : name
-    const qtyText = `${qty}x`
-    return `<div style="display: flex; font-size: 9px; margin: 2px 0;">
+${groupOrderItems(billOrderItems).map((item: any) => {
+  const name = item.dishes?.name || item.dish?.name || 'Unknown'
+  const qty = item.quantity
+  const price = (item.dishes?.price || item.dish?.price || item.price || 0)
+  const total = price * qty
+  const itemName = name.length > 20 ? name.substring(0, 19) + '.' : name
+  return `<div style="display: flex; font-size: 9px; margin: 2px 0;">
   <span style="flex: 2;">${itemName}</span>
-  <span style="flex: 1; text-align: right;">${qtyText}</span>
+  <span style="flex: 1; text-align: right;">${qty}x</span>
   <span style="flex: 1; text-align: right;">${total.toFixed(2)}</span>
 </div>`
-  }).join('')
-})()}
+}).join('')}
 <div style="border-top: 1px dashed #000; margin: 4px 0;"></div>
 <div style="margin: 4px 0; font-size: 10px; font-weight: bold; color: #000;">
   <div style="display: flex; justify-content: space-between;">
@@ -1016,13 +929,13 @@ ${(() => {
       escposContent += `Customer: ${selectedOrderForBilling.customer_name || 'Guest'}\n`
       escposContent += `Payment: ${billPaymentType === 'cash' ? 'CASH' : 'ONLINE'}\n`
       escposContent += '--------------------------\n'
-
+      
       // Items Header
       escposContent += '\x1B\x21\x08' // Bold
-      escposContent += '  ITEM                   QTY   AMT\n'
-      escposContent += '---------------------------\n'
+      escposContent += '  ITEM                  QTY  AMT\n'
+      escposContent += '--------------------------\n'
       escposContent += '\x1B\x21\x00' // Normal font for items
-
+      
       // Items - Group by dish_id and dish_type
       const groupedItems = (selectedOrderForBilling.order_items || []).reduce((acc: any[], item: any) => {
         const existing = acc.find(i => i.dish_id === item.dish_id && i.dish_type === item.dish_type)
@@ -1042,9 +955,8 @@ ${(() => {
         const qty = item.quantity
         const price = (item.dishes?.price || item.price || 0)
         const total = (price * qty).toFixed(2)
-        const itemName = name.length > 20 ? name.substring(0, 19) + '.' : name
-        const qtyText = `${qty}x`
-        escposContent += `${itemName.padEnd(20)} ${qtyText.padStart(5)} ${total.padStart(7)}\n`
+        const itemName = name.length > 14 ? name.substring(0, 13) + '.' : name
+        escposContent += `${itemName.padEnd(14)} ${qty.toString().padStart(2)}x ${total.padStart(7)}\n`
       })
       escposContent += '\x1B\x21\x00' // Ensure normal text
       
@@ -1791,7 +1703,7 @@ For technical support, contact: support@everycom.com
     try {
       const plainText = `
 <div class="header">DHOLE PATIL KHANAWAL</div>
-<div class="subheader">Veg & Non-Veg</div>
+<div class="subheader">Restaurant & Bar</div>
 <div class="divider">================================</div>
 <div class="address">Sangamner</div>
 <div class="divider">================================</div>
@@ -2112,32 +2024,18 @@ ${(() => {
 <strong>TABLE: ${tableNumber}${isMasterTable ? ' (M)' : ''}</strong><br>
 <strong>WAITER: ${waiterName}</strong><br>
 <strong>CUSTOMER: ${customerName || 'GUEST'}</strong><br>
-<strong>PAYMENT: ${paymentType === 'cash' ? 'CASH' : 'ONLINE'}</strong><br>
 --------------------------<br>
-<strong class="section-title">ITEM                   QTY   AMOUNT</strong><br>
----------------------------<br>
-${(() => {
-  // Group items by dish_id to consolidate duplicates
-  const groupedItems = offlineCart.reduce((acc: any[], item) => {
-    const existing = acc.find(i => i.dish_id === item.dish_id)
-    if (existing) {
-      existing.quantity += item.quantity
-    } else {
-      acc.push({ ...item })
-    }
-    return acc
-  }, [])
-  return groupedItems.map((item) => {
-    const name = item.name
-    const qty = item.quantity
-    const price = item.price
-    const total = (price * qty).toFixed(2)
-    const itemName = name.length > 20 ? name.substring(0, 19) + '.' : name
-    const qtyText = `${qty}x`
-    return `<strong>${itemName.padEnd(20)} ${qtyText.padStart(5)}  ${total.padStart(8)}</strong><br>`
-  }).join('')
-})()}
----------------------------<br>
+<strong class="section-title">ITEM             QTY  AMOUNT</strong><br>
+--------------------------<br>
+${offlineCart.map((item) => {
+  const name = item.name
+  const qty = item.quantity
+  const price = item.price
+  const total = (price * qty).toFixed(2)
+  const itemName = name.length > 16 ? name.substring(0, 15) + '.' : name
+  return `<strong>${itemName.padEnd(16)} ${qty.toString().padStart(2)}  ${total.padStart(8)}</strong><br>`
+}).join('')}
+--------------------------<br>
 <strong>SUBTOTAL:      RS${getCartTotal().toFixed(2).padStart(8)}</strong><br>
 ${(() => {
   const subtotal = getCartTotal()
@@ -3764,48 +3662,36 @@ ${(() => {
               {offlineCart.length === 0 ? (
                 <p className="text-gray-500 text-center py-8">Cart is empty</p>
               ) : (
-                (() => {
-                  // Group items by dish_id to consolidate duplicates
-                  const groupedItems = offlineCart.reduce((acc: any[], item) => {
-                    const existing = acc.find(i => i.dish_id === item.dish_id)
-                    if (existing) {
-                      existing.quantity += item.quantity
-                    } else {
-                      acc.push({ ...item })
-                    }
-                    return acc
-                  }, [])
-                  return groupedItems.map((item) => (
-                    <div key={item.id} className={`flex items-center justify-between bg-gray-50 rounded-lg p-3 transition-all duration-300 ${cartAnimation ? 'animate-bounce' : ''}`}>
-                      <div className="flex-1">
-                        <p className="font-semibold text-gray-900 text-sm">{item.name} {item.quantity}x</p>
-                        <p className="text-sm text-[#5D3A1A]">₹{item.price.toFixed(2)}</p>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => updateCartQuantity(item.id, item.quantity - 1)}
-                          className="w-8 h-8 rounded-full bg-white border-2 border-[#8B4513] text-[#8B4513] hover:bg-[#F5F5DC] transition-colors"
-                        >
-                          -
-                        </button>
-                        <span className="w-8 text-center font-semibold">{item.quantity}</span>
-                        <button
-                          onClick={() => updateCartQuantity(item.id, item.quantity + 1)}
-                          className="w-8 h-8 rounded-full bg-[#F5F5DC] text-[#8B4513] hover:bg-[#8B4513] hover:text-white transition-colors"
-                        >
-                          +
-                        </button>
-                        <button
-                          onClick={() => removeFromCart(item.id)}
-                          className="ml-2 text-red-500 hover:text-red-700 transition-colors"
-                          title="Remove item"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
+                offlineCart.map((item) => (
+                  <div key={item.id} className={`flex items-center justify-between bg-gray-50 rounded-lg p-3 transition-all duration-300 ${cartAnimation ? 'animate-bounce' : ''}`}>
+                    <div className="flex-1">
+                      <p className="font-semibold text-gray-900 text-sm">{item.name}</p>
+                      <p className="text-sm text-[#5D3A1A]">₹{item.price.toFixed(2)}</p>
                     </div>
-                  ))
-                })()
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => updateCartQuantity(item.id, item.quantity - 1)}
+                        className="w-8 h-8 rounded-full bg-white border-2 border-[#8B4513] text-[#8B4513] hover:bg-[#F5F5DC] transition-colors"
+                      >
+                        -
+                      </button>
+                      <span className="w-8 text-center font-semibold">{item.quantity}</span>
+                      <button
+                        onClick={() => updateCartQuantity(item.id, item.quantity + 1)}
+                        className="w-8 h-8 rounded-full bg-[#F5F5DC] text-[#8B4513] hover:bg-[#8B4513] hover:text-white transition-colors"
+                      >
+                        +
+                      </button>
+                      <button
+                        onClick={() => removeFromCart(item.id)}
+                        className="ml-2 text-red-500 hover:text-red-700 transition-colors"
+                        title="Remove item"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                ))
               )}
             </div>
 
@@ -3911,27 +3797,15 @@ ${(() => {
               {offlineCart.length === 0 ? (
                 <p className="text-gray-500 text-center py-4">No items in cart</p>
               ) : (
-                (() => {
-                  // Group items by dish_id to consolidate duplicates
-                  const groupedItems = offlineCart.reduce((acc: any[], item) => {
-                    const existing = acc.find(i => i.dish_id === item.dish_id)
-                    if (existing) {
-                      existing.quantity += item.quantity
-                    } else {
-                      acc.push({ ...item })
-                    }
-                    return acc
-                  }, [])
-                  return groupedItems.map((item) => (
-                    <div key={item.id} className="flex justify-between items-center py-2 border-b border-gray-100">
-                      <div>
-                        <p className="font-semibold text-gray-900">{item.name} {item.quantity}x</p>
-                        <p className="text-sm text-gray-600">₹{item.price.toFixed(2)} each</p>
-                      </div>
-                      <span className="font-bold text-[#5D3A1A]">₹{(item.price * item.quantity).toFixed(2)}</span>
+                offlineCart.map((item) => (
+                  <div key={item.id} className="flex justify-between items-center py-2 border-b border-gray-100">
+                    <div className="flex-1">
+                      <p className="font-semibold text-gray-900">{item.name}</p>
+                      <p className="text-sm text-gray-600">Qty: {item.quantity} × ₹{item.price.toFixed(2)}</p>
                     </div>
-                  ))
-                })()
+                    <span className="font-bold text-[#5D3A1A]">₹{(item.price * item.quantity).toFixed(2)}</span>
+                  </div>
+                ))
               )}
             </div>
 
@@ -3942,8 +3816,8 @@ ${(() => {
                 <button
                   onClick={() => setBillDiscountType('amount')}
                   className={`flex-1 px-4 py-2 rounded-lg font-semibold transition-colors ${
-                    billDiscountType === 'amount' 
-                      ? 'bg-[#8B4513] text-white' 
+                    billDiscountType === 'amount'
+                      ? 'bg-[#8B4513] text-white'
                       : 'bg-white text-gray-700 border-2 border-[#8B4513]'
                   }`}
                 >
@@ -3952,8 +3826,8 @@ ${(() => {
                 <button
                   onClick={() => setBillDiscountType('percentage')}
                   className={`flex-1 px-4 py-2 rounded-lg font-semibold transition-colors ${
-                    billDiscountType === 'percentage' 
-                      ? 'bg-[#8B4513] text-white' 
+                    billDiscountType === 'percentage'
+                      ? 'bg-[#8B4513] text-white'
                       : 'bg-white text-gray-700 border-2 border-[#8B4513]'
                   }`}
                 >
@@ -3979,14 +3853,14 @@ ${(() => {
               )}
             </div>
 
-            {/* Payment Type */}
+            {/* Payment Type Section */}
             <div className="bg-blue-50 rounded-xl p-4 mb-6">
               <h3 className="font-semibold text-gray-900 mb-3">Payment Type</h3>
               <div className="flex gap-2">
                 <button
-                  onClick={() => setPaymentType('cash')}
+                  onClick={() => setBillPaymentType('cash')}
                   className={`flex-1 px-4 py-2 rounded-lg font-semibold transition-colors ${
-                    paymentType === 'cash'
+                    billPaymentType === 'cash'
                       ? 'bg-[#8B4513] text-white'
                       : 'bg-white text-gray-700 border-2 border-[#8B4513]'
                   }`}
@@ -3994,9 +3868,9 @@ ${(() => {
                   Cash
                 </button>
                 <button
-                  onClick={() => setPaymentType('online')}
+                  onClick={() => setBillPaymentType('online')}
                   className={`flex-1 px-4 py-2 rounded-lg font-semibold transition-colors ${
-                    paymentType === 'online'
+                    billPaymentType === 'online'
                       ? 'bg-[#8B4513] text-white'
                       : 'bg-white text-gray-700 border-2 border-[#8B4513]'
                   }`}
@@ -4122,13 +3996,12 @@ ${(() => {
                     <p className="text-sm text-gray-600">{new Date(viewingBill.created_at).toLocaleTimeString()}</p>
                   </div>
                 </div>
-                <div className="flex justify-between items-center mb-3">
+                <div className="flex justify-between items-center">
                   <div>
-                    <p className="font-bold text-gray-900">Payment</p>
-                    <p className="text-sm text-gray-600 capitalize">{paymentType === 'cash' ? 'Cash' : 'Online'}</p>
+                    <p className="font-bold text-gray-900">Status</p>
+                    <p className="text-sm text-gray-600">{viewingBill.status}</p>
                   </div>
                   <div className="text-right">
-                    <p className="font-bold text-gray-900">Status</p>
                     <span className={`px-3 py-1 rounded-full text-xs font-bold ${
                       viewingBill.status === 'paid' ? 'bg-[#F5F5DC] text-[#8B4513]' :
                       viewingBill.status === 'ready' ? 'bg-[#F5F5DC] text-[#8B4513]' :
@@ -4145,7 +4018,7 @@ ${(() => {
               <div className="mb-4">
                 <div className="flex items-center justify-between text-xs font-bold text-gray-500 uppercase tracking-wide mb-2 pb-2 border-b border-gray-200">
                   <span className="flex-1">Item</span>
-                  <span className="w-20 text-center">Qty</span>
+                  <span className="w-16 text-center">Qty</span>
                   <span className="w-20 text-right">Amount</span>
                 </div>
                 {billOrderItems.length === 0 ? (
@@ -4154,100 +4027,18 @@ ${(() => {
                   </div>
                 ) : (
                   <div className="space-y-2">
-                    {(() => {
-                      // Always group items
-                      const groupedItems = billOrderItems.reduce((acc: any[], item) => {
-                        const dishId = item.dishes?.id || item.dish_id
-                        const existing = acc.find(i => i.dish_id === dishId)
-                        if (existing) {
-                          existing.quantity += item.quantity
-                          existing.total += (item.dishes?.price || item.dish?.price || item.price || 0) * item.quantity
-                        } else {
-                          acc.push({
-                            dish_id: dishId,
-                            name: item.dishes?.name || item.dish?.name || 'Unknown',
-                            quantity: item.quantity,
-                            price: item.dishes?.price || item.dish?.price || item.price || 0,
-                            total: (item.dishes?.price || item.dish?.price || item.price || 0) * item.quantity,
-                            food_type: item.dishes?.food_type
-                          })
-                        }
-                        return acc
-                      }, [])
-                      return groupedItems.map((item, index) => (
-                        <div key={index} className="flex justify-between items-center py-2 border-b border-gray-100">
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2">
-                              {getFoodTypeIcon(item.food_type)}
-                              <p className="font-semibold text-gray-900">{item.name}</p>
-                            </div>
-                          </div>
-                          {isEditingBill ? (
-                            <div className="flex items-center gap-2 w-16 justify-center">
-                              <button
-                                onClick={() => handleUpdateGroupedItem(item.dish_id, Math.max(1, item.quantity - 1))}
-                                className="w-6 h-6 rounded bg-gray-200 text-gray-700 hover:bg-gray-300 transition-colors font-bold"
-                              >
-                                -
-                              </button>
-                              <input
-                                type="number"
-                                min="1"
-                                value={item.quantity}
-                                onChange={(e) => handleUpdateGroupedItem(item.dish_id, parseInt(e.target.value) || 1)}
-                                className="w-12 text-center text-sm font-bold border border-gray-300 rounded px-1 py-0.5"
-                              />
-                              <button
-                                onClick={() => handleUpdateGroupedItem(item.dish_id, item.quantity + 1)}
-                                className="w-6 h-6 rounded bg-[#F5F5DC] text-[#8B4513] hover:bg-[#8B4513] hover:text-white transition-colors font-bold"
-                              >
-                                +
-                              </button>
-                            </div>
-                          ) : (
-                            <span className="w-16 text-center text-sm font-bold text-[#5D3A1A] bg-[#F5F5DC] px-2 py-1 rounded">{item.quantity}x</span>
-                          )}
-                          <span className="w-20 text-right font-bold text-gray-900 text-sm">₹{item.total.toFixed(2)}</span>
-                          {isEditingBill && (
-                            <button
-                              onClick={() => handleDeleteGroupedItem(item.dish_id)}
-                              className="ml-2 text-red-500 hover:text-red-700 transition-colors"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          )}
+                    {groupOrderItems(billOrderItems).map((item, index) => (
+                      <div key={`${item.dish_id}-${index}`} className="flex justify-between items-center py-2 border-b border-gray-100">
+                        <div className="flex-1 flex items-center gap-2">
+                          {getFoodTypeIcon(item.dishes?.food_type)}
+                          <p className="font-semibold text-gray-900">{item.dishes?.name || item.dish?.name}</p>
                         </div>
-                      ))
-                    })()}
+                        <span className="w-16 text-center text-sm text-gray-600">{item.quantity}x</span>
+                        <span className="w-20 text-right font-bold text-gray-900 text-sm">₹{((item.dishes?.price || item.dish?.price || item.price || 0) * item.quantity).toFixed(2)}</span>
+                      </div>
+                    ))}
                   </div>
                 )}
-              </div>
-
-              {/* Payment Type */}
-              <div className="bg-blue-50 p-4 rounded-xl border border-gray-200 mb-4">
-                <span className="font-bold text-gray-700 block mb-3">Payment Type</span>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => setPaymentType('cash')}
-                    className={`flex-1 px-4 py-2 rounded-lg font-semibold transition-colors ${
-                      paymentType === 'cash'
-                        ? 'bg-[#8B4513] text-white'
-                        : 'bg-white text-gray-700 border-2 border-[#8B4513]'
-                    }`}
-                  >
-                    Cash
-                  </button>
-                  <button
-                    onClick={() => setPaymentType('online')}
-                    className={`flex-1 px-4 py-2 rounded-lg font-semibold transition-colors ${
-                      paymentType === 'online'
-                        ? 'bg-[#8B4513] text-white'
-                        : 'bg-white text-gray-700 border-2 border-[#8B4513]'
-                    }`}
-                  >
-                    Online
-                  </button>
-                </div>
               </div>
 
               {/* Total */}
@@ -4300,6 +4091,33 @@ ${(() => {
                         <span className="font-bold text-red-600">-₹{calculateBillDiscount().toFixed(2)}</span>
                       </div>
                     )}
+                  </div>
+
+                  {/* Payment Type Section */}
+                  <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
+                    <span className="font-bold text-gray-700 block mb-3">Payment Type</span>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => setBillPaymentType('cash')}
+                        className={`flex-1 px-4 py-2 rounded-lg font-semibold transition-colors ${
+                          billPaymentType === 'cash'
+                            ? 'bg-[#8B4513] text-white'
+                            : 'bg-white text-gray-700 border-2 border-gray-300'
+                        }`}
+                      >
+                        Cash
+                      </button>
+                      <button
+                        onClick={() => setBillPaymentType('online')}
+                        className={`flex-1 px-4 py-2 rounded-lg font-semibold transition-colors ${
+                          billPaymentType === 'online'
+                            ? 'bg-[#8B4513] text-white'
+                            : 'bg-white text-gray-700 border-2 border-gray-300'
+                        }`}
+                      >
+                        Online
+                      </button>
+                    </div>
                   </div>
 
                   {/* Tax Section */}
@@ -4815,9 +4633,9 @@ ${(() => {
               {/* Print-only header with hotel details */}
               <div className="print-only text-center mb-2 pb-2 border-b border-gray-300">
                 <h1 className="text-sm font-bold text-black mb-1 uppercase tracking-wide">DHOLE PATIL KHANAWAL</h1>
-                <p className="text-xs font-semibold text-black mb-1">Veg & Non-Veg</p>
-                <p className="text-xs text-black mb-1">New Gunjalwadi Road, Sangamner</p>
-                <p className="text-xs text-black mb-1">Phone: +91 9371967595</p>
+                <p className="text-xs font-semibold text-black mb-1">Restaurant & Bar</p>
+                <p className="text-xs text-black mb-1">123, Main Street, City, State - 123456</p>
+                <p className="text-xs text-black mb-1">Phone: +91 98765 43210</p>
                 <p className="text-xs text-black mb-1">GSTIN: 29ABCDE1234F1Z5</p>
                 <p className="text-xs font-bold text-black mt-2 border-t border-dashed border-gray-300 pt-2 uppercase">BILL / INVOICE</p>
               </div>

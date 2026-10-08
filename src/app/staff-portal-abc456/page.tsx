@@ -108,7 +108,7 @@ export default function WaiterPage() {
 
       setDishes(dishesRes || [])
       setTables(tablesRes || [])
-
+      
       // Filter orders: show recent orders (last 1 hour) OR active orders for occupied tables
       const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000)
       const filteredOrders = (ordersRes || []).filter((order: Order) => {
@@ -116,15 +116,12 @@ export default function WaiterPage() {
         const isActive = !['paid', 'completed'].includes(order.status)
         return isRecent || isActive
       })
-
+      
       // Remove duplicate orders by ID
-      const uniqueOrders = filteredOrders.filter((order: Order, index: number, self: Order[]) =>
+      const uniqueOrders = filteredOrders.filter((order: Order, index: number, self: Order[]) => 
         index === self.findIndex((o: Order) => o.id === order.id)
       )
-
-      // Set the orders to state
-      setOrders(uniqueOrders)
-
+      
       // Play notification sound if new orders detected
       if (uniqueOrders.length > previousOrderCount && previousOrderCount > 0) {
         playNotificationSound('order')
@@ -140,30 +137,23 @@ export default function WaiterPage() {
   const handleTableSelect = async (table: Table) => {
     setSelectedTable(table)
 
-    // For master tables, always allow taking orders (regardless of occupied status)
-    if (table.is_master) {
-      setCurrentStep('dishes')
-      return
-    }
-
     // For child tables (part of master table), show error
     if (table.master_table_id) {
       alert('This table is part of a master table. Please use the master table to place orders.')
       return
     }
 
-    // For regular tables, check if occupied
+    // For master tables and regular tables, check if occupied and show bill if there's an active order
     if (table.is_occupied) {
       const tableOrder = orders.find(o => o.table_id === table.id && !['paid', 'completed'].includes(o.status))
       if (tableOrder) {
         handleViewBill(tableOrder)
-      } else {
-        alert('No active order found for this table.')
+        return
       }
-      return
+      // If occupied but no active order (rare case), allow new order
     }
 
-    // For available regular tables, go to dishes
+    // For available tables (or master tables without active orders), go to dishes
     setCurrentStep('dishes')
   }
 
@@ -222,12 +212,12 @@ export default function WaiterPage() {
   const handleRepeatOrder = async (order: Order) => {
     // Only use selected items - must select at least one
     const itemsToUse = selectedItemsToRepeat
-
+    
     if (itemsToUse.length === 0) {
       alert('Please select at least one item to repeat')
       return
     }
-
+    
     const cartItems: CartItem[] = itemsToUse.map(item => ({
       dish_id: item.dish_id,
       name: item.dishes?.name || 'Unknown',
@@ -236,7 +226,7 @@ export default function WaiterPage() {
       image_url: item.dishes?.image_url || null,
       dish_type: item.dish_type || 'Normal'
     }))
-
+    
     // Submit the repeated order immediately
     setSubmitting(true)
     try {
@@ -247,136 +237,82 @@ export default function WaiterPage() {
       const userIdMatch = document.cookie.match(/hotel_user_id=([^;]+)/)
       const userId = userIdMatch ? decodeURIComponent(userIdMatch[1]) : null
 
-      // Check if there's an existing pending order for this table
-      const allOrdersResponse = await fetch('/api/orders')
-      const allOrders = await allOrdersResponse.json()
-      const existingOrder = allOrders.find((o: any) =>
-        o.table_id === selectedTable?.id &&
-        o.status === 'pending' &&
-        (o.customer_name === order.customer_name || (!o.customer_name && !order.customer_name))
-      )
-
-      let orderData: any
-
-      if (existingOrder) {
-        // Add items to existing order
-        console.log('Found existing order, adding items to it:', existingOrder.id)
-
-        // Update order total
-        const currentTotal = existingOrder.total_amount || 0
-        const newTotal = currentTotal + cartItems.reduce((sum, item) => sum + (item.price * item.quantity), 0)
-
-        await fetch(`/api/orders/${existingOrder.id}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            total_amount: newTotal
-          })
+      // Create order via API
+      const orderResponse = await fetch('/api/orders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          table_id: selectedTable?.id,
+          waiter_id: userId,
+          status: 'pending',
+          total_amount: cartItems.reduce((sum, item) => sum + (item.price * item.quantity), 0)
         })
+      })
 
-        // Create order items for the existing order
-        const orderItems = cartItems.map(item => ({
-          order_id: existingOrder.id,
-          dish_id: item.dish_id,
-          quantity: item.quantity,
-          price: item.price,
-          status: 'pending'
-        }))
-
-        const itemsResponse = await fetch('/api/order-items', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(orderItems)
-        })
-
-        if (!itemsResponse.ok) {
-          const errorData = await itemsResponse.json()
-          console.error('Order items API error:', errorData)
-          throw new Error(errorData.error || 'Failed to create order items')
-        }
-
-        orderData = existingOrder
-      } else {
-        // Create new order
-        console.log('No existing order, creating new order')
-
-        const orderResponse = await fetch('/api/orders', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            table_id: selectedTable?.id,
-            waiter_id: userId,
-            status: 'pending',
-            total_amount: cartItems.reduce((sum, item) => sum + (item.price * item.quantity), 0),
-            customer_name: order.customer_name || null
-          })
-        })
-
-        if (!orderResponse.ok) {
-          throw new Error('Failed to create order')
-        }
-
-        orderData = await orderResponse.json()
-        console.log('Order created:', orderData)
-
-        // Create order items via API
-        const orderItems = cartItems.map(item => ({
-          order_id: orderData.id,
-          dish_id: item.dish_id,
-          quantity: item.quantity,
-          price: item.price,
-          status: 'pending'
-        }))
-
-        const itemsResponse = await fetch('/api/order-items', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(orderItems)
-        })
-
-        if (!itemsResponse.ok) {
-          const errorData = await itemsResponse.json()
-          console.error('Order items API error:', errorData)
-          throw new Error(errorData.error || 'Failed to create order items')
-        }
-
-        console.log('Order items created via API')
-
-        // Update table status to occupied via API
-        const tableResponse = await fetch('/api/tables', {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ id: selectedTable?.id, is_occupied: true })
-        })
-
-        if (!tableResponse.ok) {
-          console.error('Table update failed')
-          throw new Error('Failed to update table status')
-        }
-
-        console.log('Table updated to occupied')
-
-        // Create notifications for kitchen and admin staff
-        const usersResponse = await fetch('/api/users')
-        const allUsers = await usersResponse.json()
-        const kitchenAndAdminUsers = allUsers.filter((u: any) => u.role === 'kitchen' || u.role === 'admin')
-
-        for (const targetUser of kitchenAndAdminUsers) {
-          await fetch('/api/notifications', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              user_id: targetUser.id,
-              order_id: orderData.id,
-              type: 'new_order',
-              message: `Repeated order for Table ${selectedTable?.table_number} by ${user?.name}`,
-              is_read: false
-            })
-          })
-        }
-
-        console.log(`Notifications sent to ${kitchenAndAdminUsers.length} kitchen/admin users`)
+      if (!orderResponse.ok) {
+        throw new Error('Failed to create order')
       }
+
+      const orderData = await orderResponse.json()
+      console.log('Order created:', orderData)
+
+      // Create order items via API
+      const orderItems = cartItems.map(item => ({
+        order_id: orderData.id,
+        dish_id: item.dish_id,
+        quantity: item.quantity,
+        price: item.price,
+        status: 'pending'
+      }))
+
+      const itemsResponse = await fetch('/api/order-items', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(orderItems)
+      })
+
+      if (!itemsResponse.ok) {
+        const errorData = await itemsResponse.json()
+        console.error('Order items API error:', errorData)
+        throw new Error(errorData.error || 'Failed to create order items')
+      }
+
+      console.log('Order items created via API')
+
+      // Update table status to occupied via API
+      const tableResponse = await fetch('/api/tables', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: selectedTable?.id, is_occupied: true })
+      })
+
+      if (!tableResponse.ok) {
+        console.error('Table update failed')
+        throw new Error('Failed to update table status')
+      }
+
+      console.log('Table updated to occupied')
+
+      // Create notifications for kitchen and admin staff
+      const usersResponse = await fetch('/api/users')
+      const allUsers = await usersResponse.json()
+      const kitchenAndAdminUsers = allUsers.filter((u: any) => u.role === 'kitchen' || u.role === 'admin')
+
+      for (const targetUser of kitchenAndAdminUsers) {
+        await fetch('/api/notifications', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            user_id: targetUser.id,
+            order_id: orderData.id,
+            type: 'new_order',
+            message: `Repeated order for Table ${selectedTable?.table_number} by ${user?.name}`,
+            is_read: false
+          })
+        })
+      }
+
+      console.log(`Notifications sent to ${kitchenAndAdminUsers.length} kitchen/admin users`)
 
       // Play success sound
       playSuccessSound()
@@ -385,7 +321,7 @@ export default function WaiterPage() {
       setCart([])
       setSelectedItemsToRepeat([])
       setSelectedTable(null)
-
+      
       // Refresh data
       fetchData()
     } catch (error) {
@@ -450,13 +386,12 @@ export default function WaiterPage() {
       const userId = userIdMatch ? decodeURIComponent(userIdMatch[1]) : null
       console.log('User ID from cookie:', userId)
 
-      // Check if there's already a pending order for this table and customer
+      // Check if there's already a pending order for this table
       const existingOrdersResponse = await fetch('/api/orders')
       const allOrders = await existingOrdersResponse.json()
-      const existingOrder = allOrders.find((o: any) =>
-        o.table_id === selectedTable?.id &&
-        o.status === 'pending' &&
-        (o.customer_name === customerName || (!o.customer_name && !customerName))
+      const existingOrder = allOrders.find((o: any) => 
+        o.table_id === selectedTable?.id && 
+        o.status === 'pending'
       )
 
       let orderData: any
@@ -464,11 +399,11 @@ export default function WaiterPage() {
       if (existingOrder) {
         // Add items to existing order
         console.log('Found existing order, adding items to it:', existingOrder.id)
-
+        
         // Update order total
         const currentTotal = existingOrder.total_amount || 0
         const newTotal = currentTotal + getCartTotal()
-
+        
         await fetch(`/api/orders/${existingOrder.id}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
@@ -502,7 +437,7 @@ export default function WaiterPage() {
       } else {
         // Create new order
         console.log('No existing order, creating new order')
-
+        
         const orderResponse = await fetch('/api/orders', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -510,8 +445,7 @@ export default function WaiterPage() {
             table_id: selectedTable?.id,
             waiter_id: userId,
             status: 'pending',
-            total_amount: getCartTotal(),
-            customer_name: customerName || null
+            total_amount: getCartTotal()
           })
         })
 
@@ -606,8 +540,7 @@ export default function WaiterPage() {
       setCurrentStep('success')
       setCart([])
       setSelectedTable(null)
-      setCustomerName('')
-
+      
       // Refresh data
       fetchData()
     } catch (error) {
@@ -1097,14 +1030,32 @@ export default function WaiterPage() {
 
   const handleViewBill = async (order: Order) => {
     try {
-      // Fetch items only for the specific order
-      const response = await fetch(`/api/orders/${order.id}/items`)
-      if (!response.ok) throw new Error('Failed to fetch order items')
-      const items = await response.json()
-
-      // Set items and viewing bill
-      setBillOrderItems(items)
-      setViewingBill(order)
+      // Fetch all orders for the same table AND customer that are not paid/completed (including extra orders)
+      const allTableOrders = orders.filter(o => 
+        o.table_id === order.table_id && 
+        o.customer_name === order.customer_name &&
+        !['paid', 'completed'].includes(o.status)
+      )
+      
+      // Fetch items for all orders
+      const allItems = await Promise.all(
+        allTableOrders.map(async (o) => {
+          const response = await fetch(`/api/orders/${o.id}/items`)
+          if (!response.ok) throw new Error('Failed to fetch order items')
+          const items = await response.json()
+          return items.map((item: any) => ({ ...item, order_id: o.id, order_type: o.order_type }))
+        })
+      )
+      
+      // Flatten all items
+      const mergedItems = allItems.flat()
+      
+      // Calculate total amount from all orders
+      const totalAmount = allTableOrders.reduce((sum, o) => sum + o.total_amount, 0)
+      
+      // Set merged items and viewing bill with updated total
+      setBillOrderItems(mergedItems)
+      setViewingBill({ ...order, total_amount: totalAmount })
       setCurrentStep('bill-preview')
     } catch (error) {
       console.error('Error fetching bill:', error)
@@ -1126,7 +1077,7 @@ export default function WaiterPage() {
     escpos += 'DHOLE PATIL KHANAWAL\n'
     escpos += '\x1D\x21\x00' // Normal size
     
-    escpos += 'Veg & Non-Veg\n'
+    escpos += 'RESTAURANT & BAR\n'
     escpos += '====================\n'
     escpos += '\x1B\x61\x00' // Left align
     
@@ -1218,13 +1169,13 @@ export default function WaiterPage() {
       const plainText = `
 <div style="text-align: center; margin-bottom: 8px;">
   <div style="font-size: 18px; font-weight: 900; color: #000;">DHOLE PATIL KHANAWAL</div>
-  <div style="font-size: 12px; font-weight: bold; color: #000;">Veg & Non-Veg</div>
+  <div style="font-size: 12px; font-weight: bold; color: #000;">RESTAURANT & BAR</div>
 </div>
 <div style="border-top: 1px dashed #000; margin: 4px 0;"></div>
 <div style="text-align: center; font-size: 10px; margin-bottom: 4px; font-weight: bold; color: #000;">
-  <div>New Gunjalwadi Road</div>
-  <div>Gunjalwadi Sangamner</div>
-  <div>PHONE: +91 9371967595</div>
+  <div>123, MAIN STREET</div>
+  <div>CITY, STATE - 123456</div>
+  <div>PHONE: +91 98765 43210</div>
   <div>GSTIN: 29ABCDE1234F1Z5</div>
 </div>
 <div style="border-top: 1px dashed #000; margin: 4px 0;"></div>
@@ -1489,12 +1440,6 @@ ${itemsList}
                   <span className="font-semibold text-sm sm:text-base">Back to Tables</span>
                 </button>
               )}
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 bg-[#5D3A1A] rounded-full flex items-center justify-center text-white font-bold">
-                  {user?.name?.charAt(0) || 'W'}
-                </div>
-                <span className="font-semibold text-gray-900 text-sm sm:text-base">{user?.name || 'Waiter'}</span>
-              </div>
             </div>
             <div className="flex items-center gap-2 sm:gap-3">
               <button
@@ -1560,7 +1505,7 @@ ${itemsList}
                   </button>
                   <button
                     onClick={() => { playClickSound(); handleTableSelect(table) }}
-                    disabled={table.is_occupied}
+                    disabled={table.is_occupied && !table.is_master}
                     className="w-full text-left"
                   >
                     <div className="flex justify-between items-start mb-4 pr-8">
@@ -1568,11 +1513,13 @@ ${itemsList}
                         <Users className="w-5 h-5 sm:w-6 sm:h-6 text-[#5D3A1A]" />
                       </div>
                       <span className={`px-2 sm:px-3 py-1 rounded-full text-xs font-bold ${
-                        table.is_occupied 
-                          ? 'bg-red-100 text-red-800' 
+                        table.is_master && table.is_occupied
+                          ? 'bg-green-100 text-green-800'
+                          : table.is_occupied
+                          ? 'bg-red-100 text-red-800'
                           : 'bg-[#F5F5DC] text-[#5D3A1A]'
                       }`}>
-                        {table.is_occupied ? 'Occupied' : 'Available'}
+                        {table.is_master && table.is_occupied ? 'Active' : table.is_occupied ? 'Occupied' : 'Available'}
                       </span>
                     </div>
                     <h3 className="text-lg sm:text-xl font-bold text-gray-900 mb-2">
@@ -1589,90 +1536,91 @@ ${itemsList}
                         This table is currently occupied
                       </p>
                     )}
+                    {table.is_occupied && table.is_master && (
+                      <p className="text-xs text-green-600 font-semibold mt-2">
+                        Master table - Can add orders
+                      </p>
+                    )}
                   </button>
                 </div>
               ))}
             </div>
 
             {/* My Active Orders */}
-            {orders.length > 0 && (
-              <div className="mt-8 sm:mt-12">
-                <h3 className="text-xl sm:text-2xl font-bold text-gray-900 mb-4">My Active Orders</h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {(() => {
-                    // Group orders by table - show all orders by this waiter
-                    const tableGroups = orders
-                      .filter(o => !['paid', 'completed'].includes(o.status))
-                      .reduce((acc, order) => {
-                        const tableId = order.table_id
-                        if (!acc[tableId]) {
-                          acc[tableId] = {
-                            table: order.tables,
-                            orders: []
-                          }
+            <div className="mt-8 sm:mt-12">
+              <h3 className="text-xl sm:text-2xl font-bold text-gray-900 mb-4">My Active Orders</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {(() => {
+                  // Group orders by table - show all orders for this waiter
+                  const tableGroups = orders
+                    .filter(o => !['paid', 'completed'].includes(o.status))
+                    .reduce((acc, order) => {
+                      const tableId = order.table_id
+                      if (!acc[tableId]) {
+                        acc[tableId] = {
+                          table: order.tables,
+                          orders: []
                         }
-                        acc[tableId].orders.push(order)
-                        return acc
-                      }, {} as any)
-
-                    const filteredGroups = Object.values(tableGroups).filter((group: any) =>
-                      group.orders.some((o: Order) => o.waiter_id === user?.id || o.users?.id === user?.id)
-                    )
-
-                    if (filteredGroups.length === 0) {
-                      return (
-                        <div className="col-span-full text-center py-8 bg-gray-50 rounded-2xl">
-                          <p className="text-gray-500">No active orders found</p>
-                        </div>
-                      )
-                    }
-
-                    return filteredGroups.map((group: any) => (
-                      <div
-                        key={group.table?.id}
-                        className="bg-white rounded-2xl shadow-lg p-4 sm:p-6 border-2 border-[#8B4513] hover:border-[#5D3A1A] hover:shadow-xl transition-all duration-300 text-left cursor-pointer"
-                      >
-                        <div className="flex justify-between items-start mb-4">
-                          <div>
-                            <h4 className="text-base sm:text-lg font-bold text-gray-900">Table {group.table?.table_number}</h4>
-                            <p className="text-xs sm:text-sm text-gray-600">{group.orders.length} active order{group.orders.length > 1 ? 's' : ''}</p>
-                          </div>
-                          <span className="px-2 sm:px-3 py-1 rounded-full text-xs font-bold bg-[#F5F5DC] text-[#5D3A1A]">
-                            Active
-                          </span>
-                        </div>
-                        <p className="text-base sm:text-lg font-bold text-gray-900 mb-3">
-                          ₹{group.orders.reduce((sum: number, o: Order) => sum + o.total_amount, 0).toFixed(2)}
-                        </p>
-                        <div className="flex gap-2">
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              playClickSound()
-                              handleViewBill(group.orders[0])
-                            }}
-                            className="flex-1 flex items-center justify-center gap-2 bg-[#5D3A1A] text-white px-4 py-2 rounded-xl font-semibold hover:bg-[#8B4513] transition-all duration-300 text-sm"
-                          >
-                            View Details
-                          </button>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              playClickSound()
-                              handleStartRepeatOrder(group.orders[0])
-                            }}
-                            className="flex-1 flex items-center justify-center gap-2 bg-orange-500 text-white px-4 py-2 rounded-xl font-semibold hover:bg-orange-600 transition-all duration-300 text-sm"
-                          >
-                            <RotateCcw className="w-4 h-4" />
-                            Repeat
-                          </button>
-                        </div>
+                      }
+                      acc[tableId].orders.push(order)
+                      return acc
+                    }, {} as any)
+                  
+                  const groupArray = Object.values(tableGroups)
+                  
+                  if (groupArray.length === 0) {
+                    return (
+                      <div className="col-span-full text-center py-8 bg-white rounded-2xl shadow-lg">
+                        <p className="text-gray-500 font-semibold">No active orders</p>
                       </div>
-                    ))
-                  })()}
-                </div>
+                    )
+                  }
+                  
+                  return groupArray.map((group: any) => (
+                    <div
+                      key={group.table?.id}
+                      className="bg-white rounded-2xl shadow-lg p-4 sm:p-6 border-2 border-[#8B4513] hover:border-[#5D3A1A] hover:shadow-xl transition-all duration-300 text-left cursor-pointer"
+                    >
+                      <div className="flex justify-between items-start mb-4">
+                        <div>
+                          <h4 className="text-base sm:text-lg font-bold text-gray-900">Table {group.table?.table_number}</h4>
+                          <p className="text-xs sm:text-sm text-gray-600">{group.orders.length} active order{group.orders.length > 1 ? 's' : ''}</p>
+                        </div>
+                        <span className="px-2 sm:px-3 py-1 rounded-full text-xs font-bold bg-[#F5F5DC] text-[#5D3A1A]">
+                          Active
+                        </span>
+                      </div>
+                      <p className="text-base sm:text-lg font-bold text-gray-900 mb-3">
+                        ₹{group.orders.reduce((sum: number, o: Order) => sum + o.total_amount, 0).toFixed(2)}
+                      </p>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            playClickSound()
+                            handleViewBill(group.orders[0])
+                          }}
+                          className="flex-1 flex items-center justify-center gap-2 bg-[#5D3A1A] text-white px-4 py-2 rounded-xl font-semibold hover:bg-[#8B4513] transition-all duration-300 text-sm"
+                        >
+                          View Details
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            playClickSound()
+                            handleStartRepeatOrder(group.orders[0])
+                          }}
+                          className="flex-1 flex items-center justify-center gap-2 bg-orange-500 text-white px-4 py-2 rounded-xl font-semibold hover:bg-orange-600 transition-all duration-300 text-sm"
+                        >
+                          <RotateCcw className="w-4 h-4" />
+                          Repeat
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                })()}
               </div>
-            )}
+            </div>
           </div>
         )}
 
@@ -2624,7 +2572,7 @@ ${itemsList}
               <div className="bg-gradient-to-r from-[#5D3A1A] to-[#8B5A2B] p-6 rounded-t-2xl">
                 <div className="text-center">
                   <h2 className="text-3xl font-bold text-white mb-1">DHOLE PATIL KHANAWAL</h2>
-                  <p className="text-[#F5F5DC] text-sm font-semibold">Veg & Non-Veg</p>
+                  <p className="text-[#F5F5DC] text-sm font-semibold">RESTAURANT & BAR</p>
                   <div className="mt-2 text-[#F5F5DC] text-xs space-y-1">
                     <p>123, MAIN STREET, CITY, STATE - 123456</p>
                     <p>PHONE: +91 98765 43210</p>

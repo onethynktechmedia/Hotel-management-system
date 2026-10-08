@@ -20,14 +20,12 @@ export default function Home() {
               </h1>
             </div>
             
-            {/* Desktop Navigation */}
             <div className="hidden md:flex items-center space-x-4">
               <Link href="/menu" onClick={() => playClickSound()} className="bg-[#5D3A1A] text-white px-6 py-2 rounded-md text-sm font-medium hover:bg-[#8B4513] transition-colors">
                 View Menu
               </Link>
             </div>
 
-            {/* Mobile menu button */}
             <div className="md:hidden flex items-center">
               <button
                 onClick={() => { playClickSound(); setIsMobileMenuOpen(!isMobileMenuOpen) }}
@@ -39,7 +37,6 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Mobile menu */}
         {isMobileMenuOpen && (
           <div className="md:hidden bg-white border-t border-gray-200">
             <div className="px-4 py-3 space-y-2">

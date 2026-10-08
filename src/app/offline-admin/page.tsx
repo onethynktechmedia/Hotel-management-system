@@ -42,7 +42,6 @@ export default function OfflineAdminPage() {
   const [billDiscountAmount, setBillDiscountAmount] = useState('')
   const [billDiscountPercentage, setBillDiscountPercentage] = useState('')
   const [billDiscountType, setBillDiscountType] = useState<'amount' | 'percentage'>('amount')
-  const [paymentType, setPaymentType] = useState<'cash' | 'online'>('cash')
   const [showBillPreview, setShowBillPreview] = useState(false)
   
   // Tab navigation
@@ -271,32 +270,20 @@ export default function OfflineAdminPage() {
       escposContent += `Customer: ${customerName || 'GUEST'}\n`
       escposContent += '--------------------------\n'
       escposContent += '\x1B\x21\x08'
-      escposContent += '  ITEM                   QTY   AMT\n'
-      escposContent += '---------------------------\n'
+      escposContent += '  ITEM                  QTY  AMT\n'
+      escposContent += '--------------------------\n'
       escposContent += '\x1B\x21\x00'
-
-      // Group items by dish_id to consolidate duplicates
-      const groupedItems = offlineCart.reduce((acc: any[], item) => {
-        const existing = acc.find(i => i.dish_id === item.dish_id)
-        if (existing) {
-          existing.quantity += item.quantity
-        } else {
-          acc.push({ ...item })
-        }
-        return acc
-      }, [])
-
-      groupedItems.forEach((item) => {
+      
+      offlineCart.forEach((item) => {
         const name = item.name
         const qty = item.quantity
         const price = item.price
         const total = (price * qty).toFixed(2)
-        const itemName = name.length > 20 ? name.substring(0, 19) + '.' : name
-        const qtyText = `${qty}x`
-        escposContent += `${itemName.padEnd(20)} ${qtyText.padStart(5)} ${total.padStart(7)}\n`
+        const itemName = name.length > 14 ? name.substring(0, 13) + '.' : name
+        escposContent += `${itemName.padEnd(14)} ${qty.toString().padStart(2)} ${total.padStart(7)}\n`
       })
-
-      escposContent += '---------------------------\n'
+      
+      escposContent += '--------------------------\n'
       escposContent += `Subtotal: RS${getCartTotal().toFixed(2)}\n`
       
       const subtotal = getCartTotal()
@@ -387,38 +374,18 @@ Time: ${new Date(selectedOrderForBilling.created_at).toLocaleTimeString()}<br>
 Table: ${selectedOrderForBilling.tables?.table_number}<br>
 Waiter: ${selectedOrderForBilling.users?.name}<br>
 Customer: ${selectedOrderForBilling.customer_name || 'Guest'}<br>
-Payment: ${paymentType === 'cash' ? 'CASH' : 'ONLINE'}<br>
 --------------------------------<br>
-ITEM              QTY   AMOUNT<br>
----------------------------------<br>
-${(() => {
-  // Group items by dish_id to consolidate duplicates
-  const groupedItems = (selectedOrderForBilling.order_items || []).reduce((acc: any[], item: any) => {
-    const dishId = item.dishes?.id || item.dish_id
-    const existing = acc.find(i => i.dish_id === dishId)
-    if (existing) {
-      existing.quantity += item.quantity
-    } else {
-      acc.push({
-        dish_id: dishId,
-        name: item.dishes?.name || 'Unknown',
-        quantity: item.quantity,
-        price: item.dishes?.price || item.price || 0
-      })
-    }
-    return acc
-  }, [])
-  return groupedItems.map((item: any) => {
-    const name = item.name
-    const qty = item.quantity
-    const price = item.price
-    const total = (price * qty).toFixed(2)
-    const itemName = name.length > 16 ? name.substring(0, 15) + '.' : name
-    const qtyText = `${qty}x`
-    return `${itemName.padEnd(16)} ${qtyText.padStart(5)}  ${total.padStart(8)}<br>`
-  }).join('')
-})()}
----------------------------------<br>
+ITEM             QTY  AMOUNT<br>
+--------------------------------<br>
+${selectedOrderForBilling.order_items?.map((item: any) => {
+  const name = item.dishes?.name || 'Unknown'
+  const qty = item.quantity
+  const price = (item.dishes?.price || item.price || 0)
+  const total = (price * qty).toFixed(2)
+  const itemName = name.length > 16 ? name.substring(0, 15) + '.' : name
+  return `${itemName.padEnd(16)} ${qty.toString().padStart(2)}  ${total.padStart(8)}<br>`
+}).join('')}
+--------------------------------<br>
 Subtotal:      Rs${selectedOrderForBilling.total_amount.toFixed(2).padStart(8)}<br>
 ${(() => {
   const discount = calculateDiscountValue(selectedOrderForBilling.total_amount)
@@ -840,35 +807,23 @@ Visit Us Again<br>
                     <div className="border-t pt-4 mt-4">
                       <h3 className="font-semibold mb-3">Cart Items</h3>
                       <div className="space-y-2 max-h-[200px] overflow-y-auto">
-                        {(() => {
-                          // Group items by dish_id to consolidate duplicates
-                          const groupedItems = offlineCart.reduce((acc: any[], item) => {
-                            const existing = acc.find(i => i.dish_id === item.dish_id)
-                            if (existing) {
-                              existing.quantity += item.quantity
-                            } else {
-                              acc.push({ ...item })
-                            }
-                            return acc
-                          }, [])
-                          return groupedItems.map((item) => (
-                            <div key={item.id} className="flex justify-between items-center bg-gray-50 p-2 rounded-lg">
-                              <div className="flex-1">
-                                <p className="font-medium text-sm">{item.name} <span className="font-bold text-[#5D3A1A] bg-[#F5F5DC] px-1.5 py-0.5 rounded text-xs">{item.quantity}x</span></p>
-                                <p className="text-xs text-gray-600">₹{item.price} each</p>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <p className="font-bold text-[#5D3A1A] text-sm">₹{(item.price * item.quantity).toFixed(2)}</p>
-                                <button onClick={() => {
-                                  playClickSound()
-                                  removeFromCart(item.id)
-                                }} className="text-red-500">
-                                  <Trash2 className="w-4 h-4" />
-                                </button>
-                              </div>
+                        {offlineCart.map((item) => (
+                          <div key={item.id} className="flex justify-between items-center bg-gray-50 p-2 rounded-lg">
+                            <div className="flex-1">
+                              <p className="font-medium text-sm">{item.name}</p>
+                              <p className="text-xs text-gray-600">Qty: {item.quantity} × ₹{item.price}</p>
                             </div>
-                          ))
-                        })()}
+                            <div className="flex items-center gap-2">
+                              <p className="font-bold text-[#5D3A1A] text-sm">₹{(item.price * item.quantity).toFixed(2)}</p>
+                              <button onClick={() => {
+                                playClickSound()
+                                removeFromCart(item.id)
+                              }} className="text-red-500">
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </div>
+                        ))}
                       </div>
                       <div className="mt-4 pt-4 border-t">
                         <p className="text-xl font-bold text-right text-[#5D3A1A]">Total: ₹{getCartTotal().toFixed(2)}</p>
@@ -1116,31 +1071,6 @@ Visit Us Again<br>
                 <p>Subtotal: ₹{getCartTotal().toFixed(2)}</p>
               </div>
               <div className="bg-gray-50 rounded-lg p-4">
-                <h3 className="font-semibold mb-2">Payment Type</h3>
-                <div className="flex gap-4">
-                  <button
-                    onClick={() => setPaymentType('cash')}
-                    className={`flex-1 px-4 py-2 rounded-lg font-semibold transition-colors ${
-                      paymentType === 'cash'
-                        ? 'bg-[#8B4513] text-white'
-                        : 'bg-white text-gray-700 border-2 border-[#8B4513]'
-                    }`}
-                  >
-                    Cash
-                  </button>
-                  <button
-                    onClick={() => setPaymentType('online')}
-                    className={`flex-1 px-4 py-2 rounded-lg font-semibold transition-colors ${
-                      paymentType === 'online'
-                        ? 'bg-[#8B4513] text-white'
-                        : 'bg-white text-gray-700 border-2 border-[#8B4513]'
-                    }`}
-                  >
-                    Online
-                  </button>
-                </div>
-              </div>
-              <div className="bg-gray-50 rounded-lg p-4">
                 <h3 className="font-semibold mb-2">Discount</h3>
                 <div className="flex gap-4">
                   <select value={billDiscountType} onChange={(e) => setBillDiscountType(e.target.value as 'amount' | 'percentage')} className="px-4 py-2 border border-gray-300 rounded-lg">
@@ -1176,31 +1106,6 @@ Visit Us Again<br>
                 <p>Customer: {selectedOrderForBilling.customer_name || 'Guest'}</p>
                 <p>Table: {selectedOrderForBilling.tables?.table_number}</p>
                 <p>Total: ₹{selectedOrderForBilling.total_amount.toFixed(2)}</p>
-              </div>
-              <div className="bg-gray-50 rounded-lg p-4">
-                <h3 className="font-semibold mb-2">Payment Type</h3>
-                <div className="flex gap-4">
-                  <button
-                    onClick={() => setPaymentType('cash')}
-                    className={`flex-1 px-4 py-2 rounded-lg font-semibold transition-colors ${
-                      paymentType === 'cash'
-                        ? 'bg-[#8B4513] text-white'
-                        : 'bg-white text-gray-700 border-2 border-[#8B4513]'
-                    }`}
-                  >
-                    Cash
-                  </button>
-                  <button
-                    onClick={() => setPaymentType('online')}
-                    className={`flex-1 px-4 py-2 rounded-lg font-semibold transition-colors ${
-                      paymentType === 'online'
-                        ? 'bg-[#8B4513] text-white'
-                        : 'bg-white text-gray-700 border-2 border-[#8B4513]'
-                    }`}
-                  >
-                    Online
-                  </button>
-                </div>
               </div>
               <div className="bg-gray-50 rounded-lg p-4">
                 <h3 className="font-semibold mb-2">Discount</h3>

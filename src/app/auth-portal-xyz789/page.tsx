@@ -2,11 +2,10 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import Link from 'next/link'
 import { User } from '@/types'
 import { playClickSound, playSuccessSound, playErrorSound } from '@/lib/sound-effects'
 
-export default function LoginPage() {
+export default function AuthPortal() {
   const router = useRouter()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -36,21 +35,19 @@ export default function LoginPage() {
         return
       }
 
-      // Set secure cookies for session management
-      document.cookie = `hotel_session=${data.session_token || data.user.id}; path=/; secure; samesite=strict; max-age=86400`
-      document.cookie = `hotel_role=${data.user.role}; path=/; secure; samesite=strict; max-age=86400`
-      document.cookie = `hotel_user_id=${data.user.id}; path=/; secure; samesite=strict; max-age=86400`
+      const isSecure = process.env.NODE_ENV === 'production'
+      document.cookie = `hotel_session=${data.session_token || data.user.id}; path=/; ${isSecure ? 'secure;' : ''} samesite=strict; max-age=86400`
+      document.cookie = `hotel_role=${data.user.role}; path=/; ${isSecure ? 'secure;' : ''} samesite=strict; max-age=86400`
+      document.cookie = `hotel_user_id=${data.user.id}; path=/; ${isSecure ? 'secure;' : ''} samesite=strict; max-age=86400`
       
-      // Store minimal user data in localStorage for UI (non-sensitive)
       localStorage.setItem('user_name', data.user.name || '')
       localStorage.setItem('user_role', data.user.role || '')
       
       playSuccessSound()
 
-      // Redirect based on role to secure routes
       switch (data.user.role) {
         case 'admin':
-          router.push('/admin')
+          router.push('/secure-dashboard-xyz789')
           break
         case 'waiter':
           router.push('/staff-portal-abc456')
@@ -97,6 +94,7 @@ export default function LoginPage() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
+              autoComplete="email"
               className="w-full px-4 py-3 border border-[#8B4513] rounded-xl focus:ring-2 focus:ring-[#5D3A1A] focus:border-[#5D3A1A] transition-all duration-300 outline-none"
               placeholder="admin@hotel.com"
             />
@@ -112,6 +110,7 @@ export default function LoginPage() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
+              autoComplete="current-password"
               className="w-full px-4 py-3 border border-[#8B4513] rounded-xl focus:ring-2 focus:ring-[#5D3A1A] focus:border-[#5D3A1A] transition-all duration-300 outline-none"
               placeholder="••••••••"
             />
@@ -133,27 +132,9 @@ export default function LoginPage() {
         </form>
 
         <div className="mt-6 text-center">
-          <Link href="/" className="text-[#8B4513] hover:text-[#A0522D] text-sm font-semibold transition-colors">
-            ← Back to Home
-          </Link>
-        </div>
-
-        <div className="mt-8 pt-6 border-t border-gray-200">
-          <p className="text-sm font-semibold text-gray-700 text-center mb-3">Default credentials:</p>
-          <div className="bg-gray-50 rounded-xl p-4 space-y-2 border border-gray-100">
-            <div className="flex justify-between items-center text-sm">
-              <span className="text-gray-600 font-medium">Admin:</span>
-              <span className="font-mono text-gray-800 text-xs">admin@hotel.com / admin123</span>
-            </div>
-            <div className="flex justify-between items-center text-sm">
-              <span className="text-gray-600 font-medium">Waiter:</span>
-              <span className="font-mono text-gray-800 text-xs">waiter@hotel.com / waiter123</span>
-            </div>
-            <div className="flex justify-between items-center text-sm">
-              <span className="text-gray-600 font-medium">Kitchen:</span>
-              <span className="font-mono text-gray-800 text-xs">kitchen@hotel.com / kitchen123</span>
-            </div>
-          </div>
+          <p className="text-[#8B4513] text-sm">
+            Secure Staff Portal
+          </p>
         </div>
       </div>
     </div>

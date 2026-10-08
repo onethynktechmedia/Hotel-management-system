@@ -11,22 +11,27 @@ const SECURE_ROUTES = {
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
-  
+
+  // Allow API routes to pass through without authentication
+  if (pathname.startsWith('/api')) {
+    return NextResponse.next()
+  }
+
   // Allow public routes
   if (pathname === '/' || pathname === '/menu') {
     return NextResponse.next()
   }
-  
+
   // Block old login route - return 404
   if (pathname === '/login') {
     return new NextResponse('Not Found', { status: 404 })
   }
-  
+
   // Allow access to secure login route
   if (pathname === '/dpk') {
     return NextResponse.next()
   }
-  
+
   // Redirect old routes to new secure routes
   if (pathname === '/waiter') {
     return NextResponse.redirect(new URL(SECURE_ROUTES.waiter, request.url))
@@ -37,10 +42,10 @@ export function middleware(request: NextRequest) {
   if (pathname === '/offline-admin') {
     return NextResponse.redirect(new URL(SECURE_ROUTES['offline-admin'], request.url))
   }
-  
+
   // Check if accessing secure routes - just check if logged in, not role
   const isSecureRoute = Object.values(SECURE_ROUTES).includes(pathname) || pathname === '/admin'
-  
+
   if (isSecureRoute) {
     // Check if user is authenticated via cookie
     const sessionCookie = request.cookies.get('hotel_session')
@@ -48,7 +53,7 @@ export function middleware(request: NextRequest) {
       return NextResponse.redirect(new URL('/dpk', request.url))
     }
   }
-  
+
   return NextResponse.next()
 }
 
@@ -65,6 +70,7 @@ export const config = {
     '/admin',
     '/staff-portal-abc456',
     '/chef-station-def123',
-    '/backup-control-ghi789'
+    '/backup-control-ghi789',
+    '/api/:path*'
   ]
 }

@@ -90,7 +90,7 @@ export default function Sidebar({ activeTab, setActiveTab, user }: SidebarProps)
         {/* Logo/Brand */}
         <div className="p-6 border-b border-[#5D3A1A]">
           <div className="flex items-center gap-3">
-            <img src="/logo.png" alt="Dhole Patil Hotel Logo" className="w-12 h-12 rounded-full object-cover" />
+            <img src="/logo.png" alt="Dhole Patil Hotel Logo" className="w-16 h-16 rounded-full object-cover" />
             <div>
               <h1 className="text-xl font-bold text-[#5D3A1A]">
                 Dhole Patil Khanawal
