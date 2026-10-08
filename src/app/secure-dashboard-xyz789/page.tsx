@@ -5040,14 +5040,14 @@ ${(() => {
                   Cash
                 </button>
                 <button
-                  onClick={() => setBillPaymentType('online')}
+                  onClick={() => setBillPaymentType('upi')}
                   className={`flex-1 px-4 py-3 rounded-xl font-bold transition-all duration-300 ${
-                    billPaymentType === 'online'
+                    billPaymentType === 'upi'
                       ? 'bg-blue-600 text-white'
                       : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                   }`}
                 >
-                  Online
+                  UPI
                 </button>
               </div>
             </div>
