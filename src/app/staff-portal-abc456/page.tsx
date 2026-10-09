@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import supabase from '@/lib/db'
 import { User, Order, Dish, Table, CartItem } from '@/types'
-import { LogOut, ShoppingCart, Plus, Minus, ArrowLeft, Users, Clock, CheckCircle, X, Crown, Printer, RotateCcw, History } from 'lucide-react'
+import { LogOut, ShoppingCart, Plus, Minus, ArrowLeft, Users, Clock, CheckCircle, X, Crown, Printer, RotateCcw, History, Utensils, Link, Bell } from 'lucide-react'
 import { playClickSound, playSuccessSound, playErrorSound, playPrintSound, playNotificationSound } from '@/lib/sound-effects'
 
 type Step = 'tables' | 'order-options' | 'dishes' | 'cart' | 'success' | 'alter-table' | 'repeat-order' | 'bill-preview' | 'previous-orders'
@@ -49,8 +49,26 @@ export default function WaiterPage() {
   const [selectedItemsToRepeat, setSelectedItemsToRepeat] = useState<any[]>([])
   const [previousOrderCount, setPreviousOrderCount] = useState(0)
   const [customerName, setCustomerName] = useState('')
+  const [tableFilter, setTableFilter] = useState<string>('all')
+  const [searchTerm, setSearchTerm] = useState<string>('')
+  const [showProfileDropdown, setShowProfileDropdown] = useState(false)
 
   const dishTypes = ['Normal', 'Medium', 'Spicy', 'Extra Spicy']
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (showProfileDropdown) {
+        const target = event.target as HTMLElement
+        if (!target.closest('.profile-dropdown-container')) {
+          setShowProfileDropdown(false)
+        }
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [showProfileDropdown])
 
   useEffect(() => {
     // Check for session cookie instead of localStorage
@@ -192,20 +210,20 @@ export default function WaiterPage() {
   const getFoodTypeIcon = (foodType?: string) => {
     if (foodType === 'veg') {
       return (
-        <div className="w-5 h-5 flex items-center justify-center border-2 border-green-600 bg-green-50 rounded-sm">
-          <div className="w-2.5 h-2.5 bg-green-600 rounded-full"></div>
+        <div className="w-5 h-5 flex items-center justify-center border-2 border-amber-600 bg-amber-50 rounded-sm">
+          <div className="w-2.5 h-2.5 bg-amber-900 rounded-full"></div>
         </div>
       )
     } else if (foodType === 'nonveg') {
       return (
-        <div className="w-5 h-5 flex items-center justify-center border-2 border-red-600 bg-red-50 rounded-sm">
-          <div className="w-2.5 h-2.5 bg-red-600 rounded-full"></div>
+        <div className="w-5 h-5 flex items-center justify-center border-2 border-amber-600 bg-amber-50 rounded-sm">
+          <div className="w-2.5 h-2.5 bg-amber-900 rounded-full"></div>
         </div>
       )
     } else if (foodType === 'custom' || foodType === 'parcel') {
       return (
-        <div className="w-5 h-5 flex items-center justify-center border-2 border-blue-600 bg-blue-50 rounded-sm">
-          <span className="text-xs font-bold text-blue-600">C</span>
+        <div className="w-5 h-5 flex items-center justify-center border-2 border-amber-600 bg-amber-50 rounded-sm">
+          <span className="text-xs font-bold text-gray-900">C</span>
         </div>
       )
     }
@@ -742,7 +760,7 @@ export default function WaiterPage() {
       setSelectedTablesForMaster([])
       await fetchData()
       playSuccessSound()
-      alert(`Table ${masterTable.table_number} is now the master table with ${selectedTablesForMaster.length} tables combined. All tables are now occupied and reserved.`)
+      alert(`Table ${masterTable.table_number} is now the master table with ${selectedTablesForMaster.length} ${selectedTablesForMaster.length === 1 ? 'table' : 'tables'} combined. All tables are now occupied and reserved.`)
     } catch (error) {
       console.error('Error creating master table:', error)
       playErrorSound()
@@ -1520,7 +1538,7 @@ ${itemsList}
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen bg-amber-50 flex items-center justify-center">
         <div className="text-2xl font-bold text-gray-900">
           Loading...
         </div>
@@ -1529,50 +1547,95 @@ ${itemsList}
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-amber-50 pb-20">
       {/* Header */}
-      <nav className="bg-white shadow-lg sticky top-0 z-40">
+      <nav className="bg-white shadow-sm sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex flex-col sm:flex-row justify-between items-center gap-3 sm:gap-0 py-3 sm:h-16">
-            <div className="flex items-center gap-2 sm:gap-4 w-full sm:w-auto">
-              {currentStep !== 'tables' && (
-                <button
-                  onClick={() => { playClickSound(); handleBackToTables() }}
-                  className="flex items-center gap-2 text-gray-600 hover:text-[#5D3A1A] transition-colors"
-                >
-                  <ArrowLeft className="w-4 h-4 sm:w-5 sm:h-5" />
-                  <span className="font-semibold text-sm sm:text-base">Back to Tables</span>
-                </button>
-              )}
+          <div className="flex justify-between items-center py-4">
+            <div className="flex items-center gap-4">
+              {/* Hamburger Menu */}
+              <button onClick={() => playClickSound()} className="text-gray-900 hover:text-gray-900 transition-colors">
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                </svg>
+              </button>
+              {/* Restaurant Logo and Title */}
               <div className="flex items-center gap-2">
-                <div className="w-8 h-8 bg-[#5D3A1A] rounded-full flex items-center justify-center text-white font-bold">
-                  {user?.name?.charAt(0) || 'W'}
+                <div>
+                  <h1 className="text-lg font-bold text-gray-900">Dhole Patil Khanawal</h1>
+                  <p className="text-sm text-gray-900">Waiter Dashboard</p>
                 </div>
-                <span className="font-semibold text-gray-900 text-sm sm:text-base">{user?.name || 'Waiter'}</span>
               </div>
             </div>
-            <div className="flex items-center gap-2 sm:gap-3">
-              <button
-                onClick={() => { playClickSound(); fetchData() }}
-                className="flex items-center gap-2 bg-brown-900 text-white px-3 sm:px-4 py-2 rounded-xl font-semibold hover:bg-blue-700 transition-all duration-300 text-sm sm:text-base"
-              >
-                <RotateCcw className="w-4 h-4 sm:w-5 sm:h-5" />
-                Refresh
-              </button>
-              <button
-                onClick={() => { playClickSound(); handleInitializeTables() }}
-                className="flex items-center gap-2 bg-[#5D3A1A] text-white px-3 sm:px-4 py-2 rounded-xl font-semibold hover:bg-[#8B4513] transition-all duration-300 text-sm sm:text-base"
-              >
-                <Users className="w-4 h-4 sm:w-5 sm:h-5" />
-                Init Tables
-              </button>
-              <button
-                onClick={() => { playClickSound(); handleLogout() }}
-                className="flex items-center gap-2 bg-[#5D3A1A] text-white px-3 sm:px-4 py-2 rounded-xl font-semibold hover:bg-[#8B4513] transition-all duration-300 text-sm sm:text-base"
-              >
-                <LogOut className="w-4 h-4 sm:w-5 sm:h-5" />
-                Logout
-              </button>
+            <div className="flex items-center gap-4">
+              {/* Online Status */}
+              <div className="flex items-center gap-2">
+                <span className="w-2 h-2 bg-amber-500 rounded-full animate-pulse"></span>
+                <span className="text-gray-900 text-sm font-medium">Online</span>
+              </div>
+              {/* User Profile */}
+              <div className="relative profile-dropdown-container">
+                <button
+                  onClick={() => { playClickSound(); setShowProfileDropdown(!showProfileDropdown) }}
+                  className="w-10 h-10 bg-amber-100 rounded-full flex items-center justify-center hover:bg-amber-200 transition-colors"
+                >
+                  <span className="text-gray-900 font-bold text-sm">{user?.name?.charAt(0) || 'W'}</span>
+                </button>
+
+                {/* Profile Dropdown */}
+                {showProfileDropdown && (
+                  <div className="absolute right-0 mt-2 w-48 bg-white rounded-xl shadow-xl border-2 border-amber-200 z-50">
+                    <div className="p-4 border-b border-amber-200">
+                      <p className="text-xs text-gray-900 font-medium mb-1">Waiter</p>
+                      <p className="text-sm font-bold text-gray-900">{user?.name || 'Waiter'}</p>
+                    </div>
+                    <div className="p-2">
+                      <button
+                        onClick={() => {
+                          playClickSound()
+                          // Clear session cookies
+                          document.cookie = 'hotel_session=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT'
+                          document.cookie = 'hotel_role=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT'
+                          document.cookie = 'hotel_user_id=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT'
+                          document.cookie = 'hotel_user_name=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT'
+                          router.push('/dpk')
+                        }}
+                        className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-900 hover:bg-amber-50 rounded-lg transition-colors"
+                      >
+                        <LogOut className="w-4 h-4" />
+                        Logout
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+          {/* Search Bar */}
+          <div className="pb-4">
+            <div className=" border border-brown-200 rounded-xl px-4 py-3 flex items-center justify-between">
+              <div className="flex items-center gap-2 flex-1">
+                <svg className="w-5 h-5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+                <input
+                  type="text"
+                  placeholder="Search table number..."
+                  className="flex-1 outline-none text-sm text-gray-900 bg-transparent"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
+              </div>
+              {searchTerm && (
+                <button
+                  onClick={() => { playClickSound(); setSearchTerm('') }}
+                  className="text-amber-400 hover:text-gray-900 transition-colors"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -1582,79 +1645,156 @@ ${itemsList}
         {/* Step 1: Tables Selection */}
         {currentStep === 'tables' && (
           <div>
-            <div className="mb-5 flex justify-between items-center">
-              <div className="flex gap-2">
-                <button
-                  onClick={() => { playClickSound(); document.getElementById('active-orders-section')?.scrollIntoView({ behavior: 'smooth' }) }}
-                  className="flex items-center gap-2 bg-brown-900 text-white px-4 py-1.5 rounded-xl font-semibold hover:bg-blue-700 transition-all duration-300 text-sm"
-                >
-                  <Clock className="w-4 h-4" />
-                  Active Orders
-                </button>
-                <button
-                  onClick={() => { playClickSound(); document.getElementById('master-tables-section')?.scrollIntoView({ behavior: 'smooth' }) }}
-                  className="flex items-center gap-2 bg-brown-900 text-white px-4 py-1.5 rounded-xl font-semibold hover:bg-purple-700 transition-all duration-300 text-sm"
-                >
-                  <Crown className="w-4 h-4" />
-                  Master Tables
-                </button>
-                <button
-                  onClick={() => { playClickSound(); setShowMasterTableModal(true) }}
-                  className="flex items-center gap-2 bg-brown-900 text-white px-4 py-1.5 rounded-xl font-semibold hover:bg-green-700 transition-all duration-300 text-sm"
-                >
-                  <Users className="w-4 h-4" />
-                  Create Master Table
-                </button>
+            {/* Summary Cards */}
+            <div className="grid grid-cols-4 gap-2 sm:gap-3 mb-6">
+              <div className="bg-white rounded-xl p-3 sm:p-4 shadow-sm border border-amber-200 flex flex-col items-center justify-center">
+                <span className="text-xs text-gray-900 font-medium mb-1">Total</span>
+                <div className="text-3xl sm:text-4xl font-bold text-gray-900">{tables.length}</div>
+              </div>
+              <div className="bg-white rounded-xl p-3 sm:p-4 shadow-sm border border-amber-200 flex flex-col items-center justify-center">
+                <span className="text-xs text-gray-900 font-medium mb-1">Available</span>
+                <div className="text-3xl sm:text-4xl font-bold text-gray-900">{tables.filter(t => !t.is_occupied).length}</div>
+              </div>
+              <div className="bg-white rounded-xl p-3 sm:p-4 shadow-sm border border-amber-200 flex flex-col items-center justify-center">
+                <span className="text-xs text-gray-900 font-medium mb-1">Occupied</span>
+                <div className="text-3xl sm:text-4xl font-bold text-gray-900">{tables.filter(t => t.is_occupied).length}</div>
+              </div>
+              <div className="bg-white rounded-xl p-3 sm:p-4 shadow-sm border border-amber-200 flex flex-col items-center justify-center">
+                <span className="text-xs text-gray-900 font-medium mb-1">Pending</span>
+                <div className="text-3xl sm:text-4xl font-bold text-gray-900">{orders.filter(o => o.status === 'pending').length}</div>
               </div>
             </div>
 
+            {/* Filter Buttons */}
+            <div className="flex gap-2 overflow-x-auto pb-2 mb-4">
+              <button
+                onClick={() => { playClickSound(); setTableFilter('all') }}
+                className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${
+                  tableFilter === 'all'
+                    ? 'bg-amber-900 text-white'
+                    : 'bg-white text-gray-900 border border-amber-200'
+                }`}
+              >
+                All Tables
+              </button>
+              <button
+                onClick={() => { playClickSound(); setTableFilter('available') }}
+                className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap flex items-center gap-2 transition-colors ${
+                  tableFilter === 'available'
+                    ? 'bg-amber-900 text-white'
+                    : 'bg-white text-gray-900 border border-amber-200'
+                }`}
+              >
+                <span className="w-2 h-2 bg-amber-500 rounded-full"></span>
+                Available
+              </button>
+              <button
+                onClick={() => { playClickSound(); setTableFilter('occupied') }}
+                className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap flex items-center gap-2 transition-colors ${
+                  tableFilter === 'occupied'
+                    ? 'bg-amber-900 text-white'
+                    : 'bg-white text-gray-900 border border-amber-200'
+                }`}
+              >
+                <span className="w-2 h-2 bg-amber-500 rounded-full"></span>
+                Occupied
+              </button>
+              <button
+                onClick={() => { playClickSound(); setTableFilter('pending') }}
+                className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap flex items-center gap-2 transition-colors ${
+                  tableFilter === 'pending'
+                    ? 'bg-amber-900 text-white'
+                    : 'bg-white text-gray-900 border border-amber-200'
+                }`}
+              >
+                <span className="w-2 h-2 bg-amber-500 rounded-full"></span>
+                Pending
+              </button>
+              <button
+                onClick={() => { playClickSound(); setTableFilter('preparing') }}
+                className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap flex items-center gap-2 transition-colors ${
+                  tableFilter === 'preparing'
+                    ? 'bg-amber-900 text-white'
+                    : 'bg-white text-gray-900 border border-amber-200'
+                }`}
+              >
+                <span className="w-2 h-2 bg-amber-500 rounded-full"></span>
+                Preparing
+              </button>
+              <button
+                onClick={() => { playClickSound(); setTableFilter('ready') }}
+                className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap flex items-center gap-2 transition-colors ${
+                  tableFilter === 'ready'
+                    ? 'bg-amber-900 text-white'
+                    : 'bg-white text-gray-900 border border-amber-200'
+                }`}
+              >
+                <span className="w-2 h-2 bg-amber-500 rounded-full"></span>
+                Ready
+              </button>
+            </div>
+
             <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
-              {tables.filter(t => !t.master_table_id && !t.is_master).map((table) => (
+              {tables
+                .filter(t => !t.master_table_id && !t.is_master)
+                .filter(table => {
+                  // Filter by table number search
+                  if (searchTerm && !table.table_number.toString().includes(searchTerm)) {
+                    return false
+                  }
+
+                  // Filter by status
+                  if (tableFilter === 'all') return true
+                  if (tableFilter === 'available') return !table.is_occupied
+                  if (tableFilter === 'occupied') return table.is_occupied
+
+                  // For pending, preparing and ready, check if table has orders with that status
+                  const tableOrders = orders.filter(o => o.table_id === table.id)
+                  if (tableFilter === 'pending') return tableOrders.some(o => o.status === 'pending')
+                  if (tableFilter === 'preparing') return tableOrders.some(o => o.status === 'preparing')
+                  if (tableFilter === 'ready') return tableOrders.some(o => o.status === 'ready')
+
+                  return true
+                })
+                .map((table) => (
                 <div
                   key={table.id}
-                  className={`p-4 sm:p-6 rounded-2xl border-2 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 text-left relative ${
+                  className={`p-5 sm:p-6 rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-1 text-left relative border-2 ${
                     table.is_occupied
-                      ? 'border-[#5D3A1A] bg-[#F5F5DC] cursor-not-allowed opacity-60'
-                      : 'border-[#8B4513] bg-white hover:border-[#5D3A1A] cursor-pointer'
+                      ? 'border-amber-200 bg-amber-100 cursor-not-allowed opacity-75'
+                      : 'border-amber-200 bg-white hover:border-amber-300 hover:shadow-amber-100 cursor-pointer'
                   }`}
                 >
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      playClickSound()
-                      handleDeleteTable(table.id, table.table_number)
-                    }}
-                    className={`absolute top-2 right-2 p-1.5 rounded-lg transition-all duration-300 ${
-                      table.is_occupied
-                        ? 'bg-brown-600 text-black-900 hover:bg-brown-400'
-                        : 'bg-brown-900 text-white hover:bg-brown-600'
-                    }`}
-                  >
-                    <X className="w-3 h-3 sm:w-4 sm:h-4" />
-                  </button>
                   <button
                     onClick={() => { playClickSound(); handleTableSelect(table) }}
                     disabled={table.is_occupied}
                     className="w-full text-left"
                   >
-                    <div className="flex justify-between items-start mb-4 pr-8">
-                      <div className="bg-[#F5F5DC] p-2 sm:p-3 rounded-xl">
-                        <Users className="w-5 h-5 sm:w-6 sm:h-6 text-[#5D3A1A]" />
-                      </div>
-                      <span className={`px-2 sm:px-3 py-1 rounded-full text-xs font-bold ${
+                    <div className="flex justify-between items-start mb-4">
+                      <div className={`p-3 sm:p-4 rounded-xl ${
                         table.is_occupied
-                          ? 'bg-red-100 text-black-900'
-                          : 'bg-[#F5F5DC] text-[#5D3A1A]'
+                          ? 'bg-amber-100'
+                          : 'bg-amber-100'
+                      }`}>
+                        <Users className={`w-6 h-6 sm:w-7 sm:h-7 ${table.is_occupied ? 'text-gray-900' : 'text-gray-900'}`} />
+                      </div>
+                      <span className={`px-3 py-1.5 rounded-full text-xs font-bold shadow-sm ${
+                        table.is_occupied
+                          ? 'bg-amber-900 text-white'
+                          : 'bg-amber-900 text-white'
                       }`}>
                         {table.is_occupied ? 'Occupied' : 'Available'}
                       </span>
                     </div>
-                    <h3 className="text-lg sm:text-xl font-bold text-gray-900 mb-2">
+                    <h3 className="text-xl sm:text-2xl font-bold text-gray-900 mb-2">
                       Table {table.table_number}
                     </h3>
-                    <p className="text-xs sm:text-sm font-semibold text-gray-600 mb-1">Capacity: {table.capacity} seats</p>
+                    <p className="text-sm font-medium text-gray-900 mb-1">
+                      {table.capacity} seats
+                    </p>
                     {table.is_occupied && (
-                      <p className="text-xs text-red-600 font-semibold mt-2">
+                      <p className="text-xs text-gray-900 font-semibold mt-3 flex items-center gap-1">
+                        <span className="w-2 h-2 bg-amber-500 rounded-full animate-pulse"></span>
                         Currently occupied
                       </p>
                     )}
@@ -1665,42 +1805,60 @@ ${itemsList}
 
             {/* Master Tables Section */}
             {tables.filter(t => t.is_master).length > 0 && (
-              <div className="mt-8" id="master-tables-section">
-                <h3 className="text-xl sm:text-2xl font-bold text-brown-900 mb-4">Master Tables</h3>
+              <div className="mt-12" id="master-tables-section">
+                <h3 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-6 flex items-center gap-3">
+                  <span className="bg-amber-900 p-2 rounded-xl">
+                    <Crown className="w-6 h-6 text-white" />
+                  </span>
+                  Master Tables
+                </h3>
                 <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
-                  {tables.filter(t => t.is_master).map((table) => (
+                  {tables
+                    .filter(t => t.is_master)
+                    .filter(table => {
+                      // Filter by table number search
+                      if (searchTerm && !table.table_number.toString().includes(searchTerm)) {
+                        return false
+                      }
+
+                      // Filter by status
+                      if (tableFilter === 'all') return true
+                      if (tableFilter === 'available') return !table.is_occupied
+                      if (tableFilter === 'occupied') return table.is_occupied
+
+                      // For pending, preparing and ready, check if table has orders with that status
+                      const tableOrders = orders.filter(o => o.table_id === table.id)
+                      if (tableFilter === 'pending') return tableOrders.some(o => o.status === 'pending')
+                      if (tableFilter === 'preparing') return tableOrders.some(o => o.status === 'preparing')
+                      if (tableFilter === 'ready') return tableOrders.some(o => o.status === 'ready')
+
+                      return true
+                    })
+                    .map((table) => (
                 <div
                   key={table.id}
-                  className="p-4 sm:p-6 rounded-2xl border-2 border-brown-500 bg-brown-50 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 text-left relative cursor-pointer"
+                  className="p-5 sm:p-6 rounded-2xl border-2 border-amber-200 bg-amber-50 shadow-lg hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-1 text-left relative cursor-pointer"
                 >
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      playClickSound()
-                      handleDeleteTable(table.id, table.table_number)
-                    }}
-                    className="absolute top-2 right-2 p-1.5 rounded-lg bg-brown-600 text-black hover:bg-brown-600 transition-all duration-300"
-                  >
-                    <X className="w-3 h-3 sm:w-4 sm:h-4" />
-                  </button>
                   <button
                     onClick={() => { playClickSound(); handleTableSelect(table) }}
                     className="w-full text-left"
                   >
-                    <div className="flex justify-between items-start mb-4 pr-8">
-                      <div className="bg-brown-100 p-2 sm:p-3 rounded-xl">
-                        <Crown className="w-5 h-5 sm:w-6 sm:h-6 text-brown-700" />
+                    <div className="flex justify-between items-start mb-4">
+                      <div className="bg-amber-200 p-3 sm:p-4 rounded-xl">
+                        <Crown className="w-6 h-6 sm:w-7 sm:h-7 text-gray-900" />
                       </div>
-                      <span className="px-2 sm:px-3 py-1 rounded-full text-xs font-bold bg-brown-500 text-black">
-                        Active (Master)
+                      <span className="px-3 py-1.5 rounded-full text-xs font-bold bg-amber-900 text-white shadow-sm">
+                        Master
                       </span>
                     </div>
-                    <h3 className="text-lg sm:text-xl font-bold text-gray-900 mb-2">
+                    <h3 className="text-xl sm:text-2xl font-bold text-gray-900 mb-2">
                       Table {table.table_number} (M)
                     </h3>
-                    <p className="text-xs sm:text-sm font-semibold text-black-600 mb-1">Capacity: {table.capacity} seats</p>
-                    <p className="text-xs text-brown-700 font-semibold mt-2">
-                      {tables.filter(t => t.master_table_id === table.id).length} tables combined
+                    <p className="text-sm font-medium text-gray-900 mb-1">
+                      {table.capacity} seats
+                    </p>
+                    <p className="text-sm text-gray-900 font-semibold mt-2">
+                      {tables.filter(t => t.master_table_id === table.id).length} {tables.filter(t => t.master_table_id === table.id).length === 1 ? 'table' : 'tables'} combined
                     </p>
                   </button>
                 </div>
@@ -1710,8 +1868,13 @@ ${itemsList}
             )}
 
             {/* My Active Orders */}
-            <div className="mt-8 sm:mt-12" id="active-orders-section">
-              <h3 className="text-xl sm:text-2xl font-bold text-black-900 mb-4">My Active Orders</h3>
+            <div className="mt-12" id="active-orders-section">
+              <h3 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-6 flex items-center gap-3">
+                <span className="bg-amber-900 p-2 rounded-xl">
+                  <Clock className="w-6 h-6 text-white" />
+                </span>
+                My Active Orders
+              </h3>
                 <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                   {(() => {
                     // Group orders by table - show only active orders (pending, preparing, ready) by this waiter
@@ -1737,8 +1900,9 @@ ${itemsList}
 
                     if (filteredGroups.length === 0) {
                       return (
-                        <div className="col-span-full text-center py-8 bg-gray-50 rounded-2xl">
-                          <p className="text-gray-500">No active orders found</p>
+                        <div className="col-span-full text-center py-12 bg-amber-50 rounded-2xl border-2 border-dashed border-amber-300">
+                          <Clock className="w-12 h-12 text-amber-400 mx-auto mb-3" />
+                          <p className="text-gray-900 font-medium">No active orders found</p>
                         </div>
                       )
                     }
@@ -1746,22 +1910,24 @@ ${itemsList}
                     return filteredGroups.map((group: any) => (
                       <div
                         key={group.table?.id}
-                        className="bg-white rounded-2xl shadow-lg p-4 sm:p-6 border-2 border-[#8B4513] hover:border-[#5D3A1A] hover:shadow-xl transition-all duration-300 text-left cursor-pointer"
+                        className="bg-white rounded-2xl shadow-lg p-5 sm:p-6 border-2 border-amber-200 hover:border-amber-300 hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-1 text-left cursor-pointer"
                       >
                         <div className="flex justify-between items-start mb-4">
                           <div>
-                            <h4 className="text-base sm:text-lg font-bold text-gray-900">
+                            <h4 className="text-lg sm:text-xl font-bold text-gray-900">
                               Table {group.table?.table_number}{group.table?.is_master ? ' (M)' : ''}
                             </h4>
-                            <p className="text-xs sm:text-sm text-gray-600">{group.orders.length} active order{group.orders.length > 1 ? 's' : ''}</p>
+                            <p className="text-sm text-gray-900">{group.orders.length} active order{group.orders.length > 1 ? 's' : ''}</p>
                           </div>
-                          <span className={`px-2 sm:px-3 py-1 rounded-full text-xs font-bold ${
-                            group.table?.is_master ? 'bg-brown-100 text-black-800' : 'bg-[#F5F5DC] text-[#5D3A1A]'
+                          <span className={`px-3 py-1.5 rounded-full text-xs font-bold shadow-sm ${
+                            group.table?.is_master
+                              ? 'bg-amber-900 text-white'
+                              : 'bg-amber-900 text-white'
                           }`}>
                             {group.table?.is_master ? 'Master' : 'Active'}
                           </span>
                         </div>
-                        <p className="text-base sm:text-lg font-bold text-gray-900 mb-3">
+                        <p className="text-lg sm:text-xl font-bold text-gray-900 mb-4">
                           ₹{group.orders.reduce((sum: number, o: Order) => sum + o.total_amount, 0).toFixed(2)}
                         </p>
                         <div className="flex gap-2">
@@ -1771,7 +1937,7 @@ ${itemsList}
                               playClickSound()
                               handleViewBill(group.orders[0])
                             }}
-                            className="flex-1 flex items-center justify-center gap-1 bg-[#5D3A1A] text-white px-2 py-2 rounded-xl font-semibold hover:bg-[#8B4513] transition-all duration-300 text-xs sm:text-sm whitespace-nowrap"
+                            className="flex-1 flex items-center justify-center gap-2 bg-amber-900 text-white px-3 py-2 rounded-xl font-medium hover:bg-amber-800 transition-all duration-200 text-sm shadow-md"
                           >
                             View Details
                           </button>
@@ -1781,9 +1947,9 @@ ${itemsList}
                               playClickSound()
                               handleStartRepeatOrder(group.orders[0])
                             }}
-                            className="flex-1 flex items-center justify-center gap-1 bg-orange-500 text-white px-2 py-2 rounded-xl font-semibold hover:bg-orange-600 transition-all duration-300 text-xs sm:text-sm whitespace-nowrap"
+                            className="flex items-center justify-center gap-1 bg-amber-900 text-white px-2 py-1.5 rounded-lg font-medium hover:bg-amber-800 transition-all duration-200 text-xs shadow-md"
                           >
-                            <RotateCcw className="w-3 h-3 sm:w-4 sm:h-4" />
+                            <RotateCcw className="w-3 h-3" />
                             Repeat
                           </button>
                         </div>
@@ -1798,54 +1964,44 @@ ${itemsList}
         {/* Order Options Step */}
         {currentStep === 'order-options' && selectedTable && (
           <div className="max-w-4xl mx-auto">
-            {/* Back Button */}
-            <button
-              onClick={() => {
-                playClickSound()
-                setRepeatingOrder(null)
-                setSelectedTable(null)
-                setSelectedItemsToRepeat([])
-                setCurrentStep('tables')
-              }}
-              className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors mb-6"
-            >
-              <ArrowLeft className="w-5 h-5" />
-              <span className="font-semibold">Back to Tables</span>
-            </button>
-
             <div className="mb-8">
-              <h2 className="text-3xl font-bold text-gray-900 mb-2">
+              <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-2 flex items-center gap-3">
+                <span className="bg-amber-900 p-3 rounded-xl">
+                  <Users className="w-7 h-7 text-white" />
+                </span>
                 Table {selectedTable.table_number} - Order Options
               </h2>
-              <p className="text-gray-600">Choose how you want to proceed with this table</p>
+              <p className="text-gray-900 ml-14">Choose how you want to proceed with this table</p>
             </div>
 
             {/* Order Options Buttons */}
-            <div className="grid grid-cols-2 gap-4 mb-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-6">
               <button
                 onClick={() => { playClickSound(); handleNewOrder() }}
-                className="bg-white rounded-xl shadow-lg p-6 border-2 border-[#8B4513] hover:border-[#5D3A1A] hover:shadow-xl transition-all duration-300"
+                className="bg-white rounded-2xl shadow-lg p-4 border-2 border-amber-200 hover:border-amber-300 hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-1 group"
               >
-                <div className="flex flex-col items-center gap-3">
-                  <div className="bg-[#F5F5DC] w-12 h-12 rounded-xl flex items-center justify-center">
-                    <Plus className="w-6 h-6 text-[#5D3A1A]" />
+                <div className="flex flex-col items-center gap-2">
+                  <div className="bg-amber-100 w-12 h-12 rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
+                    <Plus className="w-6 h-6 text-gray-900" />
                   </div>
                   <div className="text-center">
-                    <h3 className="text-lg font-bold text-gray-900">New Order</h3>
+                    <h3 className="text-sm font-bold text-gray-900 mb-1">New Order</h3>
+                    <p className="text-xs text-gray-900">Start a fresh order</p>
                   </div>
                 </div>
               </button>
 
               <button
                 onClick={() => { playClickSound(); handleViewPreviousOrders() }}
-                className="bg-white rounded-xl shadow-lg p-6 border-2 border-[#8B4513] hover:border-[#5D3A1A] hover:shadow-xl transition-all duration-300"
+                className="bg-white rounded-2xl shadow-lg p-4 border-2 border-amber-200 hover:border-amber-300 hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-1 group"
               >
-                <div className="flex flex-col items-center gap-3">
-                  <div className="bg-[#F5F5DC] w-12 h-12 rounded-xl flex items-center justify-center">
-                    <History className="w-6 h-6 text-orange-600" />
+                <div className="flex flex-col items-center gap-2">
+                  <div className="bg-amber-100 w-12 h-12 rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
+                    <History className="w-6 h-6 text-gray-900" />
                   </div>
                   <div className="text-center">
-                    <h3 className="text-lg font-bold text-gray-900">Previous Orders</h3>
+                    <h3 className="text-sm font-bold text-gray-900 mb-1">Repeat Order</h3>
+                    <p className="text-xs text-gray-900">Copy from previous orders</p>
                   </div>
                 </div>
               </button>
@@ -1853,9 +2009,11 @@ ${itemsList}
 
             {/* Current Active Orders */}
             {tableOrders.length > 0 && (
-              <div className="bg-white rounded-2xl shadow-xl p-6 border-2 border-[#8B4513]">
+              <div className="bg-white rounded-2xl shadow-xl p-6 border-2 border-amber-200 mt-8">
                 <h3 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
-                  <Clock className="w-5 h-5 text-[#5D3A1A]" />
+                  <span className="bg-amber-900 p-2 rounded-xl">
+                    <Clock className="w-5 h-5 text-white" />
+                  </span>
                   Current Orders ({tableOrders.length})
                 </h3>
                 {(() => {
@@ -1890,18 +2048,18 @@ ${itemsList}
                     const primaryOrder = group.orders[0]
                     
                     return (
-                      <div key={group.customer} className="p-4 bg-purple-50 rounded-xl mb-3 last:mb-0">
+                      <div key={group.customer} className="p-4 bg-amber-50 rounded-xl mb-3 last:mb-0">
                         <div className="flex justify-between items-start mb-3">
                           <div>
                             <p className="font-bold text-gray-900">Customer: {group.customer}</p>
-                            <p className="text-sm text-gray-600">{group.orders.length} order{group.orders.length > 1 ? 's' : ''}</p>
+                            <p className="text-sm text-gray-900">{group.orders.length} order{group.orders.length > 1 ? 's' : ''}</p>
                           </div>
                           <span className={`px-2 py-1 rounded-full text-xs font-bold ${
-                            primaryOrder.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-                            primaryOrder.status === 'preparing' ? 'bg-blue-100 text-blue-800' :
+                            primaryOrder.status === 'pending' ? 'bg-amber-100 text-gray-900' :
+                            primaryOrder.status === 'preparing' ? 'bg-amber-100 text-gray-900' :
                             primaryOrder.status === 'ready' ? 'bg-[#F5F5DC] text-[#5D3A1A]' :
-                            primaryOrder.status === 'served' ? 'bg-white border-2 border-black text-black' :
-                            'bg-gray-100 text-gray-800'
+                            primaryOrder.status === 'served' ? 'bg-white border-2 border-amber-900 text-gray-900' :
+                            'bg-amber-100 text-gray-900'
                           }`}>
                             {primaryOrder.status}
                           </span>
@@ -1914,14 +2072,14 @@ ${itemsList}
                             </div>
                           ))}
                         </div>
-                        <div className="mt-3 pt-3 border-t border-purple-200 flex justify-between items-center">
+                        <div className="mt-3 pt-3 border-t border-amber-200 flex justify-between items-center">
                           <button
                             onClick={() => { playClickSound(); handleViewBill(primaryOrder) }}
                             className="text-sm text-[#8B4513] font-semibold hover:underline"
                           >
                             View Bill
                           </button>
-                          <p className="font-bold text-purple-600">₹{totalAmount.toFixed(2)}</p>
+                          <p className="font-bold text-gray-900">₹{totalAmount.toFixed(2)}</p>
                         </div>
                       </div>
                     )
@@ -1939,14 +2097,14 @@ ${itemsList}
               <h2 className="text-3xl font-bold text-gray-900 mb-2">
                 Previous Orders - Table {selectedTable.table_number}
               </h2>
-              <p className="text-gray-600">Select an order to repeat or view details</p>
+              <p className="text-gray-900">Select an order to repeat or view details</p>
             </div>
 
             {tableOrders.length === 0 ? (
               <div className="bg-white rounded-2xl shadow-xl p-12 text-center">
-                <History className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                <History className="w-16 h-16 text-amber-300 mx-auto mb-4" />
                 <h3 className="text-xl font-bold text-gray-900 mb-2">No Previous Orders</h3>
-                <p className="text-gray-600 mb-6">This table doesn't have any active orders yet.</p>
+                <p className="text-gray-900 mb-6">This table doesn't have any active orders yet.</p>
                 <button
                   onClick={() => { playClickSound(); handleNewOrder() }}
                   className="flex items-center gap-2 bg-[#5D3A1A] text-white px-6 py-3 rounded-xl font-semibold hover:bg-[#8B4513] transition-all duration-300 mx-auto"
@@ -1996,18 +2154,18 @@ ${itemsList}
                           <div className="flex justify-between items-start">
                             <div>
                               <h3 className="text-xl font-bold text-gray-900 mb-1">Customer: {group.customer}</h3>
-                              <p className="text-sm text-gray-600">{group.orders.length} order{group.orders.length > 1 ? 's' : ''}</p>
+                              <p className="text-sm text-gray-900">{group.orders.length} order{group.orders.length > 1 ? 's' : ''}</p>
                             </div>
                             <div className="text-right">
                               <p className="text-2xl font-bold text-[#5D3A1A]">
                                 ₹{totalAmount.toFixed(2)}
                               </p>
                               <span className={`px-3 py-1 rounded-full text-xs font-bold ${
-                                primaryOrder.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-                                primaryOrder.status === 'preparing' ? 'bg-blue-100 text-blue-800' :
+                                primaryOrder.status === 'pending' ? 'bg-amber-100 text-gray-900' :
+                                primaryOrder.status === 'preparing' ? 'bg-amber-100 text-gray-900' :
                                 primaryOrder.status === 'ready' ? 'bg-[#F5F5DC] text-[#5D3A1A]' :
-                                primaryOrder.status === 'served' ? 'bg-white border-2 border-black text-black' :
-                                'bg-gray-100 text-gray-800'
+                                primaryOrder.status === 'served' ? 'bg-white border-2 border-amber-900 text-gray-900' :
+                                'bg-amber-100 text-gray-900'
                               }`}>
                                 {primaryOrder.status}
                               </span>
@@ -2019,7 +2177,7 @@ ${itemsList}
                           <div className="flex justify-between items-center mb-3">
                             <h4 className="font-bold text-gray-900">Order Items:</h4>
                             <button
-                              onClick={() => {
+                              onClick={() => { playClickSound();
                                 playClickSound()
                                 const allItemIds = Object.values(allItems).flatMap((g: any) => g.items.map((i: any) => i.id))
                                 const allSelected = allItemIds.every(id => selectedItemsToRepeat.find(i => i.id === id))
@@ -2041,12 +2199,12 @@ ${itemsList}
                             {Object.values(allItems).map((group: any, index: number) => (
                               <div 
                                 key={index} 
-                                className="flex items-center justify-between p-3 rounded-xl bg-gray-50"
+                                className="flex items-center justify-between p-3 rounded-xl bg-amber-50"
                               >
                                 <div className="flex items-center gap-3">
                                   <div className="flex items-center gap-2">
                                     <button
-                                      onClick={() => {
+                                      onClick={() => { playClickSound(); playClickSound();
                                         playClickSound()
                                         // Decrease selection by 1
                                         const currentlySelected = group.items.filter((item: any) => selectedItemsToRepeat.find(i => i.id === item.id))
@@ -2057,7 +2215,7 @@ ${itemsList}
                                           })
                                         }
                                       }}
-                                      className="w-8 h-8 rounded-full bg-gray-200 hover:bg-gray-300 flex items-center justify-center font-bold text-gray-700 transition-colors"
+                                      className="w-8 h-8 rounded-full bg-amber-200 hover:bg-amber-300 flex items-center justify-center font-bold text-gray-900 transition-colors"
                                       disabled={!group.items.some((item: any) => selectedItemsToRepeat.find(i => i.id === item.id))}
                                     >
                                       -
@@ -2066,7 +2224,7 @@ ${itemsList}
                                       {group.items.filter((item: any) => selectedItemsToRepeat.find(i => i.id === item.id)).length}
                                     </span>
                                     <button
-                                      onClick={() => {
+                                      onClick={() => { playClickSound(); playClickSound();
                                         playClickSound()
                                         // Increase selection by 1
                                         const currentlySelected = group.items.filter((item: any) => selectedItemsToRepeat.find(i => i.id === item.id))
@@ -2092,12 +2250,12 @@ ${itemsList}
                                   )}
                                   <div>
                                     <p className="font-semibold text-gray-900">{group.name}</p>
-                                    <p className="text-sm text-gray-600">₹{group.price.toFixed(2)} each</p>
+                                    <p className="text-sm text-gray-900">₹{group.price.toFixed(2)} each</p>
                                   </div>
                                 </div>
                                 <div className="text-right">
                                   <p className="font-bold text-gray-900">{group.qty}x</p>
-                                  <p className="text-sm text-orange-600 font-semibold">₹{(group.price * group.qty).toFixed(2)}</p>
+                                  <p className="text-sm text-gray-900 font-semibold">₹{(group.price * group.qty).toFixed(2)}</p>
                                 </div>
                               </div>
                             ))}
@@ -2113,13 +2271,13 @@ ${itemsList}
                         <div className="p-6 bg-[#F5F5DC] flex gap-4">
                           <button
                             onClick={() => { playClickSound(); handleRepeatOrder(primaryOrder) }}
-                            className="flex-1 flex items-center justify-center gap-2 bg-[#5D3A1A] text-white px-6 py-3 rounded-xl font-semibold hover:bg-[#8B4513] transition-all duration-300"
+                            className="flex-1 flex items-center justify-center gap-2 bg-[#5D3A1A] text-white px-4 py-2 rounded-lg font-semibold hover:bg-[#8B4513] transition-all duration-300 text-sm"
                           >
                             Repeat Order
                           </button>
                           <button
                             onClick={() => { playClickSound(); setCurrentStep('order-options') }}
-                            className="px-6 py-3 border-2 border-gray-300 text-gray-700 rounded-xl font-semibold hover:bg-gray-50 transition-all duration-300"
+                            className="px-4 py-2 border-2 border-amber-300 text-gray-900 rounded-lg font-semibold hover:bg-amber-50 transition-all duration-300 text-sm"
                           >
                             Back
                           </button>
@@ -2142,7 +2300,7 @@ ${itemsList}
                   <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-1">
                     Table {selectedTable.table_number}
                   </h2>
-                  <p className="text-xs sm:text-sm text-gray-600">{selectedTable.capacity} seats</p>
+                  <p className="text-xs sm:text-sm text-gray-900">{selectedTable.capacity} seats</p>
                 </div>
                 <button
                   onClick={() => { playClickSound(); handleBackToTables() }}
@@ -2163,7 +2321,7 @@ ${itemsList}
                   className={`px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg text-xs font-semibold transition-all duration-300 ${
                     selectedCategory === category
                       ? 'bg-[#5D3A1A] text-white shadow-lg'
-                      : 'bg-white text-gray-600 hover:bg-[#F5F5DC] border-2 border-gray-200'
+                      : 'bg-white text-gray-900 hover:bg-[#F5F5DC] border-2 border-amber-200'
                   }`}
                 >
                   {category === 'all' ? 'All' : category}
@@ -2178,7 +2336,7 @@ ${itemsList}
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
                   selectedFoodType === 'all'
                     ? 'bg-[#5D3A1A] text-white shadow-lg'
-                    : 'bg-white text-gray-600 hover:bg-[#F5F5DC] border-2 border-gray-200'
+                    : 'bg-white text-gray-900 hover:bg-[#F5F5DC] border-2 border-amber-200'
                 }`}
               >
                 All
@@ -2187,12 +2345,12 @@ ${itemsList}
                 onClick={() => { playClickSound(); setSelectedFoodType('veg') }}
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
                   selectedFoodType === 'veg'
-                    ? 'bg-green-600 text-white shadow-lg'
-                    : 'bg-white text-green-700 hover:bg-green-50 border-2 border-green-200'
+                    ? 'bg-amber-900 text-white shadow-lg'
+                    : 'bg-white text-gray-900 hover:bg-amber-50 border-2 border-amber-200'
                 }`}
               >
-                <div className="w-3 h-3 flex items-center justify-center border-2 border-green-600 bg-green-50 rounded-sm">
-                  <div className="w-1.5 h-1.5 bg-green-600 rounded-full"></div>
+                <div className="w-3 h-3 flex items-center justify-center border-2 border-amber-600 bg-amber-50 rounded-sm">
+                  <div className="w-1.5 h-1.5 bg-amber-900 rounded-full"></div>
                 </div>
                 Veg
               </button>
@@ -2200,12 +2358,12 @@ ${itemsList}
                 onClick={() => { playClickSound(); setSelectedFoodType('nonveg') }}
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
                   selectedFoodType === 'nonveg'
-                    ? 'bg-red-600 text-white shadow-lg'
-                    : 'bg-white text-red-700 hover:bg-red-50 border-2 border-red-200'
+                    ? 'bg-amber-900 text-white shadow-lg'
+                    : 'bg-white text-gray-900 hover:bg-amber-50 border-2 border-amber-200'
                 }`}
               >
-                <div className="w-3 h-3 flex items-center justify-center border-2 border-red-600 bg-red-50 rounded-sm">
-                  <div className="w-1.5 h-1.5 bg-red-600 rounded-full"></div>
+                <div className="w-3 h-3 flex items-center justify-center border-2 border-amber-600 bg-amber-50 rounded-sm">
+                  <div className="w-1.5 h-1.5 bg-amber-900 rounded-full"></div>
                 </div>
                 Non-Veg
               </button>
@@ -2233,7 +2391,7 @@ ${itemsList}
                               {getFoodTypeIcon(dish.food_type)}
                               <h3 className="font-bold text-gray-900 text-sm">{dish.name}</h3>
                             </div>
-                            <span className="text-xs text-gray-500">{dish.category}</span>
+                            <span className="text-xs text-gray-900">{dish.category}</span>
                           </div>
                         </td>
                         <td className="px-2 sm:px-3 py-2 text-right">
@@ -2243,7 +2401,7 @@ ${itemsList}
                           <div className={`w-7 h-7 rounded-full flex items-center justify-center mx-auto ${
                             dish.is_available 
                               ? 'bg-[#5D3A1A] text-white' 
-                              : 'bg-red-500 text-white'
+                              : 'bg-amber-900 text-white'
                           }`}>
                             {dish.is_available ? (
                               <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
@@ -2261,20 +2419,20 @@ ${itemsList}
                             <select
                               value={selectedDishTypes[dish.id] || 'Normal'}
                               onChange={(e) => setSelectedDishTypes({...selectedDishTypes, [dish.id]: e.target.value})}
-                              className="text-xs border border-gray-300 rounded px-1 py-1 bg-white"
+                              className="text-xs border border-amber-300 rounded px-1 py-1 bg-white"
                             >
                               {dishTypes.map(type => (
                                 <option key={type} value={type}>{type}</option>
                               ))}
                             </select>
                             <button
-                              onClick={() => { playClickSound(); addToCart(dish, selectedDishTypes[dish.id] || 'Normal') }}
+                              onClick={() => { playClickSound(); playClickSound(); addToCart(dish, selectedDishTypes[dish.id] || 'Normal') }}
                               disabled={!dish.is_available}
                               className={`flex items-center justify-center gap-1 px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg font-semibold transition-all duration-300 text-xs border-2 ${
                                 !dish.is_available
-                                  ? 'bg-gray-300 text-gray-500 border-gray-300 cursor-not-allowed'
+                                  ? 'bg-amber-300 text-gray-900 border-amber-300 cursor-not-allowed'
                                   : cart.some(item => item.dish_id === dish.id && item.dish_type === (selectedDishTypes[dish.id] || 'Normal'))
-                                    ? 'bg-white text-black border-black hover:bg-gray-100'
+                                    ? 'bg-white text-gray-900 border-amber-900 hover:bg-amber-100'
                                     : 'bg-[#5D3A1A] text-white border-[#5D3A1A] hover:bg-[#8B4513]'
                               }`}
                             >
@@ -2295,7 +2453,7 @@ ${itemsList}
               <div className="fixed bottom-0 left-0 right-0 bg-white shadow-2xl border-t-2 border-[#8B4513] p-2 sm:p-4 z-50">
                 <div className="max-w-7xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-2 sm:gap-0">
                   <div className="text-center sm:text-left">
-                    <p className="text-xs text-gray-600">{cart.length} items</p>
+                    <p className="text-xs text-gray-900">{cart.length} items</p>
                     <p className="text-base sm:text-xl font-bold text-gray-900">
                       ₹{getCartTotal().toFixed(2)}
                     </p>
@@ -2323,7 +2481,7 @@ ${itemsList}
                   <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-1 sm:mb-2">
                     Review Order - Table {selectedTable.table_number}
                   </h2>
-                  <p className="text-sm sm:text-base text-gray-600">Confirm your order before sending to kitchen</p>
+                  <p className="text-sm sm:text-base text-gray-900">Confirm your order before sending to kitchen</p>
                 </div>
                 <button
                   onClick={() => { playClickSound(); handleBackToTables() }}
@@ -2336,14 +2494,14 @@ ${itemsList}
             </div>
 
             <div className="bg-white rounded-2xl shadow-xl overflow-hidden mb-6">
-              <div className="p-4 sm:p-6 border-b border-gray-200 bg-[#F5F5DC]">
+              <div className="p-4 sm:p-6 border-b border-amber-200 bg-[#F5F5DC]">
                 <h3 className="text-lg sm:text-xl font-bold text-gray-900">Order Items</h3>
               </div>
 
               {cart.length === 0 ? (
                 <div className="p-6 sm:p-8 text-center">
-                  <ShoppingCart className="w-12 h-12 sm:w-16 sm:h-16 text-gray-300 mx-auto mb-4" />
-                  <p className="text-sm sm:text-base text-gray-500 font-semibold">Your cart is empty</p>
+                  <ShoppingCart className="w-12 h-12 sm:w-16 sm:h-16 text-amber-300 mx-auto mb-4" />
+                  <p className="text-sm sm:text-base text-gray-900 font-semibold">Your cart is empty</p>
                   <button
                     onClick={() => { playClickSound(); setCurrentStep('dishes') }}
                     className="mt-4 text-[#5D3A1A] font-semibold hover:underline text-sm sm:text-base"
@@ -2358,7 +2516,7 @@ ${itemsList}
                       <div className="flex-1 w-full">
                         <h4 className="font-bold text-gray-900 text-sm sm:text-base">{item.name}</h4>
                         <div className="flex items-center gap-2">
-                          <p className="text-xs sm:text-sm text-gray-600">₹{item.price.toFixed(2)} each</p>
+                          <p className="text-xs sm:text-sm text-gray-900">₹{item.price.toFixed(2)} each</p>
                           <span className="px-2 py-0.5 bg-[#F5F5DC] text-[#5D3A1A] text-xs font-semibold rounded-full">
                             {item.dish_type}
                           </span>
@@ -2368,7 +2526,7 @@ ${itemsList}
                         <div className="flex items-center gap-3">
                           <button
                             onClick={() => { playClickSound(); updateQuantity(item.dish_id, -1, item.dish_type || 'Normal') }}
-                            className="w-8 h-8 rounded-full bg-gray-200 hover:bg-gray-300 flex items-center justify-center transition-colors"
+                            className="w-8 h-8 rounded-full bg-amber-200 hover:bg-amber-300 flex items-center justify-center transition-colors"
                           >
                             <Minus className="w-4 h-4" />
                           </button>
@@ -2385,7 +2543,7 @@ ${itemsList}
                         </p>
                         <button
                           onClick={() => { playClickSound(); removeFromCart(item.dish_id, item.dish_type || 'Normal') }}
-                          className="text-red-500 hover:text-red-700 transition-colors"
+                          className="text-gray-900 hover:text-gray-900 transition-colors"
                         >
                           <X className="w-4 h-4 sm:w-5 sm:h-5" />
                         </button>
@@ -2396,22 +2554,22 @@ ${itemsList}
               )}
 
               {/* Customer Details (Optional) */}
-              <div className="p-4 sm:p-6 bg-white border-t border-gray-200">
+              <div className="p-4 sm:p-6 bg-white border-t border-amber-200">
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Customer Name (Optional)</label>
+                  <label className="block text-sm font-semibold text-gray-900 mb-2">Customer Name (Optional)</label>
                   <input
                     type="text"
                     value={customerName}
                     onChange={(e) => setCustomerName(e.target.value)}
                     placeholder="Enter customer name"
-                    className="w-full px-4 py-2 border-2 border-gray-200 rounded-xl focus:border-amber-500 focus:outline-none text-sm"
+                    className="w-full px-4 py-2 border-2 border-amber-200 rounded-xl focus:border-amber-500 focus:outline-none text-sm"
                   />
                 </div>
               </div>
 
               <div className="p-4 sm:p-6 bg-[#F5F5DC]">
                 <div className="flex justify-between items-center">
-                  <span className="text-lg sm:text-xl font-bold text-gray-700">Total Amount</span>
+                  <span className="text-lg sm:text-xl font-bold text-gray-900">Total Amount</span>
                   <span className="text-2xl sm:text-3xl font-bold text-gray-900">
                     ₹{getCartTotal().toFixed(2)}
                   </span>
@@ -2422,7 +2580,7 @@ ${itemsList}
             <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
               <button
                 onClick={() => { playClickSound(); setCurrentStep('dishes') }}
-                className="flex-1 px-4 sm:px-6 py-3 border-2 border-gray-300 text-gray-700 rounded-xl font-semibold hover:bg-gray-50 transition-all duration-300 text-sm sm:text-base"
+                className="flex-1 px-4 sm:px-6 py-3 border-2 border-amber-300 text-gray-900 rounded-xl font-semibold hover:bg-amber-50 transition-all duration-300 text-sm sm:text-base"
               >
                 Add More Items
               </button>
@@ -2445,7 +2603,7 @@ ${itemsList}
                 <CheckCircle className="w-10 h-10 text-[#5D3A1A]" />
               </div>
               <h2 className="text-3xl font-bold text-gray-900 mb-4">Order Submitted!</h2>
-              <p className="text-gray-600 mb-6">
+              <p className="text-gray-900 mb-6">
                 Your order has been sent to the kitchen. The table is now locked until payment is completed.
               </p>
               <button
@@ -2461,19 +2619,19 @@ ${itemsList}
         {/* Step 6: Alter Table */}
         {currentStep === 'alter-table' && alteringOrder && (
           <div className="max-w-3xl mx-auto">
-            <div className="mb-6 sm:mb-8 bg-blue-100 rounded-2xl p-4 sm:p-6 border-2 border-blue-200">
+            <div className="mb-6 sm:mb-8 bg-amber-100 rounded-2xl p-4 sm:p-6 border-2 border-amber-200">
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                 <div>
                   <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-1 sm:mb-2">
                     Change Table for Order
                   </h2>
-                  <p className="text-sm sm:text-base text-gray-600">
+                  <p className="text-sm sm:text-base text-gray-900">
                     Current: Table {alteringOrder.tables?.table_number} → Select new table
                   </p>
                 </div>
                 <button
-                  onClick={() => setCurrentStep('tables')}
-                  className="flex items-center gap-2 bg-white text-blue-600 px-3 sm:px-4 py-2 rounded-xl font-semibold hover:bg-blue-50 transition-all duration-300 border-2 border-blue-300 w-full sm:w-auto justify-center"
+                  onClick={() => { playClickSound(); setCurrentStep('tables') }}
+                  className="flex items-center gap-2 bg-white text-gray-900 px-3 sm:px-4 py-2 rounded-xl font-semibold hover:bg-amber-50 transition-all duration-300 border-2 border-amber-300 w-full sm:w-auto justify-center"
                 >
                   <ArrowLeft className="w-4 h-4" />
                   Cancel
@@ -2487,11 +2645,11 @@ ${itemsList}
                 {tables.filter(t => !t.is_occupied && t.id !== alteringOrder.table_id).map((table) => (
                   <button
                     key={table.id}
-                    onClick={() => setNewTableId(table.id)}
+                    onClick={() => { playClickSound(); setNewTableId(table.id) }}
                     className={`p-4 sm:p-6 rounded-2xl border-2 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 text-left ${
                       newTableId === table.id
-                        ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-500'
-                        : 'border-[#8B4513] bg-white hover:border-blue-500'
+                        ? 'border-amber-500 bg-amber-50 ring-2 ring-amber-500'
+                        : 'border-[#8B4513] bg-white hover:border-amber-500'
                     }`}
                   >
                     <div className="flex justify-between items-start mb-4">
@@ -2503,22 +2661,22 @@ ${itemsList}
                       </span>
                     </div>
                     <h3 className="text-lg sm:text-xl font-bold text-gray-900 mb-2">Table {table.table_number}</h3>
-                    <p className="text-xs sm:text-sm font-semibold text-gray-600">Capacity: {table.capacity} seats</p>
+                    <p className="text-xs sm:text-sm font-semibold text-gray-900">Capacity: {table.capacity} seats</p>
                   </button>
                 ))}
                 {tables.filter(t => !t.is_occupied && t.id !== alteringOrder.table_id).length === 0 && (
                   <div className="col-span-full text-center py-12">
-                    <Users className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                    <p className="text-gray-500 font-semibold">No available tables to change to</p>
+                    <Users className="w-16 h-16 text-amber-300 mx-auto mb-4" />
+                    <p className="text-gray-900 font-semibold">No available tables to change to</p>
                   </div>
                 )}
               </div>
             </div>
 
             <button
-              onClick={handleAlterTable}
+              onClick={() => { playClickSound(); handleAlterTable() }}
               disabled={!newTableId}
-              className="w-full px-6 py-3 bg-blue-500 text-white rounded-xl font-semibold hover:bg-blue-600 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full px-6 py-3 bg-amber-900 text-white rounded-xl font-semibold hover:bg-amber-900 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Confirm Table Change
             </button>
@@ -2528,13 +2686,13 @@ ${itemsList}
         {/* Step 7: Repeat Order */}
         {currentStep === 'repeat-order' && repeatingOrder && (
           <div className="max-w-7xl mx-auto">
-            <div className="mb-6 sm:mb-8 bg-orange-100 rounded-2xl p-4 sm:p-6 border-2 border-orange-200">
+            <div className="mb-6 sm:mb-8 bg-amber-100 rounded-2xl p-4 sm:p-6 border-2 border-amber-200">
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                 <div>
                   <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-1 sm:mb-2">
                     🔔 Repeat Order for Table {repeatingOrder.tables?.table_number}
                   </h2>
-                  <p className="text-sm sm:text-base text-gray-600">
+                  <p className="text-sm sm:text-base text-gray-900">
                     Add extra items to this order (will be shown as EXTRA ORDER to kitchen)
                   </p>
                 </div>
@@ -2544,7 +2702,7 @@ ${itemsList}
                     setRepeatOrderCart([])
                     setCurrentStep('tables')
                   }}
-                  className="flex items-center gap-2 bg-white text-orange-600 px-3 sm:px-4 py-2 rounded-xl font-semibold hover:bg-orange-50 transition-all duration-300 border-2 border-orange-300 w-full sm:w-auto justify-center"
+                  className="flex items-center gap-2 bg-white text-gray-900 px-3 sm:px-4 py-2 rounded-xl font-semibold hover:bg-amber-50 transition-all duration-300 border-2 border-amber-300 w-full sm:w-auto justify-center"
                 >
                   <ArrowLeft className="w-4 h-4" />
                   Cancel
@@ -2563,11 +2721,11 @@ ${itemsList}
                     {categories.map((category) => (
                       <button
                         key={category}
-                        onClick={() => setSelectedCategory(category)}
+                        onClick={() => { playClickSound(); setSelectedCategory(category) }}
                         className={`px-3 py-2 rounded-lg text-xs font-semibold transition-all duration-300 ${
                           selectedCategory === category
-                            ? 'bg-orange-500 text-white'
-                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                            ? 'bg-amber-900 text-white'
+                            : 'bg-amber-100 text-gray-900 hover:bg-amber-200'
                         }`}
                       >
                         {category === 'all' ? 'All' : category}
@@ -2578,38 +2736,38 @@ ${itemsList}
                   {/* Food Type Filter */}
                   <div className="flex flex-wrap gap-2 mb-4">
                     <button
-                      onClick={() => setSelectedFoodType('all')}
+                      onClick={() => { playClickSound(); setSelectedFoodType('all') }}
                       className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold transition-all ${
                         selectedFoodType === 'all'
-                          ? 'bg-orange-500 text-white'
-                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                          ? 'bg-amber-900 text-white'
+                          : 'bg-amber-100 text-gray-900 hover:bg-amber-200'
                       }`}
                     >
                       All
                     </button>
                     <button
-                      onClick={() => setSelectedFoodType('veg')}
+                      onClick={() => { playClickSound(); setSelectedFoodType('veg') }}
                       className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold transition-all ${
                         selectedFoodType === 'veg'
-                          ? 'bg-green-600 text-white'
-                          : 'bg-white text-green-700 hover:bg-green-50 border border-green-200'
+                          ? 'bg-amber-900 text-white'
+                          : 'bg-white text-gray-900 hover:bg-amber-50 border border-amber-200'
                       }`}
                     >
-                      <div className="w-3 h-3 flex items-center justify-center border-2 border-green-600 bg-green-50 rounded-sm">
-                        <div className="w-1.5 h-1.5 bg-green-600 rounded-full"></div>
+                      <div className="w-3 h-3 flex items-center justify-center border-2 border-amber-600 bg-amber-50 rounded-sm">
+                        <div className="w-1.5 h-1.5 bg-amber-900 rounded-full"></div>
                       </div>
                       Veg
                     </button>
                     <button
-                      onClick={() => setSelectedFoodType('nonveg')}
+                      onClick={() => { playClickSound(); setSelectedFoodType('nonveg') }}
                       className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold transition-all ${
                         selectedFoodType === 'nonveg'
-                          ? 'bg-red-600 text-white'
-                          : 'bg-white text-red-700 hover:bg-red-50 border border-red-200'
+                          ? 'bg-amber-900 text-white'
+                          : 'bg-white text-gray-900 hover:bg-amber-50 border border-amber-200'
                       }`}
                     >
-                      <div className="w-3 h-3 flex items-center justify-center border-2 border-red-600 bg-red-50 rounded-sm">
-                        <div className="w-1.5 h-1.5 bg-red-600 rounded-full"></div>
+                      <div className="w-3 h-3 flex items-center justify-center border-2 border-amber-600 bg-amber-50 rounded-sm">
+                        <div className="w-1.5 h-1.5 bg-amber-900 rounded-full"></div>
                       </div>
                       Non-Veg
                     </button>
@@ -2619,19 +2777,19 @@ ${itemsList}
                     {filteredDishes.map((dish) => (
                       <button
                         key={dish.id}
-                        onClick={() => dish.is_available && handleAddToRepeatOrderCart(dish)}
+                        onClick={() => { playClickSound(); dish.is_available && handleAddToRepeatOrderCart(dish) }}
                         disabled={!dish.is_available}
                         className={`p-3 sm:p-4 border-2 rounded-xl transition-all duration-300 text-left relative ${
                           !dish.is_available
-                            ? 'bg-gray-100 border-gray-300 cursor-not-allowed opacity-60'
-                            : 'bg-white border-gray-200 hover:border-orange-500 hover:bg-orange-50'
+                            ? 'bg-amber-100 border-amber-300 cursor-not-allowed opacity-60'
+                            : 'bg-white border-amber-200 hover:border-amber-500 hover:bg-amber-50'
                         }`}
                       >
                         <div className="absolute top-2 right-2">
                           <div className={`w-6 h-6 rounded-full flex items-center justify-center ${
                             dish.is_available 
                               ? 'bg-[#5D3A1A] text-white' 
-                              : 'bg-red-500 text-white'
+                              : 'bg-amber-900 text-white'
                           }`}>
                             {dish.is_available ? (
                               <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
@@ -2649,14 +2807,14 @@ ${itemsList}
                             {getFoodTypeIcon(dish.food_type)}
                             <h4 className="font-bold text-gray-900 text-sm">{dish.name}</h4>
                           </div>
-                          <span className="text-sm font-bold text-orange-600">₹{dish.price.toFixed(2)}</span>
+                          <span className="text-sm font-bold text-gray-900">₹{dish.price.toFixed(2)}</span>
                         </div>
                         <div className="flex items-center justify-between">
-                          <p className="text-xs text-gray-600">{dish.category}</p>
+                          <p className="text-xs text-gray-900">{dish.category}</p>
                           <div className={`flex items-center gap-1 px-2 py-1 rounded-lg ${
                             dish.is_available
-                              ? 'bg-orange-100 text-orange-700'
-                              : 'bg-gray-200 text-gray-500'
+                              ? 'bg-amber-100 text-gray-900'
+                              : 'bg-amber-200 text-gray-900'
                           }`}>
                             <Plus className="w-3 h-3 sm:w-4 sm:h-4" />
                             <span className="text-xs font-semibold hidden sm:inline">Add</span>
@@ -2670,39 +2828,39 @@ ${itemsList}
 
               {/* Cart Section */}
               <div className="lg:col-span-1">
-                <div className="bg-white rounded-2xl shadow-lg p-4 sm:p-6 border-2 border-orange-200 sticky top-24">
+                <div className="bg-white rounded-2xl shadow-lg p-4 sm:p-6 border-2 border-amber-200 sticky top-24">
                   <h3 className="text-xl font-bold text-gray-900 mb-4">Extra Order Cart</h3>
                   
                   {repeatOrderCart.length === 0 ? (
                     <div className="text-center py-8">
-                      <ShoppingCart className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                      <p className="text-gray-500 font-semibold">Cart is empty</p>
+                      <ShoppingCart className="w-12 h-12 text-amber-300 mx-auto mb-3" />
+                      <p className="text-gray-900 font-semibold">Cart is empty</p>
                     </div>
                   ) : (
                     <div className="space-y-3 max-h-96 overflow-y-auto">
                       {repeatOrderCart.map((item) => (
-                        <div key={item.dish_id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200">
+                        <div key={item.dish_id} className="flex items-center justify-between p-3 bg-amber-50 rounded-lg border border-amber-200">
                           <div className="flex-1">
                             <h4 className="font-bold text-gray-900 text-sm">{item.name}</h4>
-                            <p className="text-xs text-gray-600">₹{item.price.toFixed(2)}</p>
+                            <p className="text-xs text-gray-900">₹{item.price.toFixed(2)}</p>
                           </div>
                           <div className="flex items-center gap-2">
                             <button
-                              onClick={() => handleUpdateRepeatOrderCartQuantity(item.dish_id, -1)}
-                              className="w-6 h-6 bg-orange-100 text-orange-600 rounded-lg hover:bg-orange-200 transition-colors flex items-center justify-center"
+                              onClick={() => { playClickSound(); playClickSound(); handleUpdateRepeatOrderCartQuantity(item.dish_id, -1) }}
+                              className="w-6 h-6 bg-amber-100 text-gray-900 rounded-lg hover:bg-amber-200 transition-colors flex items-center justify-center"
                             >
                               <Minus className="w-3 h-3" />
                             </button>
                             <span className="font-bold text-gray-900 w-6 text-center">{item.quantity}</span>
                             <button
-                              onClick={() => handleUpdateRepeatOrderCartQuantity(item.dish_id, 1)}
-                              className="w-6 h-6 bg-orange-100 text-orange-600 rounded-lg hover:bg-orange-200 transition-colors flex items-center justify-center"
+                              onClick={() => { playClickSound(); playClickSound(); handleUpdateRepeatOrderCartQuantity(item.dish_id, 1) }}
+                              className="w-6 h-6 bg-amber-100 text-gray-900 rounded-lg hover:bg-amber-200 transition-colors flex items-center justify-center"
                             >
                               <Plus className="w-3 h-3" />
                             </button>
                             <button
-                              onClick={() => handleRemoveFromRepeatOrderCart(item.dish_id)}
-                              className="ml-2 text-red-500 hover:text-red-700"
+                              onClick={() => { playClickSound(); playClickSound(); handleRemoveFromRepeatOrderCart(item.dish_id) }}
+                              className="ml-2 text-gray-900 hover:text-gray-900"
                             >
                               <X className="w-4 h-4" />
                             </button>
@@ -2713,17 +2871,17 @@ ${itemsList}
                   )}
 
                   {repeatOrderCart.length > 0 && (
-                    <div className="mt-4 pt-4 border-t border-gray-200">
+                    <div className="mt-4 pt-4 border-t border-amber-200">
                       <div className="flex justify-between items-center mb-4">
-                        <span className="text-lg font-bold text-gray-700">Total</span>
+                        <span className="text-lg font-bold text-gray-900">Total</span>
                         <span className="text-2xl font-bold text-gray-900">
                           ₹{repeatOrderCart.reduce((sum, item) => sum + (item.price * item.quantity), 0).toFixed(2)}
                         </span>
                       </div>
                       <button
-                        onClick={handleSubmitRepeatOrder}
+                        onClick={() => { playClickSound(); handleSubmitRepeatOrder() }}
                         disabled={submitting}
-                        className="w-full px-6 py-3 bg-orange-500 text-white rounded-xl font-semibold hover:bg-orange-600 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="w-full px-6 py-3 bg-amber-900 text-white rounded-xl font-semibold hover:bg-amber-900 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         {submitting ? 'Submitting...' : 'Submit Extra Order'}
                       </button>
@@ -2740,7 +2898,7 @@ ${itemsList}
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-hidden">
               {/* Header */}
-              <div className="bg-gradient-to-r from-[#5D3A1A] to-[#8B5A2B] p-6 rounded-t-2xl">
+              <div className="bg-[#5D3A1A] p-6 rounded-t-2xl">
                 <div className="text-center">
                   <h2 className="text-3xl font-bold text-white mb-1">DHOLE PATIL KHANAWAL</h2>
                   <p className="text-[#F5F5DC] text-sm font-semibold">Veg & Non-Veg</p>
@@ -2754,40 +2912,40 @@ ${itemsList}
 
               <div className="p-6 overflow-y-auto max-h-[calc(90vh-250px)]">
                 {/* Bill Info */}
-                <div className="border-b-2 border-dashed border-gray-300 pb-4 mb-4">
+                <div className="border-b-2 border-dashed border-amber-300 pb-4 mb-4">
                   <div className="flex justify-between items-center mb-3">
                     <div>
-                      <p className="text-xs text-gray-500 uppercase tracking-wide">Bill No</p>
+                      <p className="text-xs text-gray-900 uppercase tracking-wide">Bill No</p>
                       <p className="font-bold text-gray-900">{formatOrderId(viewingBill.id)}</p>
                     </div>
                     <div className="text-right">
-                      <p className="text-xs text-gray-500 uppercase tracking-wide">Date</p>
+                      <p className="text-xs text-gray-900 uppercase tracking-wide">Date</p>
                       <p className="font-bold text-gray-900">{new Date(viewingBill.created_at).toLocaleDateString()}</p>
                     </div>
                   </div>
                   <div className="flex justify-between items-center mb-3">
                     <div>
-                      <p className="text-xs text-gray-500 uppercase tracking-wide">Table</p>
+                      <p className="text-xs text-gray-900 uppercase tracking-wide">Table</p>
                       <p className="font-bold text-gray-900">{viewingBill.tables?.table_number}</p>
                     </div>
                     <div className="text-right">
-                      <p className="text-xs text-gray-500 uppercase tracking-wide">Time</p>
+                      <p className="text-xs text-gray-900 uppercase tracking-wide">Time</p>
                       <p className="font-bold text-gray-900">{new Date(viewingBill.created_at).toLocaleTimeString()}</p>
                     </div>
                   </div>
                   <div className="flex justify-between items-center">
                     <div>
-                      <p className="text-xs text-gray-500 uppercase tracking-wide">Waiter</p>
+                      <p className="text-xs text-gray-900 uppercase tracking-wide">Waiter</p>
                       <p className="font-bold text-gray-900">{viewingBill.users?.name}</p>
                     </div>
                     <div className="text-right">
-                      <p className="text-xs text-gray-500 uppercase tracking-wide">Status</p>
+                      <p className="text-xs text-gray-900 uppercase tracking-wide">Status</p>
                       <span className={`px-2 py-1 rounded-full text-xs font-bold ${
                         viewingBill.status === 'paid' ? 'bg-[#5D3A1A] text-white' :
                         viewingBill.status === 'ready' ? 'bg-[#F5F5DC] text-[#5D3A1A]' :
-                        viewingBill.status === 'preparing' ? 'bg-yellow-100 text-yellow-800' :
-                        viewingBill.status === 'served' ? 'bg-white border-2 border-black text-black' :
-                        'bg-gray-100 text-gray-800'
+                        viewingBill.status === 'preparing' ? 'bg-amber-100 text-gray-900' :
+                        viewingBill.status === 'served' ? 'bg-white border-2 border-amber-900 text-gray-900' :
+                        'bg-amber-100 text-gray-900'
                       }`}>
                         {viewingBill.status}
                       </span>
@@ -2797,15 +2955,15 @@ ${itemsList}
 
                 {/* Items Table */}
                 <div className="mb-4">
-                  <div className="flex items-center justify-between text-xs font-bold text-gray-500 uppercase tracking-wide mb-2 pb-2 border-b border-gray-200">
+                  <div className="flex items-center justify-between text-xs font-bold text-gray-900 uppercase tracking-wide mb-2 pb-2 border-b border-amber-200">
                     <span className="flex-1">Item</span>
                     <span className="w-16 text-center">Qty</span>
                     <span className="w-20 text-right">Amount</span>
                   </div>
                   {billOrderItems.length === 0 ? (
-                    <div className="text-center py-8 bg-gray-50 rounded-xl">
-                      <ShoppingCart className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                      <p className="text-gray-500">No items in this order</p>
+                    <div className="text-center py-8 bg-amber-50 rounded-xl">
+                      <ShoppingCart className="w-12 h-12 text-amber-300 mx-auto mb-3" />
+                      <p className="text-gray-900">No items in this order</p>
                     </div>
                   ) : (
                     <div className="space-y-2">
@@ -2818,7 +2976,7 @@ ${itemsList}
                           const price = item.dishes?.price || item.dish?.price || item.price || 0
                           const total = price * qty
                           const isExtra = item.order_type === 'Extra' || item.item_type === 'Extra'
-                          
+
                           if (!groupedItems[name]) {
                             groupedItems[name] = { name, qty: 0, total: 0, isExtra: false }
                           }
@@ -2830,13 +2988,13 @@ ${itemsList}
                         })
                         
                         return Object.values(groupedItems).map((item: any, index: number) => (
-                          <div key={index} className="flex items-center justify-between py-2 border-b border-gray-100">
+                          <div key={index} className="flex items-center justify-between py-2 border-b border-amber-100">
                             <div className="flex-1">
                               <p className="font-semibold text-gray-900 text-sm">
                                 {item.isExtra ? `${item.name} (E)` : item.name}
                               </p>
                             </div>
-                            <span className="w-16 text-center text-sm text-gray-600">{item.qty}</span>
+                            <span className="w-16 text-center text-sm text-gray-900">{item.qty}</span>
                             <span className="w-20 text-right font-bold text-gray-900 text-sm">₹{item.total.toFixed(2)}</span>
                           </div>
                         ))
@@ -2846,9 +3004,9 @@ ${itemsList}
                 </div>
 
                 {/* Total */}
-                <div className="border-t-2 border-dashed border-gray-300 pt-4 mt-4">
+                <div className="border-t-2 border-dashed border-amber-300 pt-4 mt-4">
                   <div className="flex justify-between items-center">
-                    <span className="text-lg font-bold text-gray-700">GRAND TOTAL</span>
+                    <span className="text-lg font-bold text-gray-900">GRAND TOTAL</span>
                     <span className="text-2xl font-bold text-[#5D3A1A]">
                       ₹{viewingBill.total_amount.toFixed(2)}
                     </span>
@@ -2856,15 +3014,15 @@ ${itemsList}
                 </div>
 
                 {/* Footer */}
-                <div className="mt-6 pt-4 border-t border-gray-200 text-center">
-                  <p className="text-xs text-gray-500 mb-2">Thank you for dining with us!</p>
-                  <p className="text-xs text-gray-400">Visit us again soon</p>
+                <div className="mt-6 pt-4 border-t border-amber-200 text-center">
+                  <p className="text-xs text-gray-900 mb-2">Thank you for dining with us!</p>
+                  <p className="text-xs text-amber-400">Visit us again soon</p>
                 </div>
 
                 {/* Action Buttons */}
                 <div className="mt-6 space-y-3">
                   <button
-                    onClick={handleThermalPrint}
+                    onClick={() => { playClickSound(); handleThermalPrint() }}
                     className="w-full flex items-center justify-center gap-2 bg-[#5D3A1A] text-white px-6 py-3 rounded-xl font-semibold hover:bg-[#8B4513] transition-all duration-300"
                   >
                     <Printer className="w-5 h-5" />
@@ -2875,7 +3033,7 @@ ${itemsList}
                       setViewingBill(null)
                       setCurrentStep('tables')
                     }}
-                    className="w-full flex items-center justify-center gap-2 bg-gray-100 text-gray-700 px-6 py-3 rounded-xl font-semibold hover:bg-gray-200 transition-all duration-300"
+                    className="w-full flex items-center justify-center gap-2 bg-amber-100 text-gray-900 px-6 py-3 rounded-xl font-semibold hover:bg-amber-200 transition-all duration-300"
                   >
                     <X className="w-5 h-5" />
                     Close
@@ -2890,11 +3048,11 @@ ${itemsList}
         {viewingOrderItems && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden">
-              <div className="bg-blue-500 p-4 sm:p-6">
+              <div className="bg-amber-900 p-4 sm:p-6">
                 <div className="flex justify-between items-center">
                   <div>
                     <h2 className="text-xl sm:text-2xl font-bold text-white">Order Items</h2>
-                    <p className="text-blue-100 text-sm">Order #{viewingOrderItems.id.slice(0, 8)}</p>
+                    <p className="text-amber-100 text-sm">Order #{viewingOrderItems.id.slice(0, 8)}</p>
                   </div>
                   <button
                     onClick={() => setViewingOrderItems(null)}
@@ -2910,23 +3068,23 @@ ${itemsList}
                 <div className="mb-6">
                   <h3 className="text-lg font-bold text-gray-900 mb-4">Current Items</h3>
                   {orderItems.length === 0 ? (
-                    <div className="text-center py-8 bg-gray-50 rounded-xl">
-                      <ShoppingCart className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                      <p className="text-gray-500">No items in this order</p>
+                    <div className="text-center py-8 bg-amber-50 rounded-xl">
+                      <ShoppingCart className="w-12 h-12 text-amber-300 mx-auto mb-3" />
+                      <p className="text-gray-900">No items in this order</p>
                     </div>
                   ) : (
                     <div className="space-y-3">
                       {orderItems.map((item) => (
-                        <div key={item.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-xl border border-gray-200">
+                        <div key={item.id} className="flex items-center justify-between p-4 bg-amber-50 rounded-xl border border-amber-200">
                           <div className="flex-1">
                             <h4 className="font-bold text-gray-900">{item.dishes?.name}</h4>
-                            <p className="text-sm text-gray-600">Qty: {item.quantity} × ₹{item.price.toFixed(2)}</p>
+                            <p className="text-sm text-gray-900">Qty: {item.quantity} × ₹{item.price.toFixed(2)}</p>
                           </div>
                           <div className="flex items-center gap-3">
                             <p className="font-bold text-gray-900">₹{(item.price * item.quantity).toFixed(2)}</p>
                             <button
                               onClick={() => handleDeleteOrderItem(item.id)}
-                              className="text-red-500 hover:text-red-700 hover:bg-red-50 p-2 rounded-lg transition-colors"
+                              className="text-gray-900 hover:text-gray-900 hover:bg-amber-50 p-2 rounded-lg transition-colors"
                             >
                               <X className="w-5 h-5" />
                             </button>
@@ -2946,11 +3104,11 @@ ${itemsList}
                     {categories.map((category) => (
                       <button
                         key={category}
-                        onClick={() => setSelectedCategory(category)}
+                        onClick={() => { playClickSound(); setSelectedCategory(category) }}
                         className={`px-3 py-2 rounded-lg text-xs font-semibold transition-all duration-300 ${
                           selectedCategory === category
-                            ? 'bg-blue-500 text-white'
-                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                            ? 'bg-amber-900 text-white'
+                            : 'bg-amber-100 text-gray-900 hover:bg-amber-200'
                         }`}
                       >
                         {category === 'all' ? 'All Dishes' : category}
@@ -2961,38 +3119,38 @@ ${itemsList}
                   {/* Food Type Filter */}
                   <div className="flex flex-wrap gap-2 mb-4">
                     <button
-                      onClick={() => setSelectedFoodType('all')}
+                      onClick={() => { playClickSound(); setSelectedFoodType('all') }}
                       className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold transition-all ${
                         selectedFoodType === 'all'
-                          ? 'bg-blue-500 text-white'
-                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                          ? 'bg-amber-900 text-white'
+                          : 'bg-amber-100 text-gray-900 hover:bg-amber-200'
                       }`}
                     >
                       All
                     </button>
                     <button
-                      onClick={() => setSelectedFoodType('veg')}
+                      onClick={() => { playClickSound(); setSelectedFoodType('veg') }}
                       className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold transition-all ${
                         selectedFoodType === 'veg'
-                          ? 'bg-green-600 text-white'
-                          : 'bg-white text-green-700 hover:bg-green-50 border border-green-200'
+                          ? 'bg-amber-900 text-white'
+                          : 'bg-white text-gray-900 hover:bg-amber-50 border border-amber-200'
                       }`}
                     >
-                      <div className="w-3 h-3 flex items-center justify-center border-2 border-green-600 bg-green-50 rounded-sm">
-                        <div className="w-1.5 h-1.5 bg-green-600 rounded-full"></div>
+                      <div className="w-3 h-3 flex items-center justify-center border-2 border-amber-600 bg-amber-50 rounded-sm">
+                        <div className="w-1.5 h-1.5 bg-amber-900 rounded-full"></div>
                       </div>
                       Veg
                     </button>
                     <button
-                      onClick={() => setSelectedFoodType('nonveg')}
+                      onClick={() => { playClickSound(); setSelectedFoodType('nonveg') }}
                       className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold transition-all ${
                         selectedFoodType === 'nonveg'
-                          ? 'bg-red-600 text-white'
-                          : 'bg-white text-red-700 hover:bg-red-50 border border-red-200'
+                          ? 'bg-amber-900 text-white'
+                          : 'bg-white text-gray-900 hover:bg-amber-50 border border-amber-200'
                       }`}
                     >
-                      <div className="w-3 h-3 flex items-center justify-center border-2 border-red-600 bg-red-50 rounded-sm">
-                        <div className="w-1.5 h-1.5 bg-red-600 rounded-full"></div>
+                      <div className="w-3 h-3 flex items-center justify-center border-2 border-amber-600 bg-amber-50 rounded-sm">
+                        <div className="w-1.5 h-1.5 bg-amber-900 rounded-full"></div>
                       </div>
                       Non-Veg
                     </button>
@@ -3006,15 +3164,15 @@ ${itemsList}
                         disabled={addingItem || !dish.is_available}
                         className={`p-3 border-2 rounded-xl transition-all duration-300 text-left relative disabled:opacity-50 ${
                           !dish.is_available
-                            ? 'bg-gray-100 border-gray-300 cursor-not-allowed'
-                            : 'bg-white border-gray-200 hover:border-blue-500 hover:bg-blue-50'
+                            ? 'bg-amber-100 border-amber-300 cursor-not-allowed'
+                            : 'bg-white border-amber-200 hover:border-amber-500 hover:bg-amber-50'
                         }`}
                       >
                         <div className="absolute top-2 right-2">
                           <div className={`w-6 h-6 rounded-full flex items-center justify-center ${
                             dish.is_available 
                               ? 'bg-[#5D3A1A] text-white' 
-                              : 'bg-red-500 text-white'
+                              : 'bg-amber-900 text-white'
                           }`}>
                             {dish.is_available ? (
                               <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
@@ -3035,11 +3193,11 @@ ${itemsList}
                           <span className="text-sm font-bold text-[#5D3A1A]">₹{dish.price.toFixed(2)}</span>
                         </div>
                         <div className="flex items-center justify-between">
-                          <p className="text-xs text-gray-600">{dish.category}</p>
+                          <p className="text-xs text-gray-900">{dish.category}</p>
                           <div className={`flex items-center gap-1 px-2 py-1 rounded-lg ${
                             dish.is_available
-                              ? 'bg-blue-100 text-blue-700'
-                              : 'bg-gray-200 text-gray-500'
+                              ? 'bg-amber-100 text-gray-900'
+                              : 'bg-amber-200 text-gray-900'
                           }`}>
                             <Plus className="w-3 h-3" />
                             <span className="text-xs font-semibold hidden sm:inline">Add</span>
@@ -3053,7 +3211,7 @@ ${itemsList}
                 {/* Order Total */}
                 <div className="mt-6 p-4 bg-[#F5F5DC] rounded-xl border-2 border-[#8B4513]">
                   <div className="flex justify-between items-center">
-                    <span className="text-lg font-bold text-gray-700">Order Total</span>
+                    <span className="text-lg font-bold text-gray-900">Order Total</span>
                     <span className="text-2xl font-bold text-[#5D3A1A]">
                       ₹{viewingOrderItems.total_amount.toFixed(2)}
                     </span>
@@ -3068,19 +3226,25 @@ ${itemsList}
       {/* Master Table Modal */}
       {showMasterTableModal && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 animate-slide-in">
-          <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-2xl mx-4 max-h[80vh] overflow-y-auto">
-            <h2 className="text-2xl font-bold mb-6 text-[#5D3A1A]">Create Master Table</h2>
-            <p className="text-gray-600 mb-4">Select 2 or more tables to combine into a master table. The first selected table will become the master.</p>
+          <div className="bg-white rounded-3xl shadow-2xl p-8 w-full max-w-2xl mx-4 max-h-[85vh] overflow-y-auto border border-amber-200">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="bg-amber-900 p-3 rounded-xl">
+                <Crown className="w-6 h-6 text-white" />
+              </div>
+              <h2 className="text-2xl font-bold text-gray-900">Create Master Table</h2>
+            </div>
+            <p className="text-gray-900 mb-6">Select 2 or more tables to combine into a master table. The first selected table will become the master.</p>
             {selectedTablesForMaster.length > 0 && (
-              <div className="mb-4 p-3 bg-[#F5F5DC] rounded-lg">
-                <p className="font-semibold text-[#5D3A1A]">
+              <div className="mb-6 p-4 bg-amber-50 rounded-xl border-2 border-amber-200">
+                <p className="font-semibold text-gray-900 flex items-center gap-2">
+                  <Crown className="w-4 h-4" />
                   Master Table: Table {tables.find(t => t.id === selectedTablesForMaster[0])?.table_number}
                 </p>
               </div>
             )}
-            <div className="space-y-2 max-h-96 overflow-y-auto">
+            <div className="space-y-3 max-h-96 overflow-y-auto">
               {tables.filter(t => !t.master_table_id && !t.is_occupied).map(table => (
-                <label key={table.id} className="flex items-center p-3 border-2 border-gray-200 rounded-xl hover:border-[#8B4513] cursor-pointer transition-colors">
+                <label key={table.id} className="flex items-center p-4 border-2 border-amber-200 rounded-xl hover:border-amber-300 hover:bg-amber-50 cursor-pointer transition-all duration-200 group">
                   <input
                     type="checkbox"
                     checked={selectedTablesForMaster.includes(table.id)}
@@ -3091,27 +3255,28 @@ ${itemsList}
                         setSelectedTablesForMaster(selectedTablesForMaster.filter(id => id !== table.id))
                       }
                     }}
-                    className="w-5 h-5 text-[#8B4513] rounded focus:ring-[#8B4513]"
+                    className="w-5 h-5 text-gray-900 rounded focus:ring-amber-500"
                   />
                   <span className="ml-3 font-semibold text-gray-900">Table {table.table_number}</span>
-                  <span className="ml-3 text-gray-500">(Capacity: {table.capacity})</span>
+                  <span className="ml-3 text-gray-900">Capacity: {table.capacity}</span>
                   {selectedTablesForMaster.length > 0 && selectedTablesForMaster[0] === table.id && (
-                    <span className="ml-3 px-2 py-1 bg-[#8B4513] text-white text-xs rounded-full">Master</span>
+                    <span className="ml-3 px-3 py-1 bg-amber-900 text-white text-xs rounded-full font-bold shadow-sm">Master</span>
                   )}
                 </label>
               ))}
               {tables.filter(t => !t.master_table_id && t.is_occupied).length > 0 && (
-                <div className="space-y-2">
+                <div className="space-y-3 mt-4">
+                  <p className="text-sm font-semibold text-gray-900 uppercase tracking-wide">Occupied Tables</p>
                   {tables.filter(t => !t.master_table_id && t.is_occupied).map(table => (
-                    <div key={table.id} className="flex items-center p-3 border-2 border-red-200 bg-red-50 rounded-xl opacity-60">
+                    <div key={table.id} className="flex items-center p-4 border-2 border-amber-200 bg-amber-50 rounded-xl opacity-60">
                       <input
                         type="checkbox"
                         disabled
-                        className="w-5 h-5 text-gray-400 rounded cursor-not-allowed"
+                        className="w-5 h-5 text-amber-400 rounded cursor-not-allowed"
                       />
-                      <span className="ml-3 font-semibold text-red-700">Table {table.table_number}</span>
-                      <span className="ml-3 text-red-500">(Capacity: {table.capacity})</span>
-                      <span className="ml-3 px-2 py-1 bg-brown-600 text-white text-xs rounded-full font-bold">Occupied</span>
+                      <span className="ml-3 font-semibold text-gray-900">Table {table.table_number}</span>
+                      <span className="ml-3 text-gray-900">Capacity: {table.capacity}</span>
+                      <span className="ml-3 px-3 py-1 bg-amber-900 text-white text-xs rounded-full font-bold">Occupied</span>
                     </div>
                   ))}
                 </div>
@@ -3123,13 +3288,13 @@ ${itemsList}
                   setShowMasterTableModal(false)
                   setSelectedTablesForMaster([])
                 }}
-                className="flex-1 px-6 py-3 border-2 border-gray-300 text-gray-700 rounded-xl font-semibold hover:bg-gray-50 transition-all duration-300"
+                className="flex-1 px-6 py-3 border-2 border-amber-300 text-gray-900 rounded-xl font-semibold hover:bg-amber-50 transition-all duration-200"
               >
                 Cancel
               </button>
               <button
                 onClick={handleCreateMasterTable}
-                className="flex-1 px-6 py-3 bg-[#8B4513] text-white rounded-xl font-semibold hover:shadow-lg transition-all duration-300 transform hover:scale-105"
+                className="flex-1 px-6 py-3 bg-amber-900 text-white rounded-xl font-semibold hover:bg-amber-900 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105"
               >
                 Create Master Table
               </button>
@@ -3137,6 +3302,59 @@ ${itemsList}
           </div>
         </div>
       )}
+
+      {/* Bottom Navigation (WhatsApp-style) */}
+      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-amber-200 px-4 py-2 z-50">
+        <div className="flex justify-around items-center max-w-lg mx-auto">
+          {currentStep !== 'tables' && (
+            <button
+              onClick={() => { playClickSound(); handleBackToTables() }}
+              className="flex flex-col items-center text-gray-900 hover:text-gray-900 transition-colors py-2 px-3"
+            >
+              <div className="w-10 h-10 bg-amber-100 rounded-full flex items-center justify-center mb-1">
+                <ArrowLeft className="w-5 h-5" />
+              </div>
+              <span className="text-xs font-medium">Back</span>
+            </button>
+          )}
+          <button
+            onClick={() => { playClickSound(); fetchData() }}
+            className="flex flex-col items-center text-gray-900 hover:text-gray-900 transition-colors py-2 px-3"
+          >
+            <div className="w-10 h-10 bg-amber-100 rounded-full flex items-center justify-center mb-1">
+              <RotateCcw className="w-5 h-5" />
+            </div>
+            <span className="text-xs font-medium">Refresh</span>
+          </button>
+          <button
+            onClick={() => { playClickSound(); document.getElementById('active-orders-section')?.scrollIntoView({ behavior: 'smooth' }) }}
+            className="flex flex-col items-center text-gray-900 hover:text-gray-900 transition-colors py-2 px-3"
+          >
+            <div className="w-10 h-10 bg-amber-100 rounded-full flex items-center justify-center mb-1">
+              <Clock className="w-5 h-5" />
+            </div>
+            <span className="text-xs font-medium">Active Orders</span>
+          </button>
+          <button
+            onClick={() => { playClickSound(); setShowMasterTableModal(true) }}
+            className="flex flex-col items-center text-gray-900 hover:text-gray-900 transition-colors py-2 px-3"
+          >
+            <div className="w-10 h-10 bg-amber-100 rounded-full flex items-center justify-center mb-1">
+              <Crown className="w-5 h-5" />
+            </div>
+            <span className="text-xs font-medium">Create Master</span>
+          </button>
+          <button
+            onClick={() => { playClickSound(); handleLogout() }}
+            className="flex flex-col items-center text-gray-900 hover:text-gray-900 transition-colors py-2 px-3"
+          >
+            <div className="w-10 h-10 bg-amber-100 rounded-full flex items-center justify-center mb-1">
+              <LogOut className="w-5 h-5" />
+            </div>
+            <span className="text-xs font-medium">Logout</span>
+          </button>
+        </div>
+      </div>
     </div>
   )
 }

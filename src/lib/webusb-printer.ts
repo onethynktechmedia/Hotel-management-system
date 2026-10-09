@@ -159,7 +159,7 @@ function openBrowserPrint(plainText: string): void {
           }
           body {
             font-family: 'Courier New', 'Consolas', 'Lucida Console', monospace;
-            font-size: 14px;
+            font-size: 16px;
             font-weight: bold;
             line-height: 1.4;
             margin: 0;
@@ -184,13 +184,13 @@ function openBrowserPrint(plainText: string): void {
             max-width: 100%;
           }
           .header {
-            font-size: 18px;
+            font-size: 20px;
             font-weight: 900;
             margin-bottom: 2mm;
             display: block;
           }
           .grand-total {
-            font-size: 18px;
+            font-size: 20px;
             font-weight: 900;
             margin: 2mm 0;
             display: block;
@@ -203,13 +203,13 @@ function openBrowserPrint(plainText: string): void {
           }
           @media print {
             body {
-              font-size: 13px;
+              font-size: 15px;
               line-height: 1.3;
             }
           }
           @media (max-width: 768px) {
             body {
-              font-size: 12px;
+              font-size: 14px;
               line-height: 1.3;
             }
           }

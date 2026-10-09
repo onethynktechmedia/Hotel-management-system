@@ -286,31 +286,30 @@ export default function ChefStation() {
       return dish?.food_type !== 'veg' && dish?.food_type !== 'nonveg'
     })
 
-    // Build items text with bold quantities
+    // Build items text - one line per item with qty, name, and type with proper spacing for 58mm
     let itemsText = ''
     filteredItems.forEach(item => {
       const dish = dishes.find(d => d.id === item.dish_id)
       const name = dish?.name || 'Unknown'
       const qty = item.quantity
-      itemsText += `<b>${name} ${qty}x</b>\n`
+      const type = item.dish_type || 'Normal'
+      const dishName = name.length > 14 ? name.substring(0, 13) + '.' : name
+      itemsText += `<div>${qty}x ${dishName.padEnd(14)} (${type})</div>`
     })
 
     // Get table display - for master tables, show only master table number
-    const tableDisplay = table?.is_master ? `Table ${table?.table_number} (MASTER)` : `Table ${table?.table_number || 'N/A'}`
+    const tableNumber = table?.table_number || 'N/A'
 
     const billContent = `
-<b>====================</b>
-<b>DHOLE PATIL KHANAWAL</b>
-<b>====================</b>
-<b>${foodType === 'veg' ? 'VEG' : foodType === 'nonveg' ? 'NON-VEG' : 'OTHER'} KOT</b>
-<b>====================</b>
-<b>TABLE: ${tableDisplay}</b>
-<b>Order ID: ${formatOrderId(order.id)}</b>
-<b>Time: ${formatTime(order.created_at)}</b>
-<b>Waiter: ${order.users?.name || 'N/A'}</b>
---------------------
+<div style="font-size: 20px; font-weight: 900; text-align: center;">TABLE ${tableNumber}</div>
+<div>---------------------</div>
+<div>${foodType === 'veg' ? 'VEG' : foodType === 'nonveg' ? 'NON-VEG' : 'OTHER'} KOT</div>
+<div>---------------------</div>
+<div>Time: ${formatTime(order.created_at)}</div>
+<div>Waiter: ${order.users?.name || 'N/A'}</div>
+<div>---------------------</div>
 ${itemsText}
-<b>====================</b>
+<div>---------------------</div>
       `
 
     // Create a new window to print
@@ -324,37 +323,33 @@ ${itemsText}
               body {
                 font-family: 'Courier New', monospace;
                 font-size: 12px;
-                padding: 10px;
+                padding: 5px;
                 margin: 0;
-                text-align: center;
+                text-align: left;
                 background: white;
-                line-height: 1.4;
+                line-height: 1.3;
               }
               .kot-content {
-                white-space: pre;
-                text-align: center;
+                text-align: left;
                 display: inline-block;
-                font-weight: normal;
+                font-weight: bold;
                 margin: 0 auto;
-              }
-              b {
-                font-weight: 900;
-                font-size: 14px;
+                line-height: 1.4;
               }
               @media print {
                 body {
-                  padding: 5px;
+                  padding: 3px;
                   margin: 0;
                 }
                 .kot-content {
-                  font-size: 10px;
+                  font-size: 11px;
                 }
-                b {
-                  font-size: 12px;
+                div[style*="font-size: 20px"] {
+                  font-size: 18px !important;
                 }
                 @page {
-                  margin: 5mm;
-                  size: 80mm auto;
+                  margin: 3mm;
+                  size: 58mm auto;
                 }
               }
             </style>
