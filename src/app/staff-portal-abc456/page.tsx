@@ -299,6 +299,32 @@ export default function WaiterPage() {
           throw new Error(errorData.error || 'Failed to create order items')
         }
 
+        // Ensure table is marked as occupied
+        await fetch('/api/tables', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: selectedTable?.id, is_occupied: true })
+        })
+
+        // Create notifications for kitchen and admin staff
+        const usersResponse = await fetch('/api/users')
+        const allUsers = await usersResponse.json()
+        const kitchenAndAdminUsers = allUsers.filter((u: any) => u.role === 'kitchen' || u.role === 'admin')
+
+        for (const targetUser of kitchenAndAdminUsers) {
+          await fetch('/api/notifications', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              user_id: targetUser.id,
+              order_id: existingOrder.id,
+              type: 'new_order',
+              message: `Repeated order for Table ${selectedTable?.table_number} by ${user?.name}`,
+              is_read: false
+            })
+          })
+        }
+
         orderData = existingOrder
       } else {
         // Create new order
@@ -391,7 +417,7 @@ export default function WaiterPage() {
       setSelectedTable(null)
 
       // Refresh data
-      fetchData()
+      await fetchData()
     } catch (error) {
       console.error('Error submitting repeated order:', error)
       alert('Failed to submit repeated order. Please try again.')
@@ -502,6 +528,32 @@ export default function WaiterPage() {
           throw new Error(errorData.error || 'Failed to create order items')
         }
 
+        // Ensure table is marked as occupied
+        await fetch('/api/tables', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: selectedTable?.id, is_occupied: true })
+        })
+
+        // Create notifications for kitchen and admin staff
+        const usersResponse = await fetch('/api/users')
+        const allUsers = await usersResponse.json()
+        const kitchenAndAdminUsers = allUsers.filter((u: any) => u.role === 'kitchen' || u.role === 'admin')
+
+        for (const targetUser of kitchenAndAdminUsers) {
+          await fetch('/api/notifications', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              user_id: targetUser.id,
+              order_id: existingOrder.id,
+              type: 'new_order',
+              message: `New order for Table ${selectedTable?.table_number} by ${user?.name}`,
+              is_read: false
+            })
+          })
+        }
+
         orderData = existingOrder
       } else {
         // Create new order
@@ -554,6 +606,7 @@ export default function WaiterPage() {
         console.log('Order items created via API')
 
         // Update table status to occupied via API to avoid CORS
+        // For master tables, they're already marked as occupied when created, but we ensure it stays occupied
         const tableResponse = await fetch('/api/tables', {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
@@ -613,7 +666,7 @@ export default function WaiterPage() {
       setCustomerName('')
 
       // Refresh data
-      fetchData()
+      await fetchData()
     } catch (error) {
       console.error('Error submitting order:', error)
       alert('Failed to submit order. Please try again.')
@@ -687,7 +740,7 @@ export default function WaiterPage() {
 
       setShowMasterTableModal(false)
       setSelectedTablesForMaster([])
-      fetchData()
+      await fetchData()
       playSuccessSound()
       alert(`Table ${masterTable.table_number} is now the master table with ${selectedTablesForMaster.length} tables combined. All tables are now occupied and reserved.`)
     } catch (error) {
@@ -1501,7 +1554,7 @@ ${itemsList}
             <div className="flex items-center gap-2 sm:gap-3">
               <button
                 onClick={() => { playClickSound(); fetchData() }}
-                className="flex items-center gap-2 bg-blue-600 text-white px-3 sm:px-4 py-2 rounded-xl font-semibold hover:bg-blue-700 transition-all duration-300 text-sm sm:text-base"
+                className="flex items-center gap-2 bg-brown-900 text-white px-3 sm:px-4 py-2 rounded-xl font-semibold hover:bg-blue-700 transition-all duration-300 text-sm sm:text-base"
               >
                 <RotateCcw className="w-4 h-4 sm:w-5 sm:h-5" />
                 Refresh
@@ -1529,27 +1582,39 @@ ${itemsList}
         {/* Step 1: Tables Selection */}
         {currentStep === 'tables' && (
           <div>
-            <div className="mb-8 flex justify-between items-center">
-              <div>
-                <h2 className="text-3xl font-bold text-gray-900 mb-2">Select a Table</h2>
-                <p className="text-gray-600">Choose an available table to start taking orders</p>
+            <div className="mb-5 flex justify-between items-center">
+              <div className="flex gap-2">
+                <button
+                  onClick={() => { playClickSound(); document.getElementById('active-orders-section')?.scrollIntoView({ behavior: 'smooth' }) }}
+                  className="flex items-center gap-2 bg-brown-900 text-white px-4 py-1.5 rounded-xl font-semibold hover:bg-blue-700 transition-all duration-300 text-sm"
+                >
+                  <Clock className="w-4 h-4" />
+                  Active Orders
+                </button>
+                <button
+                  onClick={() => { playClickSound(); document.getElementById('master-tables-section')?.scrollIntoView({ behavior: 'smooth' }) }}
+                  className="flex items-center gap-2 bg-brown-900 text-white px-4 py-1.5 rounded-xl font-semibold hover:bg-purple-700 transition-all duration-300 text-sm"
+                >
+                  <Crown className="w-4 h-4" />
+                  Master Tables
+                </button>
+                <button
+                  onClick={() => { playClickSound(); setShowMasterTableModal(true) }}
+                  className="flex items-center gap-2 bg-brown-900 text-white px-4 py-1.5 rounded-xl font-semibold hover:bg-green-700 transition-all duration-300 text-sm"
+                >
+                  <Users className="w-4 h-4" />
+                  Create Master Table
+                </button>
               </div>
-              <button
-                onClick={() => { playClickSound(); setShowMasterTableModal(true) }}
-                className="flex items-center gap-2 bg-purple-600 text-white px-4 py-2 rounded-xl font-semibold hover:bg-purple-700 transition-all duration-300"
-              >
-                <Crown className="w-5 h-5" />
-                Create Master Table
-              </button>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
-              {tables.filter(t => !t.master_table_id).map((table) => (
+            <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
+              {tables.filter(t => !t.master_table_id && !t.is_master).map((table) => (
                 <div
                   key={table.id}
                   className={`p-4 sm:p-6 rounded-2xl border-2 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 text-left relative ${
-                    table.is_occupied 
-                      ? 'border-[#5D3A1A] bg-[#F5F5DC] cursor-not-allowed opacity-60' 
+                    table.is_occupied
+                      ? 'border-[#5D3A1A] bg-[#F5F5DC] cursor-not-allowed opacity-60'
                       : 'border-[#8B4513] bg-white hover:border-[#5D3A1A] cursor-pointer'
                   }`}
                 >
@@ -1560,9 +1625,9 @@ ${itemsList}
                       handleDeleteTable(table.id, table.table_number)
                     }}
                     className={`absolute top-2 right-2 p-1.5 rounded-lg transition-all duration-300 ${
-                      table.is_occupied 
-                        ? 'bg-red-300 text-red-700 hover:bg-red-400' 
-                        : 'bg-red-500 text-white hover:bg-red-600'
+                      table.is_occupied
+                        ? 'bg-brown-600 text-black-900 hover:bg-brown-400'
+                        : 'bg-brown-900 text-white hover:bg-brown-600'
                     }`}
                   >
                     <X className="w-3 h-3 sm:w-4 sm:h-4" />
@@ -1577,25 +1642,20 @@ ${itemsList}
                         <Users className="w-5 h-5 sm:w-6 sm:h-6 text-[#5D3A1A]" />
                       </div>
                       <span className={`px-2 sm:px-3 py-1 rounded-full text-xs font-bold ${
-                        table.is_occupied 
-                          ? 'bg-red-100 text-red-800' 
+                        table.is_occupied
+                          ? 'bg-red-100 text-black-900'
                           : 'bg-[#F5F5DC] text-[#5D3A1A]'
                       }`}>
                         {table.is_occupied ? 'Occupied' : 'Available'}
                       </span>
                     </div>
                     <h3 className="text-lg sm:text-xl font-bold text-gray-900 mb-2">
-                      {table.is_master ? `Table ${table.table_number} (M)` : `Table ${table.table_number}`}
+                      Table {table.table_number}
                     </h3>
                     <p className="text-xs sm:text-sm font-semibold text-gray-600 mb-1">Capacity: {table.capacity} seats</p>
-                    {table.is_master && (
-                      <p className="text-xs text-purple-600 font-semibold mt-2">
-                        {tables.filter(t => t.master_table_id === table.id).length} tables combined
-                      </p>
-                    )}
-                    {table.is_occupied && !table.is_master && (
+                    {table.is_occupied && (
                       <p className="text-xs text-red-600 font-semibold mt-2">
-                        This table is currently occupied
+                        Currently occupied
                       </p>
                     )}
                   </button>
@@ -1603,10 +1663,56 @@ ${itemsList}
               ))}
             </div>
 
+            {/* Master Tables Section */}
+            {tables.filter(t => t.is_master).length > 0 && (
+              <div className="mt-8" id="master-tables-section">
+                <h3 className="text-xl sm:text-2xl font-bold text-brown-900 mb-4">Master Tables</h3>
+                <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
+                  {tables.filter(t => t.is_master).map((table) => (
+                <div
+                  key={table.id}
+                  className="p-4 sm:p-6 rounded-2xl border-2 border-brown-500 bg-brown-50 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 text-left relative cursor-pointer"
+                >
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      playClickSound()
+                      handleDeleteTable(table.id, table.table_number)
+                    }}
+                    className="absolute top-2 right-2 p-1.5 rounded-lg bg-brown-600 text-black hover:bg-brown-600 transition-all duration-300"
+                  >
+                    <X className="w-3 h-3 sm:w-4 sm:h-4" />
+                  </button>
+                  <button
+                    onClick={() => { playClickSound(); handleTableSelect(table) }}
+                    className="w-full text-left"
+                  >
+                    <div className="flex justify-between items-start mb-4 pr-8">
+                      <div className="bg-brown-100 p-2 sm:p-3 rounded-xl">
+                        <Crown className="w-5 h-5 sm:w-6 sm:h-6 text-brown-700" />
+                      </div>
+                      <span className="px-2 sm:px-3 py-1 rounded-full text-xs font-bold bg-brown-500 text-black">
+                        Active (Master)
+                      </span>
+                    </div>
+                    <h3 className="text-lg sm:text-xl font-bold text-gray-900 mb-2">
+                      Table {table.table_number} (M)
+                    </h3>
+                    <p className="text-xs sm:text-sm font-semibold text-black-600 mb-1">Capacity: {table.capacity} seats</p>
+                    <p className="text-xs text-brown-700 font-semibold mt-2">
+                      {tables.filter(t => t.master_table_id === table.id).length} tables combined
+                    </p>
+                  </button>
+                </div>
+              ))}
+                </div>
+              </div>
+            )}
+
             {/* My Active Orders */}
-            <div className="mt-8 sm:mt-12">
-              <h3 className="text-xl sm:text-2xl font-bold text-gray-900 mb-4">My Active Orders</h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="mt-8 sm:mt-12" id="active-orders-section">
+              <h3 className="text-xl sm:text-2xl font-bold text-black-900 mb-4">My Active Orders</h3>
+                <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                   {(() => {
                     // Group orders by table - show only active orders (pending, preparing, ready) by this waiter
                     // Orders that are served/completed/paid will not show here
@@ -1644,11 +1750,15 @@ ${itemsList}
                       >
                         <div className="flex justify-between items-start mb-4">
                           <div>
-                            <h4 className="text-base sm:text-lg font-bold text-gray-900">Table {group.table?.table_number}</h4>
+                            <h4 className="text-base sm:text-lg font-bold text-gray-900">
+                              Table {group.table?.table_number}{group.table?.is_master ? ' (M)' : ''}
+                            </h4>
                             <p className="text-xs sm:text-sm text-gray-600">{group.orders.length} active order{group.orders.length > 1 ? 's' : ''}</p>
                           </div>
-                          <span className="px-2 sm:px-3 py-1 rounded-full text-xs font-bold bg-[#F5F5DC] text-[#5D3A1A]">
-                            Active
+                          <span className={`px-2 sm:px-3 py-1 rounded-full text-xs font-bold ${
+                            group.table?.is_master ? 'bg-brown-100 text-black-800' : 'bg-[#F5F5DC] text-[#5D3A1A]'
+                          }`}>
+                            {group.table?.is_master ? 'Master' : 'Active'}
                           </span>
                         </div>
                         <p className="text-base sm:text-lg font-bold text-gray-900 mb-3">
@@ -1661,7 +1771,7 @@ ${itemsList}
                               playClickSound()
                               handleViewBill(group.orders[0])
                             }}
-                            className="flex-1 flex items-center justify-center gap-2 bg-[#5D3A1A] text-white px-4 py-2 rounded-xl font-semibold hover:bg-[#8B4513] transition-all duration-300 text-sm"
+                            className="flex-1 flex items-center justify-center gap-1 bg-[#5D3A1A] text-white px-2 py-2 rounded-xl font-semibold hover:bg-[#8B4513] transition-all duration-300 text-xs sm:text-sm whitespace-nowrap"
                           >
                             View Details
                           </button>
@@ -1671,9 +1781,9 @@ ${itemsList}
                               playClickSound()
                               handleStartRepeatOrder(group.orders[0])
                             }}
-                            className="flex-1 flex items-center justify-center gap-2 bg-orange-500 text-white px-4 py-2 rounded-xl font-semibold hover:bg-orange-600 transition-all duration-300 text-sm"
+                            className="flex-1 flex items-center justify-center gap-1 bg-orange-500 text-white px-2 py-2 rounded-xl font-semibold hover:bg-orange-600 transition-all duration-300 text-xs sm:text-sm whitespace-nowrap"
                           >
-                            <RotateCcw className="w-4 h-4" />
+                            <RotateCcw className="w-3 h-3 sm:w-4 sm:h-4" />
                             Repeat
                           </button>
                         </div>
@@ -2969,7 +3079,7 @@ ${itemsList}
               </div>
             )}
             <div className="space-y-2 max-h-96 overflow-y-auto">
-              {tables.filter(t => !t.master_table_id).map(table => (
+              {tables.filter(t => !t.master_table_id && !t.is_occupied).map(table => (
                 <label key={table.id} className="flex items-center p-3 border-2 border-gray-200 rounded-xl hover:border-[#8B4513] cursor-pointer transition-colors">
                   <input
                     type="checkbox"
@@ -2990,6 +3100,22 @@ ${itemsList}
                   )}
                 </label>
               ))}
+              {tables.filter(t => !t.master_table_id && t.is_occupied).length > 0 && (
+                <div className="space-y-2">
+                  {tables.filter(t => !t.master_table_id && t.is_occupied).map(table => (
+                    <div key={table.id} className="flex items-center p-3 border-2 border-red-200 bg-red-50 rounded-xl opacity-60">
+                      <input
+                        type="checkbox"
+                        disabled
+                        className="w-5 h-5 text-gray-400 rounded cursor-not-allowed"
+                      />
+                      <span className="ml-3 font-semibold text-red-700">Table {table.table_number}</span>
+                      <span className="ml-3 text-red-500">(Capacity: {table.capacity})</span>
+                      <span className="ml-3 px-2 py-1 bg-brown-600 text-white text-xs rounded-full font-bold">Occupied</span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
             <div className="flex gap-3 mt-8">
               <button

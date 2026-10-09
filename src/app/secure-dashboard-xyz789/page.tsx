@@ -4585,7 +4585,14 @@ ${(() => {
             )}
             <div className="space-y-2 max-h-96 overflow-y-auto">
               {tables.filter(t => !t.is_master && !t.master_table_id).map(table => (
-                <label key={table.id} className="flex items-center p-3 border-2 border-gray-200 rounded-xl hover:border-[#8B4513] cursor-pointer transition-colors">
+                <label
+                  key={table.id}
+                  className={`flex items-center p-3 border-2 rounded-xl transition-colors ${
+                    table.is_occupied
+                      ? 'border-red-300 bg-red-50 cursor-not-allowed opacity-60'
+                      : 'border-gray-200 hover:border-[#8B4513] cursor-pointer'
+                  }`}
+                >
                   <input
                     type="checkbox"
                     checked={selectedTablesForMaster.includes(table.id)}
@@ -4596,11 +4603,17 @@ ${(() => {
                         setSelectedTablesForMaster(selectedTablesForMaster.filter(id => id !== table.id))
                       }
                     }}
+                    disabled={table.is_occupied}
                     className="w-5 h-5 text-[#8B4513] rounded focus:ring-[#8B4513]"
                   />
-                  <span className="ml-3 font-semibold text-gray-900">Table {table.table_number}</span>
+                  <span className={`ml-3 font-semibold ${table.is_occupied ? 'text-red-600' : 'text-gray-900'}`}>
+                    Table {table.table_number}
+                  </span>
                   <span className="ml-3 text-gray-500">(Capacity: {table.capacity})</span>
-                  {selectedTablesForMaster.length > 0 && selectedTablesForMaster[0] === table.id && (
+                  {table.is_occupied && (
+                    <span className="ml-3 px-2 py-1 bg-red-600 text-white text-xs rounded-full font-bold">Occupied</span>
+                  )}
+                  {!table.is_occupied && selectedTablesForMaster.length > 0 && selectedTablesForMaster[0] === table.id && (
                     <span className="ml-3 px-2 py-1 bg-[#8B4513] text-white text-xs rounded-full">Master</span>
                   )}
                 </label>
