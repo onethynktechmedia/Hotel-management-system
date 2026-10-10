@@ -188,7 +188,6 @@ export const translations = {
     failedToCompleteKOT: 'Failed to complete KOT',
     // Staff Portal specific
     online: 'Online',
-    waiter: 'Waiter',
     startNewOrder: 'Start New Order',
     noPreviousOrders: 'No Previous Orders',
     noPreviousOrdersDesc: 'This table doesn\'t have any active orders yet.',
@@ -402,7 +401,6 @@ export const translations = {
     failedToCompleteKOT: 'केओटी पूर्ण करण्यात अयशस्वी',
     // Staff Portal specific
     online: 'ऑनलाइन',
-    waiter: 'वेटर',
     startNewOrder: 'नवीन ऑर्डर सुरू करा',
     noPreviousOrders: 'कोणतेही मागील ऑर्डर नाहीत',
     noPreviousOrdersDesc: 'या टेबलवर अजून कोणतेही सक्रिय ऑर्डर नाहीत.',
@@ -616,7 +614,6 @@ export const translations = {
     failedToCompleteKOT: 'केओटी पूरा करने में विफल',
     // Staff Portal specific
     online: 'ऑनलाइन',
-    waiter: 'वेटर',
     startNewOrder: 'नया ऑर्डर शुरू करें',
     noPreviousOrders: 'कोई पिछला ऑर्डर नहीं',
     noPreviousOrdersDesc: 'इस टेबल पर अभी तक कोई सक्रिय ऑर्डर नहीं है।',
