@@ -192,6 +192,65 @@ export function generateKOTESCPOS(order: any, items: any[], dishes: any[], table
   return escpos
 }
 
+// Generate plain text for KOT (browser print fallback)
+export function generateKOTPlainText(order: any, items: any[], dishes: any[], table: any, foodType: string): string {
+  const kotType = foodType === 'veg' ? 'VEG' : foodType === 'nonveg' ? 'NON-VEG' : 'OTHER'
+  const time = new Date(order.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+
+  let plainText = `
+<div style="text-align: center; margin-bottom: 8px;">
+  <div style="font-size: 24px; font-weight: 900; color: #000;">TABLE ${table?.table_number || 'N/A'}</div>
+  <div style="font-size: 16px; font-weight: bold; color: #000;">${kotType} KOT</div>
+</div>
+<div style="border-top: 2px dashed #000; margin: 4px 0;"></div>
+<div style="margin: 4px 0; font-size: 12px; font-weight: bold; color: #000;">
+  <div style="display: flex; justify-content: space-between;">
+    <span>TIME:</span>
+    <span>${time}</span>
+  </div>
+  <div style="display: flex; justify-content: space-between;">
+    <span>WAITER:</span>
+    <span>${order.users?.name || 'N/A'}</span>
+  </div>
+</div>
+<div style="border-top: 2px dashed #000; margin: 4px 0;"></div>
+<div style="font-size: 12px; font-weight: 900; margin: 4px 0; color: #000;">ITEMS</div>
+<div style="border-top: 2px dashed #000; margin: 4px 0;"></div>
+`
+
+  items.forEach(item => {
+    const dish = dishes.find(d => d.id === item.dish_id)
+    const name = dish?.marathi_name || dish?.name || 'Unknown'
+    const qty = item.quantity
+    const type = item.dish_type || 'Normal'
+
+    plainText += `
+<div style="margin: 4px 0; font-size: 12px; font-weight: bold; color: #000;">
+  <div style="font-size: 14px;">${name}</div>
+  <div style="display: flex; justify-content: space-between; font-size: 11px;">
+    <span>Qty: ${qty}</span>
+    <span>Type: ${type}</span>
+  </div>
+</div>
+`
+  })
+
+  if (order.order_description) {
+    plainText += `
+<div style="border-top: 2px dashed #000; margin: 4px 0;"></div>
+<div style="margin: 4px 0; font-size: 12px; font-weight: bold; color: #000;">
+  NOTE: ${order.order_description}
+</div>
+`
+  }
+
+  plainText += `
+<div style="border-top: 2px dashed #000; margin: 4px 0;"></div>
+`
+
+  return plainText
+}
+
 // Browser print function with responsive sizing
 function openBrowserPrint(plainText: string): void {
   console.log('Opening browser print dialog...')

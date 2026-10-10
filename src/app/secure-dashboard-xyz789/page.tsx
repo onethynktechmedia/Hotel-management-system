@@ -903,8 +903,8 @@ ${groupOrderItems(billOrderItems).map((item: any) => {
                   }
                   body {
                     font-family: monospace;
-                    font-size: 12px;
-                    line-height: 1.2;
+                    font-size: 14px;
+                    line-height: 1.3;
                     font-weight: bold;
                   }
                 </style>
@@ -917,9 +917,21 @@ ${groupOrderItems(billOrderItems).map((item: any) => {
           setTimeout(() => {
             printFrame.contentWindow?.focus()
             printFrame.contentWindow?.print()
-            
+
+            // Mark order as printed after browser print dialog
             setTimeout(() => {
               document.body.removeChild(printFrame)
+
+              // Mark order as printed
+              fetch(`/api/orders/${selectedOrderForBilling.id}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ is_printed: true })
+              })
+
+              // Update local state
+              setSelectedOrderForBilling({ ...selectedOrderForBilling, is_printed: true })
+              setOrders(orders.map(o => o.id === selectedOrderForBilling.id ? { ...o, is_printed: true } : o))
             }, 1000)
           }, 250)
         } else {
@@ -1216,8 +1228,8 @@ ${(() => {
                   }
                   body {
                     font-family: monospace;
-                    font-size: 12px;
-                    line-height: 1.2;
+                    font-size: 14px;
+                    line-height: 1.3;
                     font-weight: bold;
                   }
                 </style>
@@ -1230,9 +1242,21 @@ ${(() => {
           setTimeout(() => {
             printFrame.contentWindow?.focus()
             printFrame.contentWindow?.print()
-            
+
+            // Mark order as printed after browser print dialog
             setTimeout(() => {
               document.body.removeChild(printFrame)
+
+              // Mark order as printed
+              fetch(`/api/orders/${selectedOrderForBilling.id}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ is_printed: true })
+              })
+
+              // Update local state
+              setSelectedOrderForBilling({ ...selectedOrderForBilling, is_printed: true })
+              setOrders(orders.map(o => o.id === selectedOrderForBilling.id ? { ...o, is_printed: true } : o))
             }, 1000)
           }, 250)
         } else {

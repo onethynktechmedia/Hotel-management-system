@@ -7,7 +7,7 @@ import { Order, OrderItem, Dish, Table, User } from '@/types'
 import { LogOut, Printer, CheckCircle, Clock, ChefHat, UtensilsCrossed, AlertCircle, History } from 'lucide-react'
 import { playClickSound, playSuccessSound, playPrintSound, playNotificationSound } from '@/lib/sound-effects'
 import GoogleTranslate from '@/components/GoogleTranslate'
-import { printSilently, generateKOTESCPOS } from '@/lib/webusb-printer'
+import { printSilently, generateKOTESCPOS, generateKOTPlainText } from '@/lib/webusb-printer'
 
 // Utility function to format order ID as DPK-XXX
 const formatOrderId = (orderId: string) => {
@@ -291,8 +291,72 @@ export default function ChefStation() {
     // Generate ESC/POS command for KOT
     const kotESCPOS = generateKOTESCPOS(order, filteredItems, dishes, table, foodType)
 
-    // Silent print - no popups
-    await printSilently(kotESCPOS, '')
+    // Try silent print first, then fallback to browser print
+    const silentPrintSuccess = await printSilently(kotESCPOS, '')
+    if (!silentPrintSuccess) {
+      // Fallback to browser print
+      console.log('Silent print failed, falling back to browser print for KOT')
+      const kotPlainText = generateKOTPlainText(order, filteredItems, dishes, table, foodType)
+      const printFrame = document.createElement('iframe')
+      printFrame.style.display = 'none'
+      document.body.appendChild(printFrame)
+
+      const printDoc = printFrame.contentDocument || printFrame.contentWindow?.document
+      if (printDoc) {
+        printDoc.open()
+        printDoc.write(`
+          <!DOCTYPE html>
+          <html>
+            <head>
+              <title>KOT Print</title>
+              <meta charset="UTF-8">
+              <meta name="viewport" content="width=device-width, initial-scale=1.0">
+              <style>
+                @page {
+                  size: 58mm auto;
+                  margin: 0;
+                }
+                @media print {
+                  @page {
+                    size: 58mm auto;
+                    margin: 0;
+                  }
+                  body {
+                    margin: 0;
+                    padding: 2mm;
+                    width: 58mm;
+                    -webkit-print-color-adjust: exact;
+                    print-color-adjust: exact;
+                  }
+                }
+                * {
+                  margin: 0;
+                  padding: 0;
+                  box-sizing: border-box;
+                }
+                body {
+                  font-family: monospace;
+                  font-size: 14px;
+                  line-height: 1.3;
+                  font-weight: bold;
+                }
+              </style>
+            </head>
+            <body>${kotPlainText}</body>
+          </html>
+        `)
+        printDoc.close()
+
+        setTimeout(() => {
+          printFrame.contentWindow?.focus()
+          printFrame.contentWindow?.print()
+
+          setTimeout(() => {
+            document.body.removeChild(printFrame)
+          }, 1000)
+        }, 250)
+      }
+    }
   }
 
   const getItemStatusColor = (status: string) => {
