@@ -7,6 +7,7 @@ import { Order, OrderItem, Dish, Table, User } from '@/types'
 import { LogOut, Printer, CheckCircle, Clock, ChefHat, UtensilsCrossed, AlertCircle, History } from 'lucide-react'
 import { playClickSound, playSuccessSound, playPrintSound, playNotificationSound } from '@/lib/sound-effects'
 import GoogleTranslate from '@/components/GoogleTranslate'
+import { printSilently, generateKOTESCPOS } from '@/lib/webusb-printer'
 
 // Utility function to format order ID as DPK-XXX
 const formatOrderId = (orderId: string) => {
@@ -287,94 +288,11 @@ export default function ChefStation() {
       return dish?.food_type !== 'veg' && dish?.food_type !== 'nonveg'
     })
 
-    // Build items text - table format with ITEM, QTY, TYPE columns for 58mm
-    let itemsText = ''
-    // Header row
-    itemsText += `<div style="display: flex; justify-content: space-between; font-weight: bold; border-bottom: 1px dashed #000; padding-bottom: 2px; margin-bottom: 4px;">
-      <span style="flex: 1;">ITEM</span>
-      <span style="width: 25px; text-align: center;">QTY</span>
-      <span style="width: 50px; text-align: right;">TYPE</span>
-    </div>`
+    // Generate ESC/POS command for KOT
+    const kotESCPOS = generateKOTESCPOS(order, filteredItems, dishes, table, foodType)
 
-    filteredItems.forEach(item => {
-      const dish = dishes.find(d => d.id === item.dish_id)
-      const name = dish?.marathi_name || dish?.name || 'Unknown'
-      const qty = item.quantity
-      const type = item.dish_type || 'Normal'
-      const dishName = name.length > 18 ? name.substring(0, 17) + '.' : name
-      itemsText += `<div style="display: flex; justify-content: space-between; margin-bottom: 2px;">
-        <span style="flex: 1;">${dishName}</span>
-        <span style="width: 25px; text-align: center;">${qty}</span>
-        <span style="width: 50px; text-align: right;">${type}</span>
-      </div>`
-    })
-
-    // Get table display - for master tables, show only master table number
-    const tableNumber = table?.table_number || 'N/A'
-
-    const billContent = `
-<div style="font-size: 24px; font-weight: 900; text-align: center; margin-bottom: 8px;">TABLE ${tableNumber}</div>
-<div style="text-align: center; font-size: 16px; font-weight: bold; margin-bottom: 4px;">---------------------</div>
-<div style="text-align: center; font-size: 16px; font-weight: bold; margin-bottom: 4px;">${foodType === 'veg' ? 'VEG' : foodType === 'nonveg' ? 'NON-VEG' : 'OTHER'} KOT</div>
-<div style="text-align: center; font-size: 16px; font-weight: bold; margin-bottom: 8px;">---------------------</div>
-<div style="font-size: 12px; margin-bottom: 2px;">Time: ${formatTime(order.created_at)}</div>
-<div style="font-size: 12px; margin-bottom: 2px;">Waiter: ${order.users?.name || 'N/A'}</div>
-<div style="text-align: center; font-size: 16px; font-weight: bold; margin: 8px 0;">---------------------</div>
-${itemsText}
-<div style="text-align: center; font-size: 16px; font-weight: bold; margin-top: 8px;">---------------------</div>
-${order.order_description ? `<div style="font-size: 12px; font-weight: bold; margin-top: 4px; border: 1px solid #000; padding: 4px; background: #f0f0f0;">NOTE: ${order.order_description}</div>` : ''}
-      `
-
-    // Create a new window to print
-    const printWindow = window.open('', '_blank')
-    if (printWindow) {
-      printWindow.document.write(`
-        <html>
-          <head>
-            <title>KOT - Table ${table?.table_number}</title>
-            <style>
-              body {
-                font-family: 'Courier New', monospace;
-                font-size: 12px;
-                padding: 5px;
-                margin: 0;
-                text-align: left;
-                background: white;
-                line-height: 1.3;
-              }
-              .kot-content {
-                text-align: left;
-                display: inline-block;
-                font-weight: bold;
-                margin: 0 auto;
-                line-height: 1.4;
-              }
-              @media print {
-                body {
-                  padding: 3px;
-                  margin: 0;
-                }
-                .kot-content {
-                  font-size: 11px;
-                }
-                div[style*="font-size: 20px"] {
-                  font-size: 18px !important;
-                }
-                @page {
-                  margin: 3mm;
-                  size: 58mm auto;
-                }
-              }
-            </style>
-          </head>
-          <body>
-            <div class="kot-content">${billContent}</div>
-          </body>
-        </html>
-      `)
-      printWindow.document.close()
-      printWindow.print()
-    }
+    // Silent print - no popups
+    await printSilently(kotESCPOS, '')
   }
 
   const getItemStatusColor = (status: string) => {

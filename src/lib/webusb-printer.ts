@@ -5,7 +5,7 @@ export class WebUSBPrinter {
   private vendorId = 0x0456 // Everycom EC58B vendor ID
   private productId = 0x0808 // Everycom EC58B product ID
 
-  async connect(): Promise<void> {
+  async connect(silent: boolean = false): Promise<void> {
     try {
       // Check if WebUSB is supported (not supported on mobile)
       if (!navigator || !(navigator as any).usb) {
@@ -14,21 +14,24 @@ export class WebUSBPrinter {
 
       // First, try to get already authorized devices (no prompt)
       const devices = await (navigator as any).usb.getDevices()
-      const existingDevice = devices.find((d: any) => 
+      const existingDevice = devices.find((d: any) =>
         d.vendorId === this.vendorId && d.productId === this.productId
       )
 
       if (existingDevice) {
         // Use existing authorized device
         this.device = existingDevice
-      } else {
-        // Request USB device access (only if no authorized device found)
+      } else if (!silent) {
+        // Request USB device access (only if no authorized device found and not in silent mode)
         const device = await (navigator as any).usb.requestDevice({
           filters: [
             { vendorId: this.vendorId, productId: this.productId }
           ]
         })
         this.device = device
+      } else {
+        // Silent mode and no authorized device - fail silently
+        throw new Error('No authorized printer found')
       }
 
       // Open the device
@@ -43,7 +46,7 @@ export class WebUSBPrinter {
       console.log('USB printer connected successfully')
     } catch (error: any) {
       console.error('Failed to connect to USB printer:', error)
-      
+
       // Provide specific error messages
       if (error.name === 'NotFoundError') {
         throw new Error('Printer not found. Please ensure the printer is connected via USB and powered on.')
@@ -103,6 +106,97 @@ export async function printWithFallback(content: string, plainText: string): Pro
     // Fallback to browser print
     openBrowserPrint(plainText)
   }
+}
+
+// Silent print function - no popups, only prints if printer is already authorized
+export async function printSilently(content: string, plainText: string): Promise<boolean> {
+  try {
+    const printer = new WebUSBPrinter()
+    await printer.connect(true) // true = silent mode
+    await printer.print(content)
+    await printer.disconnect()
+    console.log('Printed successfully via WebUSB (silent)')
+    return true
+  } catch (error) {
+    console.log('Silent print failed (no authorized printer):', error)
+    // Silently fail - don't show any popup
+    return false
+  }
+}
+
+// Generate ESC/POS commands for KOT
+export function generateKOTESCPOS(order: any, items: any[], dishes: any[], table: any, foodType: string): string {
+  let escpos = '\x1B\x40' // Initialize printer
+
+  // Center align
+  escpos += '\x1B\x61\x01'
+
+  // Table number
+  escpos += '\x1D\x21\x11' // Double height, double width
+  escpos += `TABLE ${table?.table_number || 'N/A'}\n`
+  escpos += '\x1D\x21\x00' // Normal size
+
+  // Divider
+  escpos += '====================\n'
+
+  // KOT Type
+  const kotType = foodType === 'veg' ? 'VEG' : foodType === 'nonveg' ? 'NON-VEG' : 'OTHER'
+  escpos += `${kotType} KOT\n`
+  escpos += '====================\n'
+
+  // Left align
+  escpos += '\x1B\x61\x00'
+
+  // Time and Waiter
+  const time = new Date(order.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+  escpos += `Time: ${time}\n`
+  escpos += `Waiter: ${order.users?.name || 'N/A'}\n`
+  escpos += '====================\n'
+
+  // Items
+  // Group items by dish_id
+  const groupedItems = items.reduce((acc: any[], item) => {
+    const existing = acc.find(i => i.dish_id === item.dish_id && i.dish_type === item.dish_type)
+    if (existing) {
+      existing.quantity += item.quantity
+    } else {
+      acc.push({ ...item, quantity: item.quantity })
+    }
+    return acc
+  }, [])
+
+  // Filter by food type
+  const filteredItems = groupedItems.filter(item => {
+    const dish = dishes.find(d => d.id === item.dish_id)
+    if (foodType === 'veg') return dish?.food_type === 'veg'
+    if (foodType === 'nonveg') return dish?.food_type === 'nonveg'
+    return dish?.food_type !== 'veg' && dish?.food_type !== 'nonveg'
+  })
+
+  filteredItems.forEach(item => {
+    const dish = dishes.find(d => d.id === item.dish_id)
+    const name = dish?.marathi_name || dish?.name || 'Unknown'
+    const qty = item.quantity
+    const type = item.dish_type || 'Normal'
+
+    escpos += `${name}\n`
+    escpos += `  Qty: ${qty}  Type: ${type}\n`
+    escpos += '--------------------\n'
+  })
+
+  // Note if present
+  if (order.order_description) {
+    escpos += '\x1B\x61\x01' // Center align
+    escpos += '====================\n'
+    escpos += '\x1B\x61\x00' // Left align
+    escpos += `NOTE: ${order.order_description}\n`
+    escpos += '====================\n'
+  }
+
+  // Cut paper
+  escpos += '\x1D\x56\x00'
+
+  return escpos
 }
 
 // Browser print function with responsive sizing

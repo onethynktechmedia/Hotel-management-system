@@ -7,6 +7,7 @@ import { User, Order, Dish, Table, CartItem } from '@/types'
 import { LogOut, ShoppingCart, Plus, Minus, ArrowLeft, Users, Clock, CheckCircle, X, Crown, Printer, RotateCcw, History, UtensilsCrossed, Link as LinkIcon, Bell } from 'lucide-react'
 import { playClickSound, playSuccessSound, playErrorSound, playPrintSound, playNotificationSound } from '@/lib/sound-effects'
 import GoogleTranslate from '@/components/GoogleTranslate'
+import { printSilently, generateKOTESCPOS } from '@/lib/webusb-printer'
 
 type Step = 'tables' | 'order-options' | 'dishes' | 'cart' | 'success' | 'alter-table' | 'repeat-order' | 'bill-preview' | 'previous-orders' | 'active-orders'
 
@@ -686,6 +687,51 @@ export default function WaiterPage() {
 
       // Play success sound
       playSuccessSound()
+
+      // Auto-print KOT silently
+      try {
+        // Fetch order items for the new order
+        const itemsResponse = await fetch(`/api/orders/${orderData.id}/items`)
+        if (itemsResponse.ok) {
+          const orderItems = await itemsResponse.json()
+
+          // Generate and print KOT for veg items
+          const vegItems = orderItems.filter((item: any) => {
+            const dish = dishes.find(d => d.id === item.dish_id)
+            return dish?.food_type === 'veg'
+          })
+
+          if (vegItems.length > 0) {
+            const kotESCPOS = generateKOTESCPOS(orderData, vegItems, dishes, selectedTable, 'veg')
+            await printSilently(kotESCPOS, '')
+          }
+
+          // Generate and print KOT for non-veg items
+          const nonVegItems = orderItems.filter((item: any) => {
+            const dish = dishes.find(d => d.id === item.dish_id)
+            return dish?.food_type === 'nonveg'
+          })
+
+          if (nonVegItems.length > 0) {
+            const kotESCPOS = generateKOTESCPOS(orderData, nonVegItems, dishes, selectedTable, 'nonveg')
+            await printSilently(kotESCPOS, '')
+          }
+
+          // Generate and print KOT for other items
+          const otherItems = orderItems.filter((item: any) => {
+            const dish = dishes.find(d => d.id === item.dish_id)
+            return dish?.food_type !== 'veg' && dish?.food_type !== 'nonveg'
+          })
+
+          if (otherItems.length > 0) {
+            const kotESCPOS = generateKOTESCPOS(orderData, otherItems, dishes, selectedTable, 'other')
+            await printSilently(kotESCPOS, '')
+          }
+        }
+      } catch (printError) {
+        console.log('Auto-print KOT failed (printer not connected):', printError)
+        // Silently fail - don't block order submission
+      }
 
       setCurrentStep('success')
       setCart([])
@@ -1370,150 +1416,84 @@ ${itemsList}
 `
       
       console.log('Bill content generated')
-      
-      // Create a hidden iframe for printing to avoid popup blockers
-      const printFrame = document.createElement('iframe')
-      printFrame.style.display = 'none'
-      document.body.appendChild(printFrame)
-      
-      const printDoc = printFrame.contentDocument || printFrame.contentWindow?.document
-      if (printDoc) {
-        printDoc.open()
-        printDoc.write(`
-          <!DOCTYPE html>
-          <html>
-            <head>
-              <title>Bill Print</title>
-              <meta charset="UTF-8">
-              <style>
-                @page {
-                  size: 58mm auto;
-                  margin: 0;
-                }
-                @media print {
-                  @page {
-                    size: 58mm auto;
-                    margin: 0;
-                  }
-                  body {
-                    margin: 0;
-                    padding: 2mm;
-                    width: 58mm;
-                    -webkit-print-color-adjust: exact;
-                    print-color-adjust: exact;
-                  }
-                }
-                * {
-                  margin: 0;
-                  padding: 0;
-                  box-sizing: border-box;
-                  font-weight: bold;
-                }
-                body {
-                  font-family: 'Courier New', Courier, monospace;
-                  font-size: 10px;
-                  line-height: 1.2;
-                  color: #000;
-                  font-weight: bold;
-                }
-                strong {
-                  font-weight: bold;
-                }
-              </style>
-            </head>
-            <body>${plainText}</body>
-          </html>
-        `)
-        printDoc.close()
-        
-        // Wait for content to load, then print
-        setTimeout(() => {
-          printFrame.contentWindow?.focus()
-          printFrame.contentWindow?.print()
-          
-          // Remove iframe after printing
-          setTimeout(() => {
-            document.body.removeChild(printFrame)
 
-            // Update order status to completed after printing
-            const updateOrderStatus = async () => {
-              try {
-                await fetch(`/api/orders/${viewingBill.id}`, {
-                  method: 'PATCH',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ status: 'completed' })
+      // Silent print - no popups
+      await printSilently('', plainText)
+
+      // Update order status to completed after printing
+      const updateOrderStatus = async () => {
+        try {
+          await fetch(`/api/orders/${viewingBill.id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status: 'completed' })
+          })
+
+          // If this is a master table, release all associated tables
+          if (viewingBill.tables?.is_master) {
+            // Mark master table as not occupied
+            await fetch('/api/tables', {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                id: viewingBill.table_id,
+                is_occupied: false
+              })
+            })
+
+            // Release all child tables
+            const childTables = tables.filter(t => t.master_table_id === viewingBill.table_id)
+            for (const childTable of childTables) {
+              await fetch('/api/tables', {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  id: childTable.id,
+                  is_occupied: false,
+                  master_table_id: null
                 })
-
-                // If this is a master table, release all associated tables
-                if (viewingBill.tables?.is_master) {
-                  // Mark master table as not occupied
-                  await fetch('/api/tables', {
-                    method: 'PATCH',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                      id: viewingBill.table_id,
-                      is_occupied: false
-                    })
-                  })
-
-                  // Release all child tables
-                  const childTables = tables.filter(t => t.master_table_id === viewingBill.table_id)
-                  for (const childTable of childTables) {
-                    await fetch('/api/tables', {
-                      method: 'PATCH',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({
-                        id: childTable.id,
-                        is_occupied: false,
-                        master_table_id: null
-                      })
-                    })
-                  }
-
-                  // Remove master status from the table
-                  await fetch('/api/tables', {
-                    method: 'PATCH',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                      id: viewingBill.table_id,
-                      is_master: false
-                    })
-                  })
-                } else {
-                  // Regular table - just mark as not occupied
-                  await fetch('/api/tables', {
-                    method: 'PATCH',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                      id: viewingBill.table_id,
-                      is_occupied: false
-                    })
-                  })
-                }
-
-                // Refresh orders
-                fetchData()
-                playSuccessSound()
-
-                // Close bill preview and go back to tables
-                setCurrentStep('tables')
-                setSelectedTable(null)
-                setViewingBill(null)
-                setBillOrderItems([])
-              } catch (error) {
-                console.error('Error updating order status:', error)
-              }
+              })
             }
 
-            updateOrderStatus()
-          }, 1000)
-        }, 750)
-      } else {
-        alert('Please allow popups for printing')
+            // Remove master status from the table
+            await fetch('/api/tables', {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                id: viewingBill.table_id,
+                is_master: false
+              })
+            })
+          } else {
+            // Regular table - just mark as not occupied
+            await fetch('/api/tables', {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                id: viewingBill.table_id,
+                is_occupied: false
+              })
+            })
+          }
+
+          // Refresh orders
+          fetchData()
+          playSuccessSound()
+
+          // Close bill preview and go back to tables
+          setCurrentStep('tables')
+          setSelectedTable(null)
+          setViewingBill(null)
+          setBillOrderItems([])
+        } catch (error) {
+          console.error('Error updating order status:', error)
+        }
       }
+
+      updateOrderStatus()
     } catch (error) {
       console.error('Printing failed:', error)
-      alert('Printing failed: ' + (error as Error).message)
+      // Silently fail - no alert
     }
   }
 

@@ -7,7 +7,7 @@ import { Plus, Edit, Trash2, DollarSign, Users, Utensils, User as UserIcon, Sear
 import Sidebar from '@/components/Sidebar'
 import WaiterStatus from '@/components/WaiterStatus'
 import Reports from '@/components/Reports'
-import { WebUSBPrinter } from '@/lib/webusb-printer'
+import { WebUSBPrinter, printSilently } from '@/lib/webusb-printer'
 import { playClickSound, playNotificationSound, playSuccessSound, playErrorSound } from '@/lib/sound-effects'
 import GoogleTranslate from '@/components/GoogleTranslate'
 
@@ -2058,19 +2058,19 @@ ${(() => {
     console.log('Printing bill - Cart items:', offlineCart)
     console.log('Selected table:', selectedTable)
     console.log('Tables available:', tables)
-    
+
     if (offlineCart.length === 0) {
       alert('Cart is empty. Cannot print bill.')
       return
     }
-    
+
     const tableNumber = tables.find(t => t.id === selectedTable)?.table_number || 'N/A'
     const isMasterTable = tables.find(t => t.id === selectedTable)?.is_master || false
     const waiterName = user?.name || 'N/A'
-    
+
     console.log('Table number:', tableNumber)
     console.log('Waiter name:', waiterName)
-    
+
     const plainText = `
 <div style="text-align: center; margin-bottom: 8px;">
   <img src="/dhole patil logo-03.png" alt="Dhole Patil Logo" style="width: 120px; height: auto; margin-bottom: 8px;" />
@@ -2128,164 +2128,9 @@ ${(() => {
 
     console.log('Bill content generated:', plainText)
 
-    try {
-      // Create a hidden iframe for printing to avoid popup blockers
-      const printFrame = document.createElement('iframe')
-      printFrame.style.display = 'none'
-      document.body.appendChild(printFrame)
-      
-      const printDoc = printFrame.contentDocument || printFrame.contentWindow?.document
-      if (printDoc) {
-        printDoc.open()
-        printDoc.write(`
-          <!DOCTYPE html>
-          <html>
-            <head>
-              <title>Bill Print</title>
-              <meta charset="UTF-8">
-              <meta name="viewport" content="width=device-width, initial-scale=1.0">
-              <style>
-                @page {
-                  size: 58mm auto;
-                  margin: 0;
-                }
-                @media print {
-                  @page {
-                    size: 58mm auto;
-                    margin: 0;
-                  }
-                  body {
-                    margin: 0;
-                    padding: 3mm;
-                    width: 58mm;
-                    -webkit-print-color-adjust: exact;
-                    print-color-adjust: exact;
-                  }
-                  * {
-                    -webkit-print-color-adjust: exact;
-                    print-color-adjust: exact;
-                  }
-                }
-                * {
-                  box-sizing: border-box;
-                  -webkit-font-smoothing: none;
-                  -moz-osx-font-smoothing: grayscale;
-                }
-                body {
-                  font-family: 'Courier New', 'Consolas', 'Monaco', monospace;
-                  font-size: 11px;
-                  font-weight: bold;
-                  line-height: 1.2;
-                  margin: 0;
-                  padding: 3mm;
-                  text-align: center;
-                  width: 52mm;
-                  max-width: 52mm;
-                  overflow: hidden;
-                  background: white;
-                  color: black;
-                  letter-spacing: 0.5px;
-                }
-                .header {
-                  font-size: 16px;
-                  font-weight: 900;
-                  margin-bottom: 2mm;
-                  text-transform: uppercase;
-                  letter-spacing: 1px;
-                }
-                .subheader {
-                  font-size: 12px;
-                  font-weight: bold;
-                  margin-bottom: 1mm;
-                }
-                .divider {
-                  font-size: 10px;
-                  font-weight: bold;
-                  margin: 1.5mm 0;
-                  letter-spacing: 1px;
-                }
-                .address {
-                  font-size: 10px;
-                  font-weight: bold;
-                  margin: 0.5mm 0;
-                }
-                .section-title {
-                  font-size: 12px;
-                  font-weight: 900;
-                  margin: 1mm 0;
-                }
-                .spacer {
-                  height: 2mm;
-                }
-                .bill-info {
-                  display: flex;
-                  justify-content: space-between;
-                  font-size: 10px;
-                  font-weight: bold;
-                  margin: 0.5mm 0;
-                }
-                .label {
-                  font-weight: bold;
-                }
-                .value {
-                  font-weight: bold;
-                }
-                .items-table {
-                  width: 100%;
-                  border-collapse: collapse;
-                  margin: 1mm 0;
-                  font-size: 10px;
-                }
-                .items-table th {
-                  border-bottom: 1px solid black;
-                  padding: 1mm 0;
-                  font-weight: bold;
-                }
-                .items-table td {
-                  padding: 0.5mm 0;
-                  font-weight: bold;
-                }
-                .grand-total {
-                  font-size: 14px;
-                  font-weight: 900;
-                  margin: 2mm 0;
-                  text-transform: uppercase;
-                  letter-spacing: 0.5px;
-                }
-                .developer {
-                  font-size: 8px;
-                  font-weight: 900;
-                  margin-top: 2mm;
-                  letter-spacing: 0.3px;
-                }
-                strong {
-                  font-weight: bold;
-                }
-              </style>
-            </head>
-            <body>${plainText}</body>
-          </html>
-        `)
-        printDoc.close()
-        
-        // Wait for content to load, then print
-        setTimeout(() => {
-          printFrame.contentWindow?.focus()
-          printFrame.contentWindow?.print()
-          
-          // Remove iframe after printing
-          setTimeout(() => {
-            document.body.removeChild(printFrame)
-          }, 1000)
-        }, 250)
-      } else {
-        alert('Failed to prepare print document')
-        document.body.removeChild(printFrame)
-      }
-    } catch (error) {
-      console.error('Printing failed:', error)
-      alert('Printing failed: ' + (error as Error).message)
-    }
+    // Try silent print (WebUSB) - no popups, only prints if printer is authorized
+    await printSilently('', plainText)
+    // Silently fail if no printer connected - no alert, no error shown
   }
 
   if (loading) {
