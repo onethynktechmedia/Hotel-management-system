@@ -361,7 +361,7 @@ export default function OfflineAdminPage() {
 <div style="text-align: center; margin-bottom: 8px;">
   <img src="/dhole patil logo-03.png" alt="Dhole Patil Logo" style="width: 120px; height: auto; margin-bottom: 8px;" />
 </div>
-<strong class="header">DHOLE PATIL Khanawal</strong><br>
+<strong class="header" style="font-size: 22px; font-weight: 900;">DHOLE PATIL Khanawal</strong><br>
 Restaurant & Bar<br>
 ================================<br>
 123, Main Street<br>
@@ -394,7 +394,7 @@ ${(() => {
   const discount = calculateDiscountValue(selectedOrderForBilling.total_amount)
   return discount > 0 ? `Discount:      Rs${discount.toFixed(2).padStart(8)}<br>` : ''
 })()}================================<br>
-<strong class="grand-total">*** GRAND TOTAL: Rs${calculateFinalAmount(selectedOrderForBilling.total_amount).toFixed(2)} ***</strong><br>
+<strong class="grand-total" style="font-size: 24px; font-weight: 900;">*** GRAND TOTAL: Rs${calculateFinalAmount(selectedOrderForBilling.total_amount).toFixed(2)} ***</strong><br>
 ================================<br>
 Thank You for Dining!<br>
 Visit Us Again<br>

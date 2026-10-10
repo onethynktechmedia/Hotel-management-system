@@ -136,22 +136,18 @@ export function generateKOTESCPOS(order: any, items: any[], dishes: any[], table
   escpos += `TABLE ${table?.table_number || 'N/A'}\n`
   escpos += '\x1D\x21\x00' // Normal size
 
-  // Divider
-  escpos += '====================\n'
-
   // KOT Type
   const kotType = foodType === 'veg' ? 'VEG' : foodType === 'nonveg' ? 'NON-VEG' : 'OTHER'
   escpos += `${kotType} KOT\n`
-  escpos += '====================\n'
+  escpos += '--------------------\n'
 
   // Left align
   escpos += '\x1B\x61\x00'
 
   // Time and Waiter
   const time = new Date(order.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
-  escpos += `Time: ${time}\n`
-  escpos += `Waiter: ${order.users?.name || 'N/A'}\n`
-  escpos += '====================\n'
+  escpos += `Time: ${time} | Waiter: ${order.users?.name || 'N/A'}\n`
+  escpos += '--------------------\n'
 
   // Items
   // Group items by dish_id
@@ -181,16 +177,13 @@ export function generateKOTESCPOS(order: any, items: any[], dishes: any[], table
 
     escpos += `${name}\n`
     escpos += `  Qty: ${qty}  Type: ${type}\n`
-    escpos += '--------------------\n'
   })
 
   // Note if present
   if (order.order_description) {
-    escpos += '\x1B\x61\x01' // Center align
-    escpos += '====================\n'
     escpos += '\x1B\x61\x00' // Left align
     escpos += `NOTE: ${order.order_description}\n`
-    escpos += '====================\n'
+    escpos += '--------------------\n'
   }
 
   // Cut paper
@@ -253,7 +246,7 @@ function openBrowserPrint(plainText: string): void {
           }
           body {
             font-family: 'Courier New', 'Consolas', 'Lucida Console', monospace;
-            font-size: 16px;
+            font-size: 18px;
             font-weight: bold;
             line-height: 1.4;
             margin: 0;
@@ -278,13 +271,13 @@ function openBrowserPrint(plainText: string): void {
             max-width: 100%;
           }
           .header {
-            font-size: 20px;
+            font-size: 22px;
             font-weight: 900;
             margin-bottom: 2mm;
             display: block;
           }
           .grand-total {
-            font-size: 20px;
+            font-size: 24px;
             font-weight: 900;
             margin: 2mm 0;
             display: block;
@@ -297,7 +290,7 @@ function openBrowserPrint(plainText: string): void {
           }
           @media print {
             body {
-              font-size: 15px;
+              font-size: 17px;
               line-height: 1.3;
             }
           }

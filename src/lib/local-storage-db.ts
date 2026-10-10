@@ -7,6 +7,7 @@ export interface LocalOrder {
   customer_name: string
   total_amount: number
   status: 'pending' | 'preparing' | 'ready' | 'served' | 'paid'
+  is_printed?: boolean
   created_at: string
   updated_at: string
   order_items: LocalOrderItem[]

@@ -98,7 +98,9 @@ export default function WaiterPage() {
     const userId = userIdMatch ? decodeURIComponent(userIdMatch[1]) : null
     const userNameMatch = document.cookie.match(/hotel_user_name=([^;]+)/)
     const userName = userNameMatch ? decodeURIComponent(userNameMatch[1]) : localStorage.getItem('user_name') || 'Waiter'
-    
+
+    console.log('Waiter login data:', { userId, userName, userRole })
+
     setUser({
       id: userId || '',
       email: '',
@@ -310,7 +312,8 @@ export default function WaiterPage() {
           dish_id: item.dish_id,
           quantity: item.quantity,
           price: item.price,
-          status: 'pending'
+          status: 'pending',
+          dish_type: item.dish_type || 'Normal'
         }))
 
         const itemsResponse = await fetch('/api/order-items', {
@@ -381,7 +384,8 @@ export default function WaiterPage() {
           dish_id: item.dish_id,
           quantity: item.quantity,
           price: item.price,
-          status: 'pending'
+          status: 'pending',
+          dish_type: item.dish_type || 'Normal'
         }))
 
         const itemsResponse = await fetch('/api/order-items', {
@@ -505,6 +509,8 @@ export default function WaiterPage() {
       const userIdMatch = document.cookie.match(/hotel_user_id=([^;]+)/)
       const userId = userIdMatch ? decodeURIComponent(userIdMatch[1]) : null
       console.log('User ID from cookie:', userId)
+      console.log('User name from state:', user?.name)
+      console.log('All cookies:', document.cookie)
 
       // Check if there's already a pending order for this table and customer
       const existingOrdersResponse = await fetch('/api/orders')
@@ -539,7 +545,8 @@ export default function WaiterPage() {
           dish_id: item.dish_id,
           quantity: item.quantity,
           price: item.price,
-          status: 'pending'
+          status: 'pending',
+          dish_type: item.dish_type || 'Normal'
         }))
 
         const itemsResponse = await fetch('/api/order-items', {
@@ -615,7 +622,8 @@ export default function WaiterPage() {
           dish_id: item.dish_id,
           quantity: item.quantity,
           price: item.price,
-          status: 'pending'
+          status: 'pending',
+          dish_type: item.dish_type || 'Normal'
         }))
 
         // Use API to create order items instead of direct Supabase

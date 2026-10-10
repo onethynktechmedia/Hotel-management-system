@@ -137,11 +137,12 @@ export async function DELETE(request: NextRequest) {
 export async function PATCH(request: NextRequest) {
   try {
     const body = await request.json()
-    const { id, status, total_amount } = body
+    const { id, status, total_amount, is_printed } = body
 
     const updateData: any = {}
     if (status !== undefined) updateData.status = status
     if (total_amount !== undefined) updateData.total_amount = total_amount
+    if (is_printed !== undefined) updateData.is_printed = is_printed
 
     const { data: order, error } = await supabase
       .from('orders')

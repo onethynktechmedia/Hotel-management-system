@@ -13,9 +13,9 @@ export async function POST(request: NextRequest) {
     const createdItems = []
     
     for (const item of items) {
-      const { order_id, dish_id, quantity, price, status } = item
+      const { order_id, dish_id, quantity, price, status, dish_type } = item
       
-      console.log('Creating item:', { order_id, dish_id, quantity, price, status })
+      console.log('Creating item:', { order_id, dish_id, quantity, price, status, dish_type })
       
       const { data: orderItem, error } = await supabase
         .from('order_items')
@@ -24,7 +24,8 @@ export async function POST(request: NextRequest) {
           dish_id,
           quantity,
           price,
-          status
+          status,
+          dish_type: dish_type || 'Normal'
         })
         .select()
         .single()

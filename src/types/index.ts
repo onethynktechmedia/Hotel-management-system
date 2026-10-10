@@ -45,6 +45,7 @@ export interface Order {
   payment_type?: 'cash' | 'upi' | 'card'
   is_prebooked?: boolean
   prebooked_time?: string
+  is_printed?: boolean
   created_at: string
   updated_at: string
   tables?: Table

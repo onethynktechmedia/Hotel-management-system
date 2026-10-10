@@ -43,6 +43,7 @@ export default function OfflineAdminPage() {
   const [billDiscountPercentage, setBillDiscountPercentage] = useState('')
   const [billDiscountType, setBillDiscountType] = useState<'amount' | 'percentage'>('amount')
   const [showBillPreview, setShowBillPreview] = useState(false)
+  const [currentOrderId, setCurrentOrderId] = useState<string | null>(null)
   
   // Tab navigation
   const [activeTab, setActiveTab] = useState<'overview' | 'orders' | 'dishes' | 'tables' | 'reports' | 'offline-billing'>('overview')
@@ -229,8 +230,42 @@ export default function OfflineAdminPage() {
       alert('Please select a table')
       return
     }
+    // Create order first, then print
+    const orderId = Date.now().toString()
+    setCurrentOrderId(orderId)
+
+    const offlineOrder: LocalOrder = {
+      id: orderId,
+      table_id: selectedTable,
+      customer_name: customerName,
+      total_amount: calculateBillTotal(),
+      status: 'pending',
+      is_printed: false,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      order_items: offlineCart.map((item) => ({
+        id: `${orderId}-${item.dish_id}`,
+        order_id: orderId,
+        dish_id: item.dish_id,
+        quantity: item.quantity,
+        dish_type: item.dish_type || 'Normal'
+      })),
+      tables: tables.find(t => t.id === selectedTable),
+      users: user || undefined
+    }
+
+    localStorageDB.addOrder(offlineOrder)
+    loadOfflineData()
+
     // Directly print without showing preview modal
     handlePrintBill()
+
+    // Clear cart after printing
+    setOfflineCart([])
+    setSelectedTable('')
+    setCustomerName('')
+    setCustomerMobile('')
+    setAddedDishIds(new Set())
   }
 
   const handlePrintBill = async () => {
@@ -243,49 +278,73 @@ export default function OfflineAdminPage() {
     }
 
     const tableNumber = tables.find(t => t.id === selectedTable)?.table_number || 'N/A'
-    
+
     try {
       let escposContent = ''
-      escposContent += '\x1B\x40'
+      escposContent += '\x1B\x40' // Initialize
+
+      // Center alignment for header
       escposContent += '\x1B\x61\x01'
-      escposContent += '\x1B\x21\x30'
+
+      // Hotel Name - Large and Bold
+      escposContent += '\x1B\x21\x30' // Double width and height
       escposContent += 'DHOLE PATIL KHANAWAL\n'
-      escposContent += '\x1B\x21\x00'
-      escposContent += 'RESTAURANT & BAR\n'
+      escposContent += '\x1B\x21\x00' // Normal
+      escposContent += 'VEG & NON-VEG\n'
       escposContent += '================================\n'
-      escposContent += '123, MAIN STREET\n'
-      escposContent += 'CITY, STATE - 123456\n'
-      escposContent += 'PHONE: +91 98765 43210\n'
-      escposContent += 'GSTIN: 29ABCDE1234F1Z5\n'
+
+      // Address - Centered
+      escposContent += 'Sangamner\n'
       escposContent += '================================\n'
-      escposContent += '\x1B\x21\x08'
+      escposContent += '\x1B\x21\x08' // Bold
       escposContent += 'BILL / INVOICE\n'
-      escposContent += '\x1B\x21\x00'
+      escposContent += '\x1B\x21\x00' // Normal
       escposContent += '================================\n\n'
+
+      // Left align for bill info
       escposContent += '\x1B\x61\x00'
       escposContent += `Bill No: DPK-${String((Date.now() % 999) + 1).padStart(3, '0')}\n`
       escposContent += `Date: ${new Date().toLocaleDateString()}\n`
       escposContent += `Time: ${new Date().toLocaleTimeString()}\n`
       escposContent += `Table: ${tableNumber}\n`
       escposContent += `Customer: ${customerName || 'GUEST'}\n`
+      escposContent += `Payment: CASH\n`
       escposContent += '--------------------------\n'
-      escposContent += '\x1B\x21\x08'
+
+      // Items Header
+      escposContent += '\x1B\x21\x08' // Bold
       escposContent += '  ITEM                  QTY  AMT\n'
       escposContent += '--------------------------\n'
-      escposContent += '\x1B\x21\x00'
-      
-      offlineCart.forEach((item) => {
+      escposContent += '\x1B\x21\x08' // Bold font for items
+
+      // Items - Group by dish_id and dish_type
+      const groupedItems = offlineCart.reduce((acc: any[], item: any) => {
+        const existing = acc.find(i => i.dish_id === item.dish_id && i.dish_type === item.dish_type)
+        if (existing) {
+          existing.quantity += item.quantity
+        } else {
+          acc.push({
+            ...item,
+            quantity: item.quantity
+          })
+        }
+        return acc
+      }, [])
+
+      groupedItems.forEach((item: any) => {
         const name = item.name
         const qty = item.quantity
         const price = item.price
         const total = (price * qty).toFixed(2)
         const itemName = name.length > 14 ? name.substring(0, 13) + '.' : name
-        escposContent += `${itemName.padEnd(14)} ${qty.toString().padStart(2)} ${total.padStart(7)}\n`
+        escposContent += `${itemName.padEnd(14)} ${qty.toString().padStart(2)}x ${total.padStart(7)}\n`
       })
-      
+      escposContent += '\x1B\x21\x00' // Ensure normal text
+
       escposContent += '--------------------------\n'
-      escposContent += `Subtotal: RS${getCartTotal().toFixed(2)}\n`
-      
+      escposContent += '\x1B\x21\x08' // Bold
+      escposContent += `Subtotal: Rs${getCartTotal().toFixed(2)}\n`
+
       const subtotal = getCartTotal()
       let discount = 0
       if (billDiscountType === 'amount' && billDiscountAmount) {
@@ -294,31 +353,41 @@ export default function OfflineAdminPage() {
         discount = (parseFloat(billDiscountPercentage) / 100) * subtotal
       }
       if (discount > 0) {
-        escposContent += `Discount: RS${discount.toFixed(2)}\n`
+        escposContent += `Discount: Rs${discount.toFixed(2)}\n`
       }
-      
-      escposContent += '\x1B\x61\x01'
+      escposContent += '\x1B\x21\x00' // Normal
+
+      // Grand Total - Centered, Bold and Large
+      escposContent += '\x1B\x61\x01' // Center align
       escposContent += '================================\n'
-      escposContent += '\x1B\x21\x08'
+      escposContent += '\x1B\x21\x11' // Double height, double width, Bold
       escposContent += 'GRAND TOTAL\n'
-      escposContent += `RS${calculateBillTotal().toFixed(2)}\n`
-      escposContent += '\x1B\x21\x00'
+      escposContent += `Rs${calculateBillTotal().toFixed(2)}\n`
+      escposContent += '\x1B\x21\x00' // Normal
       escposContent += '================================\n'
-      escposContent += 'THANK YOU FOR DINING!\n'
-      escposContent += 'VISIT US AGAIN\n'
+      escposContent += 'Thank You for Dining!\n'
+      escposContent += 'Visit Us Again\n'
       escposContent += '================================\n'
-      escposContent += 'DEVELOPED BY ONETHYNK TECHMEDIA\n'
+      escposContent += 'Developed by onethynk techmedia\n'
       escposContent += '================================\n\n'
-      escposContent += '================================\n\n'
-      escposContent += '\x1D\x56\x00'
-      
+
+      // Cut paper
+      escposContent += '\x1D\x56\x00' // Partial cut
+
       const printer = new WebUSBPrinter()
       await printer.connect()
       await printer.print(escposContent)
       await printer.disconnect()
-      
+
       playSuccessSound()
       alert('Bill printed successfully!')
+
+      // Mark order as printed
+      const order = localStorageDB.getOrders().find(o => o.id === currentOrderId)
+      if (order) {
+        localStorageDB.updateOrder(order.id, { is_printed: true })
+        loadOfflineData()
+      }
     } catch (error: any) {
       console.error('Printing failed:', error)
       playErrorSound()
@@ -348,20 +417,20 @@ export default function OfflineAdminPage() {
 
   const handleThermalPrint = async () => {
     if (!selectedOrderForBilling) return
-    
+
     playClickSound()
     playPrintSound()
-    
+
     try {
       console.log('Starting thermal print...')
-      
+
       // Generate properly formatted plain text bill content for thermal printer
       // 58mm paper width = approximately 32-35 characters per line
       const plainText = `
 <div style="text-align: center; margin-bottom: 8px;">
   <img src="/dhole patil logo-03.png" alt="Dhole Patil Logo" style="width: 120px; height: auto; margin-bottom: 8px;" />
 </div>
-<strong class="header">DHOLE PATIL Khanawal</strong><br>
+<strong class="header" style="font-size: 22px; font-weight: 900;">DHOLE PATIL Khanawal</strong><br>
 Restaurant & Bar<br>
 ================================<br>
 123, Main Street<br>
@@ -394,7 +463,7 @@ ${(() => {
   const discount = calculateDiscountValue(selectedOrderForBilling.total_amount)
   return discount > 0 ? `Discount:      Rs${discount.toFixed(2).padStart(8)}<br>` : ''
 })()}================================<br>
-<strong class="grand-total">*** GRAND TOTAL: Rs${calculateFinalAmount(selectedOrderForBilling.total_amount).toFixed(2)} ***</strong><br>
+<strong class="grand-total" style="font-size: 24px; font-weight: 900;">*** GRAND TOTAL: Rs${calculateFinalAmount(selectedOrderForBilling.total_amount).toFixed(2)} ***</strong><br>
 ================================<br>
 Thank You for Dining!<br>
 Visit Us Again<br>
@@ -402,13 +471,16 @@ Visit Us Again<br>
 <span class="developer">Dhole Patil Khanawal</span><br>
 ================================
 `
-      
+
       console.log('Bill content generated')
-      
+
       await printWithFallback(plainText, plainText)
       playSuccessSound()
-      // Close modal after printing
-      setSelectedOrderForBilling(null)
+
+      // Mark order as printed
+      localStorageDB.updateOrder(selectedOrderForBilling.id, { is_printed: true })
+      setSelectedOrderForBilling({ ...selectedOrderForBilling, is_printed: true })
+      loadOfflineData()
     } catch (error) {
       playErrorSound()
       alert('Printing failed: ' + (error as Error).message)
@@ -903,11 +975,19 @@ Visit Us Again<br>
                               </span>
                             </td>
                             <td className="px-4 py-3">
-                              <button onClick={() => {
-                                playClickSound()
-                                setSelectedOrderForBilling(order)
-                                setTimeout(() => handleThermalPrint(), 100)
-                              }} className="bg-[#5D3A1A] text-white px-3 py-1 rounded-lg text-xs hover:bg-[#8B4513]">Print Bill</button>
+                              <button
+                                onClick={() => {
+                                  playClickSound()
+                                  setSelectedOrderForBilling(order)
+                                }}
+                                className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all duration-300 ${
+                                  order.is_printed
+                                    ? 'bg-white border-2 border-[#8B4513] text-[#8B4513] hover:bg-[#F5F0E8]'
+                                    : 'bg-[#5D3A1A] text-white hover:bg-[#8B4513]'
+                                }`}
+                              >
+                                {order.is_printed ? 'Printed' : 'Print Bill'}
+                              </button>
                             </td>
                           </tr>
                         ))}
@@ -1125,7 +1205,16 @@ Visit Us Again<br>
             <div className="flex gap-3 mt-6">
               <button onClick={() => { playClickSound(); setSelectedOrderForBilling(null) }} className="flex-1 px-6 py-3 border-2 border-[#8B4513] text-[#5D3A1A] rounded-xl">Close</button>
               <button onClick={() => { playClickSound(); handleConnectPrinter() }} className="flex-1 px-6 py-3 bg-blue-600 text-white rounded-xl"><Printer className="w-4 h-4 inline" /> {printerConnected ? 'Connected' : 'Connect'}</button>
-              <button onClick={() => { playClickSound(); handleThermalPrint() }} className="flex-1 px-6 py-3 bg-[#5D3A1A] text-white rounded-xl">Print Bill</button>
+              <button
+                onClick={() => { playClickSound(); handleThermalPrint() }}
+                className={`flex-1 px-6 py-3 rounded-xl font-semibold transition-all duration-300 ${
+                  selectedOrderForBilling.is_printed
+                    ? 'bg-white border-2 border-[#8B4513] text-[#8B4513] hover:bg-[#F5F0E8]'
+                    : 'bg-[#5D3A1A] text-white hover:bg-[#8B4513]'
+                }`}
+              >
+                {selectedOrderForBilling.is_printed ? 'Printed' : 'Print Bill'}
+              </button>
               <button onClick={() => { playClickSound(); handleMarkAsPaid(selectedOrderForBilling) }} className="flex-1 px-6 py-3 bg-[#5D3A1A] text-white rounded-xl">Mark Paid</button>
             </div>
           </div>

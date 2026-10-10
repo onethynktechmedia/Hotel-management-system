@@ -903,8 +903,9 @@ ${groupOrderItems(billOrderItems).map((item: any) => {
                   }
                   body {
                     font-family: monospace;
-                    font-size: 10px;
+                    font-size: 12px;
                     line-height: 1.2;
+                    font-weight: bold;
                   }
                 </style>
               </head>
@@ -934,26 +935,26 @@ ${groupOrderItems(billOrderItems).map((item: any) => {
   // Direct Print Function using WebUSB for direct thermal printing
   const handleThermalPrint = async () => {
     if (!selectedOrderForBilling) return
-    
+
     try {
       console.log('Starting thermal print...')
-      
+
       // Generate ESC/POS commands for direct printing
       let escposContent = ''
-      
+
       // Initialize printer
       escposContent += '\x1B\x40' // Initialize
-      
+
       // Center alignment for header
       escposContent += '\x1B\x61\x01'
-      
+
       // Hotel Name - Large and Bold
       escposContent += '\x1B\x21\x30' // Double width and height
       escposContent += 'DHOLE PATIL KHANAWAL\n'
       escposContent += '\x1B\x21\x00' // Normal
       escposContent += 'VEG & NON-VEG\n'
       escposContent += '================================\n'
-      
+
       // Address - Centered
       escposContent += 'Sangamner\n'
       escposContent += '================================\n'
@@ -961,7 +962,7 @@ ${groupOrderItems(billOrderItems).map((item: any) => {
       escposContent += 'BILL / INVOICE\n'
       escposContent += '\x1B\x21\x00' // Normal
       escposContent += '================================\n\n'
-      
+
       // Left align for bill info
       escposContent += '\x1B\x61\x00'
       escposContent += `Bill No: ${formatOrderId(selectedOrderForBilling.id)}\n`
@@ -972,13 +973,13 @@ ${groupOrderItems(billOrderItems).map((item: any) => {
       escposContent += `Customer: ${selectedOrderForBilling.customer_name || 'Guest'}\n`
       escposContent += `Payment: ${billPaymentType === 'upi' ? 'UPI' : billPaymentType === 'card' ? 'CARD' : billPaymentType === 'cash' ? 'CASH' : 'CASH'}\n`
       escposContent += '--------------------------\n'
-      
+
       // Items Header
       escposContent += '\x1B\x21\x08' // Bold
       escposContent += '  ITEM                  QTY  AMT\n'
       escposContent += '--------------------------\n'
-      escposContent += '\x1B\x21\x00' // Normal font for items
-      
+      escposContent += '\x1B\x21\x08' // Bold font for items
+
       // Items - Group by dish_id and dish_type
       const groupedItems = (selectedOrderForBilling.order_items || []).reduce((acc: any[], item: any) => {
         const existing = acc.find(i => i.dish_id === item.dish_id && i.dish_type === item.dish_type)
@@ -1002,20 +1003,22 @@ ${groupOrderItems(billOrderItems).map((item: any) => {
         escposContent += `${itemName.padEnd(14)} ${qty.toString().padStart(2)}x ${total.padStart(7)}\n`
       })
       escposContent += '\x1B\x21\x00' // Ensure normal text
-      
+
       escposContent += '--------------------------\n'
+      escposContent += '\x1B\x21\x08' // Bold
       escposContent += `Subtotal: Rs${selectedOrderForBilling.total_amount.toFixed(2)}\n`
-      
+
       // Discount if applicable
       const discount = calculateDiscountValue(selectedOrderForBilling.total_amount)
       if (discount > 0) {
         escposContent += `Discount: Rs${discount.toFixed(2)}\n`
       }
-      
+      escposContent += '\x1B\x21\x00' // Normal
+
       // Grand Total - Centered, Bold and Large
       escposContent += '\x1B\x61\x01' // Center align
       escposContent += '================================\n'
-      escposContent += '\x1B\x21\x08' // Bold
+      escposContent += '\x1B\x21\x11' // Double height, double width, Bold
       escposContent += 'GRAND TOTAL\n'
       escposContent += `Rs${calculateFinalAmount(selectedOrderForBilling.total_amount).toFixed(2)}\n`
       escposContent += '\x1B\x21\x00' // Normal
@@ -1025,20 +1028,31 @@ ${groupOrderItems(billOrderItems).map((item: any) => {
       escposContent += '================================\n'
       escposContent += 'Developed by onethynk techmedia\n'
       escposContent += '================================\n\n'
-      
+
       // Cut paper
       escposContent += '\x1D\x56\x00' // Partial cut
-      
+
       console.log('ESC/POS content generated')
-      
+
       // Use WebUSB for direct printing (no Chrome dialog)
       const printer = new WebUSBPrinter()
       await printer.connect()
       await printer.print(escposContent)
       await printer.disconnect()
-      
+
       console.log('Bill printed successfully via WebUSB')
-      
+
+      // Mark order as printed
+      await fetch(`/api/orders/${selectedOrderForBilling.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ is_printed: true })
+      })
+
+      // Update local state
+      setSelectedOrderForBilling({ ...selectedOrderForBilling, is_printed: true })
+      setOrders(orders.map(o => o.id === selectedOrderForBilling.id ? { ...o, is_printed: true } : o))
+
     } catch (error: any) {
       console.error('USB printing failed:', error)
       console.log('Falling back to browser printing...')
@@ -1202,8 +1216,9 @@ ${(() => {
                   }
                   body {
                     font-family: monospace;
-                    font-size: 10px;
+                    font-size: 12px;
                     line-height: 1.2;
+                    font-weight: bold;
                   }
                 </style>
               </head>
@@ -2435,9 +2450,13 @@ ${(() => {
                                 playClickSound()
                                 handleGenerateBill(order)
                               }}
-                              className="bg-[#5D3A1A] text-white px-3 py-1 rounded-lg text-xs font-semibold hover:bg-[#8B4513] transition-all duration-300"
+                              className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all duration-300 ${
+                                order.is_printed
+                                  ? 'bg-white border-2 border-[#8B4513] text-[#8B4513] hover:bg-[#F5F0E8]'
+                                  : 'bg-[#5D3A1A] text-white hover:bg-[#8B4513]'
+                              }`}
                             >
-                              Print Bill
+                              {order.is_printed ? 'Printed' : 'Print Bill'}
                             </button>
                           </td>
                         </tr>
@@ -2562,9 +2581,13 @@ ${(() => {
                               playClickSound()
                               handleGenerateBill(order)
                             }}
-                            className="bg-[#5D3A1A] text-white px-3 py-1 rounded-lg text-xs font-semibold hover:bg-[#8B4513] transition-all duration-300"
+                            className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all duration-300 ${
+                              order.is_printed
+                                ? 'bg-white border-2 border-[#8B4513] text-[#8B4513] hover:bg-[#F5F0E8]'
+                                : 'bg-[#5D3A1A] text-white hover:bg-[#8B4513]'
+                            }`}
                           >
-                            Print Bill
+                            {order.is_printed ? 'Printed' : 'Print Bill'}
                           </button>
                         </td>
                       </tr>
@@ -4939,9 +4962,13 @@ ${(() => {
               </button>
               <button
                 onClick={handleThermalPrint}
-                className="flex-1 px-6 py-3 bg-[#5D3A1A] text-white rounded-xl font-semibold hover:bg-[#8B4513] transition-all duration-300"
+                className={`flex-1 px-6 py-3 rounded-xl font-semibold transition-all duration-300 ${
+                  selectedOrderForBilling.is_printed
+                    ? 'bg-white border-2 border-[#8B4513] text-[#8B4513] hover:bg-[#F5F0E8]'
+                    : 'bg-[#5D3A1A] text-white hover:bg-[#8B4513]'
+                }`}
               >
-                Print Bill
+                {selectedOrderForBilling.is_printed ? 'Printed' : 'Print Bill'}
               </button>
               <button
                 onClick={() => selectedOrderForBilling && handleMarkAsPaid(selectedOrderForBilling)}
