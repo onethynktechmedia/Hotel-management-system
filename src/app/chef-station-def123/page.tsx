@@ -298,7 +298,7 @@ export default function ChefStation() {
 
     filteredItems.forEach(item => {
       const dish = dishes.find(d => d.id === item.dish_id)
-      const name = dish?.name || 'Unknown'
+      const name = dish?.marathi_name || dish?.name || 'Unknown'
       const qty = item.quantity
       const type = item.dish_type || 'Normal'
       const dishName = name.length > 18 ? name.substring(0, 17) + '.' : name
@@ -596,7 +596,7 @@ ${order.order_description ? `<div style="font-size: 12px; font-weight: bold; mar
                               <div className="flex-1 min-w-0">
                                 <div className="flex items-center gap-2 flex-wrap">
                                   <p className="font-semibold text-[#8B4513] text-sm">
-                                    {dish?.name || 'Unknown Dish'}
+                                    {dish?.marathi_name || dish?.name || 'Unknown Dish'}
                                   </p>
                                   <span className="text-xs px-2 py-0.5 bg-[#E8DFD0] text-[#8B4513] rounded-full font-medium whitespace-nowrap">
                                     {item.dish_type || 'Normal'}

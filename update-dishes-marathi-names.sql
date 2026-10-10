@@ -1,0 +1,22 @@
+-- Update dishes with Marathi names for KOT
+UPDATE dishes SET marathi_name = 'आलू टिक्की' WHERE name = 'Aloo Tikki';
+UPDATE dishes SET marathi_name = 'बिरयानी' WHERE name = 'Biryani';
+UPDATE dishes SET marathi_name = 'बटर चिकन' WHERE name = 'Butter Chicken';
+UPDATE dishes SET marathi_name = 'चिकन टिक्का' WHERE name = 'Chicken Tikka';
+UPDATE dishes SET marathi_name = 'चिकन बिरयानी' WHERE name = 'Chikan Biryani';
+UPDATE dishes SET marathi_name = 'दाल मखनी' WHERE name = 'Dal Makhani';
+UPDATE dishes SET marathi_name = 'ताजा लाइम सोडा' WHERE name = 'Fresh Lime Soda';
+UPDATE dishes SET marathi_name = 'गुलाब जामुन' WHERE name = 'Gulab Jamun';
+UPDATE dishes SET marathi_name = 'हरा भरा कबाब' WHERE name = 'Hara Bhara Kabab';
+UPDATE dishes SET marathi_name = 'जीरा चावल' WHERE name = 'Jeera Rice';
+UPDATE dishes SET marathi_name = 'खीर' WHERE name = 'Kheer';
+UPDATE dishes SET marathi_name = 'मसाला चाय' WHERE name = 'Masala Chai';
+UPDATE dishes SET marathi_name = 'नान' WHERE name = 'Naan';
+UPDATE dishes SET marathi_name = 'पनीर टिक्का' WHERE name = 'Paneer Tikka';
+UPDATE dishes SET marathi_name = 'पापड' WHERE name = 'Papad';
+UPDATE dishes SET marathi_name = 'रायता' WHERE name = 'Raita';
+UPDATE dishes SET marathi_name = 'रसगुल्ला' WHERE name = 'Rasgulla';
+UPDATE dishes SET marathi_name = 'रोटी' WHERE name = 'Roti';
+UPDATE dishes SET marathi_name = 'समोसा' WHERE name = 'Samosa';
+UPDATE dishes SET marathi_name = 'व्हेजिटेबल पुलाव' WHERE name = 'Vegetable Pulao';
+UPDATE dishes SET marathi_name = 'पानी बाटली' WHERE name = 'Water Bottle';

@@ -22,6 +22,7 @@ export interface Table {
 export interface Dish {
   id: string
   name: string
+  marathi_name?: string
   description: string | null
   price: number
   category: string

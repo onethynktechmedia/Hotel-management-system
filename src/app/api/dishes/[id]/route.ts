@@ -29,10 +29,11 @@ export async function PATCH(
   try {
     const params = await context.params
     const body = await request.json()
-    const { name, description, price, category, image_url, is_available, food_type } = body
+    const { name, marathi_name, description, price, category, image_url, is_available, food_type } = body
 
     const updateData: any = {}
     if (name !== undefined && name !== null) updateData.name = name
+    if (marathi_name !== undefined && marathi_name !== null) updateData.marathi_name = marathi_name
     if (description !== undefined && description !== null) updateData.description = description
     if (price !== undefined && price !== null) updateData.price = price
     if (category !== undefined && category !== null) updateData.category = category

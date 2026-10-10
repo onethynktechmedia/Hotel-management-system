@@ -85,6 +85,7 @@ export default function AdminDashboard() {
   const [selectedTablesForMaster, setSelectedTablesForMaster] = useState<string[]>([])
   const [dishForm, setDishForm] = useState({
     name: '',
+    marathi_name: '',
     description: '',
     price: '',
     category: '',
@@ -93,6 +94,7 @@ export default function AdminDashboard() {
     is_available: true
   } as {
     name: string
+    marathi_name: string
     description: string
     price: string
     category: string
@@ -399,6 +401,7 @@ export default function AdminDashboard() {
     setEditingDish(null)
     setDishForm({
       name: '',
+      marathi_name: '',
       description: '',
       price: '',
       category: '',
@@ -413,6 +416,7 @@ export default function AdminDashboard() {
     setEditingDish(dish)
     setDishForm({
       name: dish.name,
+      marathi_name: dish.marathi_name ?? '',
       description: dish.description ?? '',
       price: dish.price.toString(),
       category: dish.category,
@@ -461,8 +465,14 @@ export default function AdminDashboard() {
   const handleSaveDish = async () => {
     try {
       const payload = {
-        ...dishForm,
-        price: parseFloat(dishForm.price)
+        name: dishForm.name,
+        marathi_name: dishForm.marathi_name || null,
+        description: dishForm.description,
+        price: parseFloat(dishForm.price),
+        category: dishForm.category,
+        image_url: dishForm.image_url,
+        food_type: dishForm.food_type,
+        is_available: dishForm.is_available
       }
 
       console.log('=== Saving dish ===')
@@ -4418,6 +4428,16 @@ ${(() => {
                   onChange={(e) => setDishForm({ ...dishForm, name: e.target.value })}
                   className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-[#8B4513] focus:outline-none transition-colors placeholder-gray-400"
                   placeholder="Enter dish name"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Marathi Name (for KOT)</label>
+                <input
+                  type="text"
+                  value={dishForm.marathi_name}
+                  onChange={(e) => setDishForm({ ...dishForm, marathi_name: e.target.value })}
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-[#8B4513] focus:outline-none transition-colors placeholder-gray-400"
+                  placeholder="Enter dish name in Marathi (e.g., बटर चिकन)"
                 />
               </div>
               <div>
