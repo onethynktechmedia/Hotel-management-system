@@ -69,9 +69,9 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { table_id, waiter_id, status, total_amount } = body
+    const { table_id, waiter_id, status, total_amount, customer_name, customer_mobile, order_description } = body
 
-    console.log('Creating order with:', { table_id, waiter_id, status, total_amount })
+    console.log('Creating order with:', { table_id, waiter_id, status, total_amount, customer_name, customer_mobile, order_description })
 
     // Build insert data - only include core columns that definitely exist
     const insertData: any = {
@@ -80,6 +80,11 @@ export async function POST(request: NextRequest) {
       status,
       total_amount
     }
+
+    // Add optional fields if provided
+    if (customer_name) insertData.customer_name = customer_name
+    if (customer_mobile) insertData.customer_mobile = customer_mobile
+    if (order_description) insertData.order_description = order_description
 
     const { data: order, error } = await supabase
       .from('orders')

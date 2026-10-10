@@ -39,6 +39,7 @@ export interface Order {
   total_amount: number
   customer_name?: string
   customer_mobile?: string
+  order_description?: string
   order_type?: 'Normal' | 'Repeat' | 'Extra' | 'Parcel' | 'Takeaway'
   payment_type?: 'cash' | 'upi' | 'card'
   is_prebooked?: boolean

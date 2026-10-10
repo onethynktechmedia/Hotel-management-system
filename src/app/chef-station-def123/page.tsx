@@ -307,6 +307,9 @@ export default function ChefStation() {
 <div>---------------------</div>
 <div>Time: ${formatTime(order.created_at)}</div>
 <div>Waiter: ${order.users?.name || 'N/A'}</div>
+${order.customer_name ? `<div>Cust: ${order.customer_name}</div>` : ''}
+${order.customer_mobile ? `<div>Mob: ${order.customer_mobile}</div>` : ''}
+${order.order_description ? `<div>Note: ${order.order_description}</div>` : ''}
 <div>---------------------</div>
 ${itemsText}
 <div>---------------------</div>
@@ -367,11 +370,13 @@ ${itemsText}
   const getItemStatusColor = (status: string) => {
     switch (status) {
       case 'pending':
-        return 'bg-[#F5F5DC] text-[#8B4513]'
+        return 'bg-amber-100 text-amber-800 border-amber-300'
       case 'served':
-        return 'bg-white text-[#8B4513]'
+        return 'bg-emerald-100 text-emerald-800 border-emerald-300'
+      case 'completed':
+        return 'bg-blue-100 text-blue-800 border-blue-300'
       default:
-        return 'bg-[#F5F5DC] text-[#8B4513]'
+        return 'bg-gray-100 text-gray-800 border-gray-300'
     }
   }
 
@@ -391,114 +396,51 @@ ${itemsText}
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-[#F5F0E8] pb-24">
       {/* Header */}
-      <nav className="bg-white shadow-lg sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+      <nav className="bg-[#8B4513] shadow-lg sticky top-0 z-50">
+        <div className="w-full px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex justify-between items-center">
             <div className="flex items-center gap-3">
-              <img src="/logo.png" alt="Dhole Patil Hotel Logo" className="w-12 h-12 rounded-full object-cover flex-shrink-0" />
+              <div className="bg-[#F5F0E8] p-2 rounded-xl shadow-md">
+                <ChefHat className="w-6 h-6 text-[#8B4513]" />
+              </div>
               <div className="flex flex-col">
-                <h1 className="text-lg font-bold text-[#5D3A1A] leading-tight">Dhole Patil</h1>
-                <p className="text-sm text-gray-600 leading-tight font-semibold">Khanawal - Chef Station</p>
+                <h1 className="text-lg font-bold text-white leading-tight">Dhole Patil</h1>
+                <p className="text-xs text-[#F5F0E8] leading-tight font-medium">Khanawal - Chef Station</p>
               </div>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
               <button
                 onClick={() => { playClickSound(); fetchData() }}
-                className="flex items-center gap-2 bg-[#8B4513] text-white px-4 py-2 rounded-xl font-semibold hover:bg-[#8B4513] transition-all"
+                className="flex items-center gap-2 bg-[#F5F0E8] text-[#8B4513] px-3 py-2 rounded-xl font-semibold hover:bg-[#E8DFD0] transition-all text-sm"
               >
+                <Clock className="w-4 h-4" />
                 Refresh
               </button>
               <button
                 onClick={handleLogout}
-                className="flex items-center gap-2 bg-[#8B4513] text-white px-4 py-2 rounded-xl font-semibold hover:bg-[#8B4513] transition-all"
+                className="flex items-center gap-2 bg-[#F5F0E8] text-[#8B4513] px-3 py-2 rounded-xl font-semibold hover:bg-[#E8DFD0] transition-all text-sm"
               >
                 <LogOut className="w-4 h-4" />
-                Logout
               </button>
             </div>
           </div>
         </div>
       </nav>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Statistics Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-          <div
-            onClick={() => { playClickSound(); setFilterStatus('all') }}
-            className={`bg-white border-2 rounded-xl p-4 shadow-lg cursor-pointer transition-all ${
-              filterStatus === 'all' ? 'border-[#8B4513] bg-[#F5F5DC]' : 'border-[#8B4513] hover:bg-[#F5F5DC]'
-            }`}
-          >
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600">Total Orders</p>
-                <p className="text-2xl font-bold text-[#8B4513]">{orders.length}</p>
-              </div>
-              <div className="bg-[#F5F5DC] p-3 rounded-xl">
-                <Utensils className="w-6 h-6 text-[#8B4513]" />
-              </div>
-            </div>
-          </div>
-          <div
-            onClick={() => { playClickSound(); setFilterStatus('pending') }}
-            className={`bg-white border-2 rounded-xl p-4 shadow-lg cursor-pointer transition-all ${
-              filterStatus === 'pending' ? 'border-[#8B4513] bg-[#F5F5DC]' : 'border-[#8B4513] hover:bg-[#F5F5DC]'
-            }`}
-          >
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600">Pending</p>
-                <p className="text-2xl font-bold text-[#8B4513]">{orders.filter(o => o.status === 'pending' || o.status === 'confirmed').length}</p>
-              </div>
-              <div className="bg-[#F5F5DC] p-3 rounded-xl">
-                <Clock className="w-6 h-6 text-[#8B4513]" />
-              </div>
-            </div>
-          </div>
-          <div
-            onClick={() => { playClickSound(); setFilterStatus('served') }}
-            className={`bg-white border-2 rounded-xl p-4 shadow-lg cursor-pointer transition-all ${
-              filterStatus === 'served' ? 'border-[#8B4513] bg-[#F5F5DC]' : 'border-[#8B4513] hover:bg-[#F5F5DC]'
-            }`}
-          >
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600">Completed</p>
-                <p className="text-2xl font-bold text-[#8B4513]">{orders.filter(o => o.status === 'served').length}</p>
-              </div>
-              <div className="bg-[#F5F5DC] p-3 rounded-xl">
-                <CheckCircle className="w-6 h-6 text-[#8B4513]" />
-              </div>
-            </div>
-          </div>
-          <div
-            onClick={() => { playClickSound(); setFilterStatus('served') }}
-            className={`bg-white border-2 rounded-xl p-4 shadow-lg cursor-pointer transition-all ${
-              filterStatus === 'served' ? 'border-[#8B4513] bg-[#F5F5DC]' : 'border-[#8B4513] hover:bg-[#F5F5DC]'
-            }`}
-          >
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600">Served</p>
-                <p className="text-2xl font-bold text-[#8B4513]">{orders.filter(o => o.status === 'served').length}</p>
-              </div>
-              <div className="bg-[#F5F5DC] p-3 rounded-xl">
-                <AlertCircle className="w-6 h-6 text-[#8B4513]" />
-              </div>
-            </div>
-          </div>
-        </div>
-
+      <div className="w-full px-4 sm:px-6 lg:px-8 py-6">
         {/* Orders Grid - Split by Food Type */}
         {filteredOrders.length === 0 ? (
-          <div className="text-center py-12 bg-white rounded-2xl shadow-lg">
-            <Utensils className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-            <p className="text-gray-500 font-semibold">No orders found</p>
+          <div className="text-center py-16 bg-white rounded-3xl shadow-xl border border-[#E8DFD0]">
+            <div className="bg-[#F5F0E8] w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Utensils className="w-10 h-10 text-[#8B4513]" />
+            </div>
+            <p className="text-[#8B4513] font-semibold text-lg">No orders found</p>
+            <p className="text-slate-400 text-sm mt-1">Select a different filter to view orders</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
             {filteredOrders.map((order) => {
               const items = orderItems[order.id] || []
               const table = tables.find(t => t.id === order.table_id)
@@ -508,7 +450,7 @@ ${itemsText}
                 const existing = acc.find(i => i.dish_id === item.dish_id && i.dish_type === item.dish_type)
                 if (existing) {
                   existing.quantity += item.quantity
-                  existing.itemIds.push(item.id) // Track all item IDs for status checking
+                  existing.itemIds.push(item.id)
                 } else {
                   acc.push({
                     ...item,
@@ -539,7 +481,8 @@ ${itemsText}
               if (vegItems.length > 0) {
                 kotCards.push({
                   type: 'veg',
-                  bgColor: 'bg-emerald-50',
+                  bgColor: 'bg-[#E8F5E9]',
+                  borderColor: 'border-[#81C784]',
                   items: vegItems,
                   label: 'VEG'
                 })
@@ -548,7 +491,8 @@ ${itemsText}
               if (nonVegItems.length > 0) {
                 kotCards.push({
                   type: 'nonveg',
-                  bgColor: 'bg-rose-50',
+                  bgColor: 'bg-[#FFEBEE]',
+                  borderColor: 'border-[#E57373]',
                   items: nonVegItems,
                   label: 'NON-VEG'
                 })
@@ -557,14 +501,14 @@ ${itemsText}
               if (otherItems.length > 0) {
                 kotCards.push({
                   type: 'other',
-                  bgColor: 'bg-violet-50',
+                  bgColor: 'bg-[#F3E5F5]',
+                  borderColor: 'border-[#BA68C8]',
                   items: otherItems,
                   label: 'OTHER'
                 })
               }
 
               return kotCards.map((kot, kotIndex) => {
-                // Check if all items in this KOT are served (checking all original item IDs)
                 const allItemsServed = kot.items.every(item =>
                   item.itemIds.every((itemId: string) => {
                     const originalItem = items.find(i => i.id === itemId)
@@ -574,102 +518,116 @@ ${itemsText}
                 const endTime = allItemsServed ? formatTime(order.updated_at || order.created_at) : null
 
                 return (
-                  <div key={`${order.id}-${kot.type}`} className={`${kot.bgColor} rounded-2xl shadow-lg overflow-hidden`}>
+                  <div key={`${order.id}-${kot.type}`} className={`${kot.bgColor} rounded-2xl shadow-lg overflow-hidden border ${kot.borderColor} transition-all hover:shadow-xl`}>
                     {/* Order Header */}
                     <div className="p-4">
-                      <div className="flex justify-between items-start mb-2">
-                        <div>
-                          <h3 className="text-sm font-bold text-gray-700">Order #{formatOrderId(order.id)}</h3>
-                          <p className="text-4xl font-black text-[#8B4513]">Table {table?.table_number || 'N/A'}</p>
-                          <p className={`text-xs font-bold mt-1 ${
-                            kot.type === 'veg' ? 'text-emerald-700' :
-                            kot.type === 'nonveg' ? 'text-rose-700' :
-                            'text-violet-700'
-                          }`}>{kot.label} KOT</p>
-                        </div>
-                        <span className={`px-3 py-1 rounded-full text-xs font-bold ${
-                          allItemsServed ? 'bg-white text-gray-600 border-2 border-gray-300' :
-                          kot.type === 'veg' ? 'bg-emerald-600 text-white' :
-                          kot.type === 'nonveg' ? 'bg-rose-600 text-white' :
-                          'bg-violet-600 text-white'
+                      {/* Table Number - Centered */}
+                      <div className="text-center mb-2">
+                        <p className="text-4xl font-black text-[#8B4513] tracking-tight">
+                          Table {table?.table_number || 'N/A'}
+                        </p>
+                      </div>
+
+                      {/* Order Number - Centered */}
+                      <div className="text-center mb-1.5">
+                        <p className="text-sm font-bold text-[#8B4513] bg-white/60 inline-block px-3 py-0.5 rounded-full">
+                          #{formatOrderId(order.id)}
+                        </p>
+                      </div>
+
+                      {/* KOT Type - Centered */}
+                      <div className="text-center mb-3">
+                        <span className={`inline-block px-3 py-0.5 rounded-full text-sm font-bold ${
+                          kot.type === 'veg' ? 'bg-[#4CAF50] text-white' :
+                          kot.type === 'nonveg' ? 'bg-[#F44336] text-white' :
+                          'bg-[#9C27B0] text-white'
                         }`}>
-                          {allItemsServed ? 'SERVED' : 'IN PROGRESS'}
+                          {kot.label} KOT
                         </span>
                       </div>
-                      <div className="flex justify-between items-center text-sm text-gray-600">
-                        <span>Start: {formatTime(order.created_at)}</span>
-                        {endTime && <span>End: {endTime}</span>}
-                      </div>
-                      <div className="text-sm text-gray-600 mt-1">
-                        Waiter: {order.users?.name || 'N/A'}
+
+                      {/* Start Time and Waiter - Same Line */}
+                      <div className="flex justify-between items-center text-sm text-[#8B4513] bg-white/60 rounded-lg px-3 py-1.5">
+                        <div className="flex items-center gap-1.5">
+                          <Clock className="w-4 h-4 text-[#8B4513]" />
+                          <span className="font-medium">{formatTime(order.created_at)}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <ChefHat className="w-4 h-4 text-[#8B4513]" />
+                          <span className="font-medium truncate max-w-24">{order.users?.name || 'N/A'}</span>
+                        </div>
                       </div>
                     </div>
 
-                    {/* Order Items */}
-                    <div className="p-4 space-y-2">
-                      {kot.items.map((item) => {
-                        const dish = dishes.find(d => d.id === item.dish_id)
-                        return (
-                          <div
-                            key={item.id}
-                            className={`p-2 rounded ${getItemStatusColor(item.status)} transition-all`}
-                          >
-                            <div className="flex justify-between items-start">
-                              <div className="flex-1">
-                                <div className="flex items-center gap-2">
-                                  {getFoodTypeIcon(dish?.food_type)}
-                                  <span className="font-semibold text-[#5D3A1A]">
+                    {/* Order Items - List Style */}
+                    <div className="px-4 pb-4">
+                      <div className="bg-white rounded-xl p-3 shadow-sm border border-[#E8DFD0]">
+                        {kot.items.map((item) => {
+                          const dish = dishes.find(d => d.id === item.dish_id)
+                          return (
+                            <div
+                              key={item.id}
+                              className="flex items-center justify-between py-2 border-b border-[#E8DFD0] last:border-0 last:pb-0"
+                            >
+                              <div className="flex items-center gap-2 flex-1">
+                                {getFoodTypeIcon(dish?.food_type)}
+                                <div className="flex-1 min-w-0">
+                                  <p className="font-semibold text-[#8B4513] text-sm truncate">
                                     {dish?.name || 'Unknown Dish'}
-                                  </span>
-                                  <span className="bg-[#8B4513] text-white text-xs px-2 py-0.5 rounded-full">
-                                    x{item.quantity}
-                                  </span>
+                                  </p>
+                                  {item.dish_type && item.dish_type !== 'Normal' && (
+                                    <p className="text-xs text-slate-500">
+                                      {item.dish_type}
+                                    </p>
+                                  )}
                                 </div>
-                                {item.dish_type && item.dish_type !== 'Normal' && (
-                                  <span className="text-xs text-gray-600 mt-1 block">
-                                    {item.dish_type}
-                                  </span>
-                                )}
                               </div>
-                              <div className="text-right">
-                                <span className={`text-xs px-2 py-1 rounded-full ${
+                              <div className="flex items-center gap-2 ml-2">
+                                <span className={`text-xs px-2 py-0.5 rounded-full font-bold border ${
                                   item.status === 'served'
-                                    ? 'bg-white text-[#8B4513] font-bold'
-                                    : 'bg-[#F5F5DC] text-[#8B4513] font-bold'
+                                    ? 'bg-[#E8F5E9] text-[#4CAF50] border-[#81C784]'
+                                    : item.status === 'pending'
+                                    ? 'bg-[#FFF3E0] text-[#FF9800] border-[#FFB74D]'
+                                    : 'bg-[#E3F2FD] text-[#2196F3] border-[#90CAF9]'
                                 }`}>
                                   {item.status === 'served' ? 'Served' : item.status}
                                 </span>
+                                <span className="bg-[#8B4513] text-white text-xs px-2 py-0.5 rounded font-bold">
+                                  x{item.quantity}
+                                </span>
                               </div>
                             </div>
-                          </div>
-                        )
-                      })}
+                          )
+                        })}
+                      </div>
                     </div>
 
                     {/* Action Buttons */}
-                    <div className="p-4 border-t border-gray-200 flex gap-2">
-                      <button
-                        onClick={() => handlePrintKOT(order, kot.type)}
-                        className="flex-1 flex items-center justify-center gap-2 bg-[#8B4513] text-white px-4 py-2 rounded-xl font-semibold hover:bg-[#8B4513] transition-all"
-                      >
-                        <Printer className="w-4 h-4" />
-                        Print KOT
-                      </button>
-                      {allItemsServed ? (
+                    <div className="px-4 pb-4">
+                      <div className="flex gap-2">
                         <button
-                          className="flex-1 px-4 py-2 bg-white text-[#8B4513] border-2 border-[#8B4513] rounded-xl font-semibold opacity-50 cursor-not-allowed"
-                          disabled
+                          onClick={() => handlePrintKOT(order, kot.type)}
+                          className="flex-1 flex items-center justify-center gap-1.5 bg-white border border-[#E8DFD0] text-[#8B4513] px-3 py-2 rounded-lg font-semibold hover:bg-[#F5F0E8] transition-all shadow-sm text-sm"
                         >
-                          Served
+                          <Printer className="w-4 h-4" />
+                          Print
                         </button>
-                      ) : (
-                        <button
-                          onClick={() => handleCompleteKOT(order.id, kot.type)}
-                          className="flex-1 px-4 py-2 bg-[#8B4513] text-white rounded-xl font-semibold hover:bg-[#8B4513] transition-all"
-                        >
-                          Complete
-                        </button>
-                      )}
+                        {allItemsServed ? (
+                          <button
+                            className="flex-1 px-3 py-2 bg-[#E8DFD0] text-[#8B4513] rounded-lg font-semibold cursor-not-allowed text-sm"
+                            disabled
+                          >
+                            Served
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => handleCompleteKOT(order.id, kot.type)}
+                            className="flex-1 px-3 py-2 bg-[#8B4513] text-white rounded-lg font-semibold hover:bg-[#6B3410] transition-all shadow-md text-sm"
+                          >
+                            Complete
+                          </button>
+                        )}
+                      </div>
                     </div>
                   </div>
                 )
@@ -677,6 +635,68 @@ ${itemsText}
             })}
           </div>
         )}
+      </div>
+
+      {/* Bottom Navigation Bar */}
+      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-[#E8DFD0] shadow-2xl z-50">
+        <div className="w-full px-4">
+          <div className="flex justify-around items-center py-2">
+            <button
+              onClick={() => { playClickSound(); setFilterStatus('pending') }}
+              className={`flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-lg transition-all ${
+                filterStatus === 'pending'
+                  ? 'bg-[#8B4513] text-white'
+                  : 'text-[#8B4513] hover:bg-[#F5F0E8]'
+              }`}
+            >
+              <Clock className="w-4 h-4" />
+              <span className="text-xs font-semibold">Pending</span>
+              <span className="text-xs font-bold">
+                {orders.filter(o => o.status === 'pending' || o.status === 'confirmed').length}
+              </span>
+            </button>
+            <button
+              onClick={() => { playClickSound(); setFilterStatus('all') }}
+              className={`flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-lg transition-all ${
+                filterStatus === 'all'
+                  ? 'bg-[#8B4513] text-white'
+                  : 'text-[#8B4513] hover:bg-[#F5F0E8]'
+              }`}
+            >
+              <Utensils className="w-4 h-4" />
+              <span className="text-xs font-semibold">Today Orders</span>
+              <span className="text-xs font-bold">{orders.length}</span>
+            </button>
+            <button
+              onClick={() => { playClickSound(); setFilterStatus('served') }}
+              className={`flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-lg transition-all ${
+                filterStatus === 'served'
+                  ? 'bg-[#8B4513] text-white'
+                  : 'text-[#8B4513] hover:bg-[#F5F0E8]'
+              }`}
+            >
+              <CheckCircle className="w-4 h-4" />
+              <span className="text-xs font-semibold">Completed</span>
+              <span className="text-xs font-bold">
+                {orders.filter(o => o.status === 'served').length}
+              </span>
+            </button>
+            <button
+              onClick={() => { playClickSound(); setFilterStatus('served') }}
+              className={`flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-lg transition-all ${
+                filterStatus === 'served'
+                  ? 'bg-[#8B4513] text-white'
+                  : 'text-[#8B4513] hover:bg-[#F5F0E8]'
+              }`}
+            >
+              <AlertCircle className="w-4 h-4" />
+              <span className="text-xs font-semibold">Served</span>
+              <span className="text-xs font-bold">
+                {orders.filter(o => o.status === 'served').length}
+              </span>
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   )

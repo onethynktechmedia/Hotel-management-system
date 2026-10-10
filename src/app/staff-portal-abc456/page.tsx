@@ -7,7 +7,7 @@ import { User, Order, Dish, Table, CartItem } from '@/types'
 import { LogOut, ShoppingCart, Plus, Minus, ArrowLeft, Users, Clock, CheckCircle, X, Crown, Printer, RotateCcw, History, Utensils, Link, Bell } from 'lucide-react'
 import { playClickSound, playSuccessSound, playErrorSound, playPrintSound, playNotificationSound } from '@/lib/sound-effects'
 
-type Step = 'tables' | 'order-options' | 'dishes' | 'cart' | 'success' | 'alter-table' | 'repeat-order' | 'bill-preview' | 'previous-orders'
+type Step = 'tables' | 'order-options' | 'dishes' | 'cart' | 'success' | 'alter-table' | 'repeat-order' | 'bill-preview' | 'previous-orders' | 'active-orders'
 
 // Utility function to format order ID as DPK-XXX
 const formatOrderId = (orderId: string) => {
@@ -49,6 +49,8 @@ export default function WaiterPage() {
   const [selectedItemsToRepeat, setSelectedItemsToRepeat] = useState<any[]>([])
   const [previousOrderCount, setPreviousOrderCount] = useState(0)
   const [customerName, setCustomerName] = useState('')
+  const [customerMobile, setCustomerMobile] = useState('')
+  const [orderDescription, setOrderDescription] = useState('')
   const [tableFilter, setTableFilter] = useState<string>('all')
   const [searchTerm, setSearchTerm] = useState<string>('')
   const [showProfileDropdown, setShowProfileDropdown] = useState(false)
@@ -205,6 +207,10 @@ export default function WaiterPage() {
   const handleViewPreviousOrders = () => {
     setSelectedItemsToRepeat([])
     setCurrentStep('previous-orders')
+  }
+
+  const handleViewActiveOrders = () => {
+    setCurrentStep('active-orders')
   }
 
   const getFoodTypeIcon = (foodType?: string) => {
@@ -585,7 +591,9 @@ export default function WaiterPage() {
             waiter_id: userId,
             status: 'pending',
             total_amount: getCartTotal(),
-            customer_name: customerName || null
+            customer_name: customerName || null,
+            customer_mobile: customerMobile || null,
+            order_description: orderDescription || null
           })
         })
 
@@ -1547,9 +1555,10 @@ ${itemsList}
   }
 
   return (
-    <div className="min-h-screen bg-amber-50 pb-20">
-      {/* Header */}
-      <nav className="bg-white shadow-sm sticky top-0 z-40">
+    <div className={`min-h-screen bg-amber-50 pb-20 ${currentStep === 'active-orders' ? 'pt-0 mt-0' : ''}`}>
+      {/* Header - Hide on active-orders page */}
+      {currentStep !== 'active-orders' && (
+        <nav className="bg-white shadow-sm sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center py-4">
             <div className="flex items-center gap-4">
@@ -1640,6 +1649,7 @@ ${itemsList}
           </div>
         </div>
       </nav>
+      )}
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Step 1: Tables Selection */}
@@ -1867,97 +1877,7 @@ ${itemsList}
               </div>
             )}
 
-            {/* My Active Orders */}
-            <div className="mt-12" id="active-orders-section">
-              <h3 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-6 flex items-center gap-3">
-                <span className="bg-amber-900 p-2 rounded-xl">
-                  <Clock className="w-6 h-6 text-white" />
-                </span>
-                My Active Orders
-              </h3>
-                <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {(() => {
-                    // Group orders by table - show only active orders (pending, preparing, ready) by this waiter
-                    // Orders that are served/completed/paid will not show here
-                    const waiterOrders = orders.filter(o =>
-                      o.waiter_id === user?.id &&
-                      ['pending', 'preparing', 'ready'].includes(o.status)
-                    )
-
-                    const tableGroups = waiterOrders.reduce((acc, order) => {
-                      const tableId = order.table_id
-                      if (!acc[tableId]) {
-                        acc[tableId] = {
-                          table: order.tables,
-                          orders: []
-                        }
-                      }
-                      acc[tableId].orders.push(order)
-                      return acc
-                    }, {} as any)
-
-                    const filteredGroups = Object.values(tableGroups)
-
-                    if (filteredGroups.length === 0) {
-                      return (
-                        <div className="col-span-full text-center py-12 bg-amber-50 rounded-2xl border-2 border-dashed border-amber-300">
-                          <Clock className="w-12 h-12 text-amber-400 mx-auto mb-3" />
-                          <p className="text-gray-900 font-medium">No active orders found</p>
-                        </div>
-                      )
-                    }
-
-                    return filteredGroups.map((group: any) => (
-                      <div
-                        key={group.table?.id}
-                        className="bg-white rounded-2xl shadow-lg p-5 sm:p-6 border-2 border-amber-200 hover:border-amber-300 hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-1 text-left cursor-pointer"
-                      >
-                        <div className="flex justify-between items-start mb-4">
-                          <div>
-                            <h4 className="text-lg sm:text-xl font-bold text-gray-900">
-                              Table {group.table?.table_number}{group.table?.is_master ? ' (M)' : ''}
-                            </h4>
-                            <p className="text-sm text-gray-900">{group.orders.length} active order{group.orders.length > 1 ? 's' : ''}</p>
-                          </div>
-                          <span className={`px-3 py-1.5 rounded-full text-xs font-bold shadow-sm ${
-                            group.table?.is_master
-                              ? 'bg-amber-900 text-white'
-                              : 'bg-amber-900 text-white'
-                          }`}>
-                            {group.table?.is_master ? 'Master' : 'Active'}
-                          </span>
-                        </div>
-                        <p className="text-lg sm:text-xl font-bold text-gray-900 mb-4">
-                          ₹{group.orders.reduce((sum: number, o: Order) => sum + o.total_amount, 0).toFixed(2)}
-                        </p>
-                        <div className="flex gap-2">
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              playClickSound()
-                              handleViewBill(group.orders[0])
-                            }}
-                            className="flex-1 flex items-center justify-center gap-2 bg-amber-900 text-white px-3 py-2 rounded-xl font-medium hover:bg-amber-800 transition-all duration-200 text-sm shadow-md"
-                          >
-                            View Details
-                          </button>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              playClickSound()
-                              handleStartRepeatOrder(group.orders[0])
-                            }}
-                            className="flex items-center justify-center gap-1 bg-amber-900 text-white px-2 py-1.5 rounded-lg font-medium hover:bg-amber-800 transition-all duration-200 text-xs shadow-md"
-                          >
-                            <RotateCcw className="w-3 h-3" />
-                            Repeat
-                          </button>
-                        </div>
-                      </div>
-                    ))
-                  })()}
-                </div>
-              </div>
+            {/* My Active Orders - Removed from tables page, now only accessible via Active Orders button */}
           </div>
         )}
 
@@ -2448,9 +2368,9 @@ ${itemsList}
               </div>
             </div>
 
-            {/* Cart Summary */}
+            {/* Cart Summary - Only on desktop/tablet */}
             {cart.length > 0 && (
-              <div className="fixed bottom-0 left-0 right-0 bg-white shadow-2xl border-t-2 border-[#8B4513] p-2 sm:p-4 z-50">
+              <div className="hidden sm:block fixed bottom-0 left-0 right-0 bg-white shadow-2xl border-t-2 border-[#8B4513] p-2 sm:p-4 z-50">
                 <div className="max-w-7xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-2 sm:gap-0">
                   <div className="text-center sm:text-left">
                     <p className="text-xs text-gray-900">{cart.length} items</p>
@@ -2468,6 +2388,19 @@ ${itemsList}
                   </button>
                 </div>
               </div>
+            )}
+
+            {/* Floating Cart Button - Only on desktop/tablet when cart has items */}
+            {cart.length > 0 && (
+              <button
+                onClick={() => { playClickSound(); setCurrentStep('cart') }}
+                className="hidden sm:block fixed bottom-20 right-4 bg-[#5D3A1A] text-white p-4 rounded-full shadow-2xl hover:bg-[#8B4513] transition-all duration-300 z-50"
+              >
+                <ShoppingCart className="w-6 h-6" />
+                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs w-5 h-5 rounded-full flex items-center justify-center font-bold">
+                  {cart.length}
+                </span>
+              </button>
             )}
           </div>
         )}
@@ -2555,15 +2488,37 @@ ${itemsList}
 
               {/* Customer Details (Optional) */}
               <div className="p-4 sm:p-6 bg-white border-t border-amber-200">
-                <div>
-                  <label className="block text-sm font-semibold text-gray-900 mb-2">Customer Name (Optional)</label>
-                  <input
-                    type="text"
-                    value={customerName}
-                    onChange={(e) => setCustomerName(e.target.value)}
-                    placeholder="Enter customer name"
-                    className="w-full px-4 py-2 border-2 border-amber-200 rounded-xl focus:border-amber-500 focus:outline-none text-sm"
-                  />
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-900 mb-2">Customer Name (Optional)</label>
+                    <input
+                      type="text"
+                      value={customerName}
+                      onChange={(e) => setCustomerName(e.target.value)}
+                      placeholder="Enter customer name"
+                      className="w-full px-4 py-2 border-2 border-amber-200 rounded-xl focus:border-amber-500 focus:outline-none text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-900 mb-2">Mobile Number (Optional)</label>
+                    <input
+                      type="tel"
+                      value={customerMobile}
+                      onChange={(e) => setCustomerMobile(e.target.value)}
+                      placeholder="Enter mobile number"
+                      className="w-full px-4 py-2 border-2 border-amber-200 rounded-xl focus:border-amber-500 focus:outline-none text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-900 mb-2">Order Description (Optional)</label>
+                    <textarea
+                      value={orderDescription}
+                      onChange={(e) => setOrderDescription(e.target.value)}
+                      placeholder="Enter any special instructions or description"
+                      rows={2}
+                      className="w-full px-4 py-2 border-2 border-amber-200 rounded-xl focus:border-amber-500 focus:outline-none text-sm resize-none"
+                    />
+                  </div>
                 </div>
               </div>
 
@@ -3303,12 +3258,154 @@ ${itemsList}
         </div>
       )}
 
-      {/* Bottom Navigation (WhatsApp-style) */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-amber-200 px-4 py-2 z-50">
+        {/* Step: Active Orders - Separate View */}
+        {currentStep === 'active-orders' && (
+          <div className="min-h-screen bg-gradient-to-br from-amber-50 to-amber-100 pb-0 -mt-16">
+            {/* Header */}
+            <div className="bg-[#5D3A1A] shadow-lg sticky top-0 z-40">
+              <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+                <div className="flex justify-between items-center">
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={() => { playClickSound(); setCurrentStep('tables') }}
+                      className="flex items-center gap-2 bg-white/20 text-white px-3 py-2 rounded-lg font-semibold hover:bg-white/30 transition-all"
+                    >
+                      <ArrowLeft className="w-4 h-4" />
+                      Back
+                    </button>
+                    <div>
+                      <h1 className="text-xl sm:text-2xl font-bold text-white">Dhole Patil</h1>
+                      <p className="text-[#F5F5DC] text-sm">Active Orders</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => { playClickSound(); fetchData() }}
+                    className="flex items-center gap-2 bg-white/20 text-white px-3 py-2 rounded-lg font-semibold hover:bg-white/30 transition-all"
+                  >
+                    <RotateCcw className="w-4 h-4" />
+                    Refresh
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Active Orders List */}
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+              {(() => {
+                // Group orders by table - show only active orders (pending, preparing, ready) by this waiter
+                const waiterOrders = orders.filter(o =>
+                  o.waiter_id === user?.id &&
+                  ['pending', 'preparing', 'ready'].includes(o.status)
+                )
+
+                const tableGroups = waiterOrders.reduce((acc, order) => {
+                  const tableId = order.table_id
+                  if (!acc[tableId]) {
+                    acc[tableId] = {
+                      table: order.tables,
+                      orders: []
+                    }
+                  }
+                  acc[tableId].orders.push(order)
+                  return acc
+                }, {} as any)
+
+                const filteredGroups = Object.values(tableGroups)
+
+                if (filteredGroups.length === 0) {
+                  return (
+                    <div className="text-center py-12 bg-white rounded-2xl shadow-lg">
+                      <Clock className="w-16 h-16 text-amber-300 mx-auto mb-4" />
+                      <p className="text-gray-900 font-semibold">No active orders found</p>
+                      <button
+                        onClick={() => { playClickSound(); setCurrentStep('tables') }}
+                        className="mt-4 bg-[#5D3A1A] text-white px-6 py-2 rounded-lg font-semibold hover:bg-[#8B4513] transition-all"
+                      >
+                        Go to Tables
+                      </button>
+                    </div>
+                  )
+                }
+
+                return (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {filteredGroups.map((group: any) => (
+                      <div
+                        key={group.table.id}
+                        className="bg-white rounded-2xl shadow-lg p-4 border-2 border-amber-200 hover:border-amber-300 hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-1"
+                      >
+                        <div className="flex justify-between items-start mb-3">
+                          <div>
+                            <h3 className="text-xl font-bold text-gray-900">Table {group.table.table_number}</h3>
+                            <p className="text-sm text-gray-900">{group.table.capacity} seats</p>
+                          </div>
+                          <span className="px-3 py-1 rounded-full text-xs font-bold bg-[#5D3A1A] text-white">
+                            {group.orders.length} order{group.orders.length > 1 ? 's' : ''}
+                          </span>
+                        </div>
+
+                        <div className="space-y-2">
+                          {group.orders.map((order: Order) => (
+                            <div key={order.id} className="p-3 bg-amber-50 rounded-lg border border-amber-200">
+                              <div className="flex justify-between items-center mb-2">
+                                <span className="text-xs font-bold text-gray-900">
+                                  {formatOrderId(order.id)}
+                                </span>
+                                <span className={`px-2 py-1 rounded-full text-xs font-bold ${
+                                  order.status === 'pending' ? 'bg-amber-200 text-gray-900' :
+                                  order.status === 'preparing' ? 'bg-blue-200 text-gray-900' :
+                                  order.status === 'ready' ? 'bg-green-200 text-gray-900' :
+                                  'bg-gray-200 text-gray-900'
+                                }`}>
+                                  {order.status}
+                                </span>
+                              </div>
+                              <p className="text-xs text-gray-900">
+                                Items: {order.order_items?.length || 0}
+                              </p>
+                              <p className="text-xs text-gray-900">
+                                Total: ₹{order.total_amount.toFixed(2)}
+                              </p>
+                              <div className="flex gap-2 mt-2">
+                                <button
+                                  onClick={() => { playClickSound(); handleViewBill(order) }}
+                                  className="flex-1 bg-[#5D3A1A] text-white px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-[#8B4513] transition-all"
+                                >
+                                  View Bill
+                                </button>
+                                <button
+                                  onClick={() => { playClickSound(); handleStartRepeatOrder(order) }}
+                                  className="flex-1 bg-amber-900 text-white px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-amber-900 transition-all"
+                                >
+                                  Add Items
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )
+              })()}
+            </div>
+          </div>
+        )}
+
+      {/* Bottom Navigation (WhatsApp-style) - Hide on active-orders page */}
+      {currentStep !== 'active-orders' && (
+        <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-amber-200 px-4 py-2 z-50">
         <div className="flex justify-around items-center max-w-lg mx-auto">
           {currentStep !== 'tables' && (
             <button
-              onClick={() => { playClickSound(); handleBackToTables() }}
+              onClick={() => {
+                playClickSound()
+                if (currentStep === 'active-orders') {
+                  setCurrentStep('tables')
+                } else {
+                  handleBackToTables()
+                }
+              }}
               className="flex flex-col items-center text-gray-900 hover:text-gray-900 transition-colors py-2 px-3"
             >
               <div className="w-10 h-10 bg-amber-100 rounded-full flex items-center justify-center mb-1">
@@ -3327,7 +3424,7 @@ ${itemsList}
             <span className="text-xs font-medium">Refresh</span>
           </button>
           <button
-            onClick={() => { playClickSound(); document.getElementById('active-orders-section')?.scrollIntoView({ behavior: 'smooth' }) }}
+            onClick={() => { playClickSound(); handleViewActiveOrders() }}
             className="flex flex-col items-center text-gray-900 hover:text-gray-900 transition-colors py-2 px-3"
           >
             <div className="w-10 h-10 bg-amber-100 rounded-full flex items-center justify-center mb-1">
@@ -3335,6 +3432,20 @@ ${itemsList}
             </div>
             <span className="text-xs font-medium">Active Orders</span>
           </button>
+          {cart.length > 0 && currentStep === 'dishes' && (
+            <button
+              onClick={() => { playClickSound(); setCurrentStep('cart') }}
+              className="flex flex-col items-center text-gray-900 hover:text-gray-900 transition-colors py-2 px-3 relative"
+            >
+              <div className="w-12 h-12 bg-[#5D3A1A] rounded-full flex items-center justify-center mb-1 shadow-lg">
+                <ShoppingCart className="w-6 h-6 text-white" />
+              </div>
+              <span className="absolute -top-1 right-2 bg-red-500 text-white text-xs w-6 h-6 rounded-full flex items-center justify-center font-bold border-2 border-white shadow-md">
+                {cart.length}
+              </span>
+              <span className="text-xs font-bold text-[#5D3A1A]">Cart</span>
+            </button>
+          )}
           <button
             onClick={() => { playClickSound(); setShowMasterTableModal(true) }}
             className="flex flex-col items-center text-gray-900 hover:text-gray-900 transition-colors py-2 px-3"
@@ -3355,6 +3466,7 @@ ${itemsList}
           </button>
         </div>
       </div>
+      )}
     </div>
   )
 }
