@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { User } from '@/types'
 import { playClickSound, playSuccessSound, playErrorSound } from '@/lib/sound-effects'
+import GoogleTranslate from '@/components/GoogleTranslate'
 
 export default function LoginPage() {
   const router = useRouter()
@@ -78,6 +79,9 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen bg-[#F5F5DC] flex items-center justify-center px-4">
       <div className="max-w-md w-full bg-white rounded-2xl shadow-xl p-8 border-2 border-[#5D3A1A]">
+        <div className="flex justify-end mb-4">
+          <GoogleTranslate variant="white" />
+        </div>
         <div className="text-center mb-8">
           <div className="mb-4">
             <img src="/logo.png" alt="Dhole Patil Hotel Logo" className="w-20 h-20 mx-auto rounded-full object-cover" />
@@ -86,8 +90,8 @@ export default function LoginPage() {
             Dhole Patil
           </h1>
           <p className="text-xl font-semibold text-[#5D3A1A] mb-2">Khanawal</p>
-          <p className="text-gray-600">Staff Login</p>
-          <p className="text-sm text-gray-500 mt-1">Enter your credentials to access the system</p>
+          <p className="text-gray-600">Staff Portal</p>
+          <p className="text-sm text-gray-500 mt-1">Please login to continue</p>
         </div>
 
         <form onSubmit={handleLogin} className="space-y-6">
@@ -134,7 +138,7 @@ export default function LoginPage() {
             disabled={loading}
             className="w-full bg-[#5D3A1A] text-white py-3 rounded-xl font-semibold hover:bg-[#8B4513] transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed shadow-md hover:shadow-lg"
           >
-            {loading ? 'Logging in...' : 'Login'}
+            {loading ? 'Loading...' : 'Login'}
           </button>
         </form>
 

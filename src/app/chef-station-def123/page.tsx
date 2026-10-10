@@ -4,8 +4,9 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import supabase from '@/lib/db'
 import { Order, OrderItem, Dish, Table, User } from '@/types'
-import { LogOut, Printer, CheckCircle, Clock, ChefHat, Utensils, AlertCircle } from 'lucide-react'
+import { LogOut, Printer, CheckCircle, Clock, ChefHat, UtensilsCrossed, AlertCircle, History } from 'lucide-react'
 import { playClickSound, playSuccessSound, playPrintSound, playNotificationSound } from '@/lib/sound-effects'
+import GoogleTranslate from '@/components/GoogleTranslate'
 
 // Utility function to format order ID as DPK-XXX
 const formatOrderId = (orderId: string) => {
@@ -55,7 +56,7 @@ export default function ChefStation() {
   const [tables, setTables] = useState<Table[]>([])
   const [loading, setLoading] = useState(true)
   const [updating, setUpdating] = useState<string | null>(null)
-  const [filterStatus, setFilterStatus] = useState<'all' | 'pending' | 'served'>('all')
+  const [filterStatus, setFilterStatus] = useState<'all' | 'pending' | 'served' | 'preparing'>('all')
   const [previousOrderCount, setPreviousOrderCount] = useState(0)
 
   useEffect(() => {
@@ -286,33 +287,42 @@ export default function ChefStation() {
       return dish?.food_type !== 'veg' && dish?.food_type !== 'nonveg'
     })
 
-    // Build items text - one line per item with qty, name, and type with proper spacing for 58mm
+    // Build items text - table format with ITEM, QTY, TYPE columns for 58mm
     let itemsText = ''
+    // Header row
+    itemsText += `<div style="display: flex; justify-content: space-between; font-weight: bold; border-bottom: 1px dashed #000; padding-bottom: 2px; margin-bottom: 4px;">
+      <span style="flex: 1;">ITEM</span>
+      <span style="width: 25px; text-align: center;">QTY</span>
+      <span style="width: 50px; text-align: right;">TYPE</span>
+    </div>`
+
     filteredItems.forEach(item => {
       const dish = dishes.find(d => d.id === item.dish_id)
       const name = dish?.name || 'Unknown'
       const qty = item.quantity
       const type = item.dish_type || 'Normal'
-      const dishName = name.length > 14 ? name.substring(0, 13) + '.' : name
-      itemsText += `<div>${qty}x ${dishName.padEnd(14)} (${type})</div>`
+      const dishName = name.length > 18 ? name.substring(0, 17) + '.' : name
+      itemsText += `<div style="display: flex; justify-content: space-between; margin-bottom: 2px;">
+        <span style="flex: 1;">${dishName}</span>
+        <span style="width: 25px; text-align: center;">${qty}</span>
+        <span style="width: 50px; text-align: right;">${type}</span>
+      </div>`
     })
 
     // Get table display - for master tables, show only master table number
     const tableNumber = table?.table_number || 'N/A'
 
     const billContent = `
-<div style="font-size: 20px; font-weight: 900; text-align: center;">TABLE ${tableNumber}</div>
-<div>---------------------</div>
-<div>${foodType === 'veg' ? 'VEG' : foodType === 'nonveg' ? 'NON-VEG' : 'OTHER'} KOT</div>
-<div>---------------------</div>
-<div>Time: ${formatTime(order.created_at)}</div>
-<div>Waiter: ${order.users?.name || 'N/A'}</div>
-${order.customer_name ? `<div>Cust: ${order.customer_name}</div>` : ''}
-${order.customer_mobile ? `<div>Mob: ${order.customer_mobile}</div>` : ''}
-${order.order_description ? `<div>Note: ${order.order_description}</div>` : ''}
-<div>---------------------</div>
+<div style="font-size: 24px; font-weight: 900; text-align: center; margin-bottom: 8px;">TABLE ${tableNumber}</div>
+<div style="text-align: center; font-size: 16px; font-weight: bold; margin-bottom: 4px;">---------------------</div>
+<div style="text-align: center; font-size: 16px; font-weight: bold; margin-bottom: 4px;">${foodType === 'veg' ? 'VEG' : foodType === 'nonveg' ? 'NON-VEG' : 'OTHER'} KOT</div>
+<div style="text-align: center; font-size: 16px; font-weight: bold; margin-bottom: 8px;">---------------------</div>
+<div style="font-size: 12px; margin-bottom: 2px;">Time: ${formatTime(order.created_at)}</div>
+<div style="font-size: 12px; margin-bottom: 2px;">Waiter: ${order.users?.name || 'N/A'}</div>
+<div style="text-align: center; font-size: 16px; font-weight: bold; margin: 8px 0;">---------------------</div>
 ${itemsText}
-<div>---------------------</div>
+<div style="text-align: center; font-size: 16px; font-weight: bold; margin-top: 8px;">---------------------</div>
+${order.order_description ? `<div style="font-size: 12px; font-weight: bold; margin-top: 4px; border: 1px solid #000; padding: 4px; background: #f0f0f0;">NOTE: ${order.order_description}</div>` : ''}
       `
 
     // Create a new window to print
@@ -384,6 +394,7 @@ ${itemsText}
     if (filterStatus === 'all') return true
     if (filterStatus === 'pending') return order.status === 'pending' || order.status === 'confirmed'
     if (filterStatus === 'served') return order.status === 'served'
+    if (filterStatus === 'preparing') return order.status === 'preparing'
     return true
   })
 
@@ -396,10 +407,10 @@ ${itemsText}
   }
 
   return (
-    <div className="min-h-screen bg-[#F5F0E8] pb-24">
+    <div className="min-h-screen bg-[#F5F0E8] pb-24 overflow-x-hidden">
       {/* Header */}
       <nav className="bg-[#8B4513] shadow-lg sticky top-0 z-50">
-        <div className="w-full px-4 sm:px-6 lg:px-8 py-4">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex justify-between items-center">
             <div className="flex items-center gap-3">
               <div className="bg-[#F5F0E8] p-2 rounded-xl shadow-md">
@@ -411,36 +422,31 @@ ${itemsText}
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <button
-                onClick={() => { playClickSound(); fetchData() }}
-                className="flex items-center gap-2 bg-[#F5F0E8] text-[#8B4513] px-3 py-2 rounded-xl font-semibold hover:bg-[#E8DFD0] transition-all text-sm"
-              >
-                <Clock className="w-4 h-4" />
-                Refresh
-              </button>
+              <GoogleTranslate variant="brown" />
               <button
                 onClick={handleLogout}
                 className="flex items-center gap-2 bg-[#F5F0E8] text-[#8B4513] px-3 py-2 rounded-xl font-semibold hover:bg-[#E8DFD0] transition-all text-sm"
               >
                 <LogOut className="w-4 h-4" />
+                Logout
               </button>
             </div>
           </div>
         </div>
       </nav>
 
-      <div className="w-full px-4 sm:px-6 lg:px-8 py-6">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         {/* Orders Grid - Split by Food Type */}
         {filteredOrders.length === 0 ? (
           <div className="text-center py-16 bg-white rounded-3xl shadow-xl border border-[#E8DFD0]">
             <div className="bg-[#F5F0E8] w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4">
-              <Utensils className="w-10 h-10 text-[#8B4513]" />
+              <UtensilsCrossed className="w-10 h-10 text-[#8B4513]" />
             </div>
             <p className="text-[#8B4513] font-semibold text-lg">No orders found</p>
             <p className="text-slate-400 text-sm mt-1">Select a different filter to view orders</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
             {filteredOrders.map((order) => {
               const items = orderItems[order.id] || []
               const table = tables.find(t => t.id === order.table_id)
@@ -481,8 +487,8 @@ ${itemsText}
               if (vegItems.length > 0) {
                 kotCards.push({
                   type: 'veg',
-                  bgColor: 'bg-[#E8F5E9]',
-                  borderColor: 'border-[#81C784]',
+                  bgColor: 'bg-white',
+                  borderColor: 'border-[#8B4513]',
                   items: vegItems,
                   label: 'VEG'
                 })
@@ -491,8 +497,8 @@ ${itemsText}
               if (nonVegItems.length > 0) {
                 kotCards.push({
                   type: 'nonveg',
-                  bgColor: 'bg-[#FFEBEE]',
-                  borderColor: 'border-[#E57373]',
+                  bgColor: 'bg-white',
+                  borderColor: 'border-[#8B4513]',
                   items: nonVegItems,
                   label: 'NON-VEG'
                 })
@@ -501,8 +507,8 @@ ${itemsText}
               if (otherItems.length > 0) {
                 kotCards.push({
                   type: 'other',
-                  bgColor: 'bg-[#F3E5F5]',
-                  borderColor: 'border-[#BA68C8]',
+                  bgColor: 'bg-white',
+                  borderColor: 'border-[#8B4513]',
                   items: otherItems,
                   label: 'OTHER'
                 })
@@ -547,7 +553,7 @@ ${itemsText}
                       </div>
 
                       {/* Start Time and Waiter - Same Line */}
-                      <div className="flex justify-between items-center text-sm text-[#8B4513] bg-white/60 rounded-lg px-3 py-1.5">
+                      <div className="flex justify-between items-center text-sm text-[#8B4513] bg-white/60 rounded-lg px-3 py-1.5 mb-2">
                         <div className="flex items-center gap-1.5">
                           <Clock className="w-4 h-4 text-[#8B4513]" />
                           <span className="font-medium">{formatTime(order.created_at)}</span>
@@ -557,11 +563,29 @@ ${itemsText}
                           <span className="font-medium truncate max-w-24">{order.users?.name || 'N/A'}</span>
                         </div>
                       </div>
+
+                      {/* Order Type */}
+                      {order.order_type && (
+                        <div className="flex justify-center items-center text-xs text-[#8B4513] bg-white/60 rounded-lg px-3 py-1 mb-2">
+                          <span className="font-semibold px-2 py-0.5 bg-[#8B4513] text-white rounded text-xs">
+                            {order.order_type}
+                          </span>
+                        </div>
+                      )}
+
+                      {/* Special Instructions */}
+                      {order.order_description && (
+                        <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-2">
+                          <p className="text-xs font-semibold text-amber-800">
+                            Note: {order.order_description}
+                          </p>
+                        </div>
+                      )}
                     </div>
 
                     {/* Order Items - List Style */}
                     <div className="px-4 pb-4">
-                      <div className="bg-white rounded-xl p-3 shadow-sm border border-[#E8DFD0]">
+                      <div className="bg-[#F5F0E8] rounded-xl p-3 shadow-sm border border-[#E8DFD0]">
                         {kot.items.map((item) => {
                           const dish = dishes.find(d => d.id === item.dish_id)
                           return (
@@ -569,17 +593,14 @@ ${itemsText}
                               key={item.id}
                               className="flex items-center justify-between py-2 border-b border-[#E8DFD0] last:border-0 last:pb-0"
                             >
-                              <div className="flex items-center gap-2 flex-1">
-                                {getFoodTypeIcon(dish?.food_type)}
-                                <div className="flex-1 min-w-0">
-                                  <p className="font-semibold text-[#8B4513] text-sm truncate">
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <p className="font-semibold text-[#8B4513] text-sm">
                                     {dish?.name || 'Unknown Dish'}
                                   </p>
-                                  {item.dish_type && item.dish_type !== 'Normal' && (
-                                    <p className="text-xs text-slate-500">
-                                      {item.dish_type}
-                                    </p>
-                                  )}
+                                  <span className="text-xs px-2 py-0.5 bg-[#E8DFD0] text-[#8B4513] rounded-full font-medium whitespace-nowrap">
+                                    {item.dish_type || 'Normal'}
+                                  </span>
                                 </div>
                               </div>
                               <div className="flex items-center gap-2 ml-2">
@@ -639,11 +660,11 @@ ${itemsText}
 
       {/* Bottom Navigation Bar */}
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-[#E8DFD0] shadow-2xl z-50">
-        <div className="w-full px-4">
-          <div className="flex justify-around items-center py-2">
+        <div className="max-w-7xl mx-auto px-4">
+          <div className="flex justify-start items-center py-2 overflow-x-auto gap-2 whitespace-nowrap scrollbar-hide">
             <button
               onClick={() => { playClickSound(); setFilterStatus('pending') }}
-              className={`flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-lg transition-all ${
+              className={`flex flex-col items-center gap-0.5 px-4 py-2 rounded-lg transition-all min-w-[70px] ${
                 filterStatus === 'pending'
                   ? 'bg-[#8B4513] text-white'
                   : 'text-[#8B4513] hover:bg-[#F5F0E8]'
@@ -657,43 +678,50 @@ ${itemsText}
             </button>
             <button
               onClick={() => { playClickSound(); setFilterStatus('all') }}
-              className={`flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-lg transition-all ${
+              className={`flex flex-col items-center gap-0.5 px-4 py-2 rounded-lg transition-all min-w-[70px] ${
                 filterStatus === 'all'
                   ? 'bg-[#8B4513] text-white'
                   : 'text-[#8B4513] hover:bg-[#F5F0E8]'
               }`}
             >
-              <Utensils className="w-4 h-4" />
-              <span className="text-xs font-semibold">Today Orders</span>
+              <UtensilsCrossed className="w-4 h-4" />
+              <span className="text-xs font-semibold">All Orders</span>
               <span className="text-xs font-bold">{orders.length}</span>
             </button>
             <button
               onClick={() => { playClickSound(); setFilterStatus('served') }}
-              className={`flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-lg transition-all ${
+              className={`flex flex-col items-center gap-0.5 px-4 py-2 rounded-lg transition-all min-w-[70px] ${
                 filterStatus === 'served'
                   ? 'bg-[#8B4513] text-white'
                   : 'text-[#8B4513] hover:bg-[#F5F0E8]'
               }`}
             >
               <CheckCircle className="w-4 h-4" />
-              <span className="text-xs font-semibold">Completed</span>
+              <span className="text-xs font-semibold">Served</span>
               <span className="text-xs font-bold">
                 {orders.filter(o => o.status === 'served').length}
               </span>
             </button>
             <button
-              onClick={() => { playClickSound(); setFilterStatus('served') }}
-              className={`flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-lg transition-all ${
-                filterStatus === 'served'
+              onClick={() => { playClickSound(); setFilterStatus('preparing') }}
+              className={`flex flex-col items-center gap-0.5 px-4 py-2 rounded-lg transition-all min-w-[70px] ${
+                filterStatus === 'preparing'
                   ? 'bg-[#8B4513] text-white'
                   : 'text-[#8B4513] hover:bg-[#F5F0E8]'
               }`}
             >
-              <AlertCircle className="w-4 h-4" />
-              <span className="text-xs font-semibold">Served</span>
+              <ChefHat className="w-4 h-4" />
+              <span className="text-xs font-semibold">Preparing</span>
               <span className="text-xs font-bold">
-                {orders.filter(o => o.status === 'served').length}
+                {orders.filter(o => o.status === 'preparing').length}
               </span>
+            </button>
+            <button
+              onClick={() => { playClickSound(); fetchData() }}
+              className="flex flex-col items-center gap-0.5 px-4 py-2 rounded-lg transition-all text-[#8B4513] hover:bg-[#F5F0E8] min-w-[70px]"
+            >
+              <Clock className="w-4 h-4" />
+              <span className="text-xs font-semibold">Refresh</span>
             </button>
           </div>
         </div>

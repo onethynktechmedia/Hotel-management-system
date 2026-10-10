@@ -17,13 +17,13 @@ import {
   Pie,
   Cell
 } from 'recharts'
-import { 
-  Download, 
-  Calendar, 
-  TrendingUp, 
-  DollarSign, 
-  Users, 
-  Utensils, 
+import {
+  Download,
+  Calendar,
+  TrendingUp,
+  DollarSign,
+  Users,
+  UtensilsCrossed,
   Filter,
   FileText,
   Clock,
@@ -419,7 +419,7 @@ export default function Reports({ orders, payments, dishes }: ReportsProps) {
     return (
       <div className="text-center py-12">
         <div className="bg-orange-50 border-2 border-orange-200 rounded-2xl p-8 max-w-md mx-auto">
-          <Utensils className="w-16 h-16 text-orange-500 mx-auto mb-4" />
+          <UtensilsCrossed className="w-16 h-16 text-orange-500 mx-auto mb-4" />
           <h3 className="text-xl font-bold text-gray-900 mb-2">No Data Available</h3>
           <p className="text-gray-600 mb-4">
             There are no orders for the selected date range ({dateRange}).
@@ -576,7 +576,7 @@ export default function Reports({ orders, payments, dishes }: ReportsProps) {
 
         <div className="bg-white border border-gray-200 rounded-md p-1.5 sm:p-2 text-center shadow-sm hover:shadow-md transition-all duration-300">
           <div className="flex items-center justify-center mb-0.5">
-            <Utensils className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#5D3A1A] mr-0.5" />
+            <UtensilsCrossed className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#5D3A1A] mr-0.5" />
             <span className="text-sm sm:text-base font-bold text-gray-800">{reportData.totalOrders}</span>
           </div>
           <p className="text-[9px] sm:text-[10px] font-bold text-gray-600">Total Orders</p>

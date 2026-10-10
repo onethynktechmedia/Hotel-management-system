@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useState } from 'react'
 import { Menu, X } from 'lucide-react'
 import { playClickSound } from '@/lib/sound-effects'
+import GoogleTranslate from '@/components/GoogleTranslate'
 
 export default function Home() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
@@ -22,16 +23,18 @@ export default function Home() {
                 <p className="text-sm text-gray-600 leading-tight font-semibold">Khanawal</p>
               </div>
             </div>
-            
+
             {/* Desktop Navigation */}
             <div className="hidden md:flex items-center space-x-4">
+              <GoogleTranslate variant="white" />
               <Link href="/menu" onClick={() => playClickSound()} className="bg-[#5D3A1A] text-white px-6 py-2 rounded-md text-sm font-medium hover:bg-[#8B4513] transition-colors">
-                View Menu
+                Menu
               </Link>
             </div>
 
             {/* Mobile menu button */}
-            <div className="md:hidden flex items-center">
+            <div className="md:hidden flex items-center gap-2">
+              <GoogleTranslate variant="white" />
               <button
                 onClick={() => { playClickSound(); setIsMobileMenuOpen(!isMobileMenuOpen) }}
                 className="p-2 rounded-lg text-gray-700 hover:text-[#5D3A1A] hover:bg-[#F5F5DC] transition-colors"
@@ -51,7 +54,7 @@ export default function Home() {
                 onClick={() => { playClickSound(); setIsMobileMenuOpen(false) }}
                 className="block bg-[#5D3A1A] text-white px-3 py-2 rounded-md text-sm font-medium hover:bg-[#8B4513] transition-colors"
               >
-                View Menu
+                Menu
               </Link>
             </div>
           </div>
@@ -65,37 +68,37 @@ export default function Home() {
           </div>
           <div className="relative z-10">
             <h2 className="text-5xl md:text-6xl font-extrabold text-white mb-6">
-              Welcome to Dhole Patil Khanawal
+              Welcome Back to Dhole Patil Khanawal
             </h2>
             <p className="text-xl md:text-2xl text-white/90 mb-8 max-w-3xl mx-auto">
-              Experience delicious food with our modern ordering system
+              Your Digital Kitchen Dashboard
             </p>
           </div>
         </div>
 
         <div className="grid md:grid-cols-3 gap-6 md:gap-8">
             <div className="bg-white p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow">
-              <h3 className="text-xl font-bold mb-2 text-[#5D3A1A]">Digital Menu</h3>
-              <p className="text-gray-600 mb-4">Browse our delicious dishes with prices and descriptions</p>
+              <h3 className="text-xl font-bold mb-2 text-[#5D3A1A]">Menu</h3>
+              <p className="text-gray-600 mb-4">Manage your menu items</p>
               <Link href="/menu" onClick={() => playClickSound()} className="inline-block bg-[#5D3A1A] text-white px-6 py-3 rounded-md text-sm font-medium hover:bg-[#8B4513] transition-colors">
-                Explore Menu
+                Menu
               </Link>
             </div>
-            
+
             <div className="bg-white p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow">
-              <h3 className="text-xl font-bold mb-2 text-[#5D3A1A]">Smart Kitchen</h3>
-              <p className="text-gray-600">Real-time order tracking and kitchen management</p>
+              <h3 className="text-xl font-bold mb-2 text-[#5D3A1A]">Kitchen</h3>
+              <p className="text-gray-600">Chef Station Management</p>
             </div>
-            
+
             <div className="bg-white p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow">
-              <h3 className="text-xl font-bold mb-2 text-[#5D3A1A]">Easy Billing</h3>
-              <p className="text-gray-600">Seamless payment processing and order management</p>
+              <h3 className="text-xl font-bold mb-2 text-[#5D3A1A]">Orders</h3>
+              <p className="text-gray-600">Today's Orders Overview</p>
             </div>
           </div>
 
           <div className="mt-12 text-center">
             <Link href="/menu" onClick={() => playClickSound()} className="inline-block bg-white text-[#5D3A1A] px-8 py-4 rounded-lg text-lg font-medium hover:bg-[#F5F5DC] transition-colors shadow-md">
-              View Our Menu
+              View Menu
             </Link>
           </div>
       </main>

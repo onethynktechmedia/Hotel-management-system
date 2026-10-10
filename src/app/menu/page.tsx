@@ -3,8 +3,9 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { Dish } from '@/types'
-import { Menu, X } from 'lucide-react'
+import { Menu as MenuIcon, X } from 'lucide-react'
 import { playClickSound } from '@/lib/sound-effects'
+import GoogleTranslate from '@/components/GoogleTranslate'
 
 export default function MenuPage() {
   const [dishes, setDishes] = useState<Dish[]>([])
@@ -111,9 +112,10 @@ export default function MenuPage() {
                 <p className="text-sm text-gray-600 leading-tight font-semibold">Khanawal</p>
               </div>
             </div>
-            
+
             {/* Desktop Navigation */}
             <div className="hidden md:flex items-center space-x-4">
+              <GoogleTranslate variant="white" />
               <Link href="/" onClick={() => playClickSound()} className="text-gray-700 hover:text-[#5D3A1A] px-3 py-2 rounded-md text-sm font-medium transition-colors">
                 Home
               </Link>
@@ -123,12 +125,13 @@ export default function MenuPage() {
             </div>
 
             {/* Mobile menu button */}
-            <div className="md:hidden flex items-center">
+            <div className="md:hidden flex items-center gap-2">
+              <GoogleTranslate variant="white" />
               <button
                 onClick={() => { playClickSound(); setIsMobileMenuOpen(!isMobileMenuOpen) }}
                 className="p-2 rounded-lg text-gray-700 hover:text-[#5D3A1A] hover:bg-[#F5F5DC] transition-colors"
               >
-                {isMobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+                {isMobileMenuOpen ? <X className="w-6 h-6" /> : <MenuIcon className="w-6 h-6" />}
               </button>
             </div>
           </div>
@@ -159,8 +162,8 @@ export default function MenuPage() {
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         <div className="text-center mb-8">
-          <h1 className="text-4xl md:text-5xl font-extrabold text-gray-900 mb-4">Our Menu</h1>
-          <p className="text-xl text-gray-600">Explore our delicious dishes</p>
+          <h1 className="text-4xl md:text-5xl font-extrabold text-gray-900 mb-4">Menu</h1>
+          <p className="text-xl text-gray-600">Menu Management</p>
         </div>
 
         {/* Food Type Filter */}
@@ -186,7 +189,7 @@ export default function MenuPage() {
             <div className="w-4 h-4 flex items-center justify-center border-2 border-green-600 bg-green-50 rounded-sm">
               <div className="w-2 h-2 bg-green-600 rounded-full"></div>
             </div>
-            Veg
+            VEG
           </button>
           <button
             onClick={() => { playClickSound(); setSelectedFoodType('nonveg') }}
@@ -199,7 +202,7 @@ export default function MenuPage() {
             <div className="w-4 h-4 flex items-center justify-center border-2 border-red-600 bg-red-50 rounded-sm">
               <div className="w-2 h-2 bg-red-600 rounded-full"></div>
             </div>
-            Non-Veg
+            NON-VEG
           </button>
         </div>
 
@@ -266,7 +269,7 @@ export default function MenuPage() {
 
         {filteredDishes.length === 0 && (
           <div className="text-center py-12">
-            <p className="text-gray-500 text-lg">No dishes available in this category</p>
+            <p className="text-gray-500 text-lg">No data found</p>
           </div>
         )}
       </main>

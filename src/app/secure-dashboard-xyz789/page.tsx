@@ -3,12 +3,13 @@
 import React, { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { User, Order, Dish, Table, Payment, Notification } from '@/types'
-import { Plus, Edit, Trash2, DollarSign, Users, Utensils, User as UserIcon, Search, Filter, HelpCircle, Bell, LogOut, Download, Printer, Layers, Minus, X } from 'lucide-react'
+import { Plus, Edit, Trash2, DollarSign, Users, Utensils, User as UserIcon, Search, Filter, HelpCircle, Bell, LogOut, Download, Printer, Layers, Minus, X, UtensilsCrossed } from 'lucide-react'
 import Sidebar from '@/components/Sidebar'
 import WaiterStatus from '@/components/WaiterStatus'
 import Reports from '@/components/Reports'
 import { WebUSBPrinter } from '@/lib/webusb-printer'
 import { playClickSound, playNotificationSound, playSuccessSound, playErrorSound } from '@/lib/sound-effects'
+import GoogleTranslate from '@/components/GoogleTranslate'
 
 // Utility function to format order ID as DPK-XXX
 const formatOrderId = (orderId: string) => {
@@ -683,13 +684,13 @@ export default function AdminDashboard() {
       escposContent += `Waiter: ${viewingBill.users?.name || 'N/A'}\n`
       escposContent += `Payment: ${billPaymentType === 'upi' ? 'UPI' : billPaymentType === 'card' ? 'CARD' : billPaymentType === 'cash' ? 'CASH' : 'CASH'}\n`
       escposContent += '--------------------------\n'
-      
+
       // Items Header
       escposContent += '\x1B\x21\x08' // Bold
       escposContent += '  ITEM                  QTY  AMT\n'
       escposContent += '--------------------------\n'
       escposContent += '\x1B\x21\x00' // Normal font for items
-      
+
       // Items - Group by dish to aggregate quantities
       const groupedItems = groupOrderItems(orderItems)
       groupedItems.forEach((item: any) => {
@@ -701,23 +702,23 @@ export default function AdminDashboard() {
         escposContent += `${itemName.padEnd(14)} ${qty.toString().padStart(2)}x ${total.padStart(7)}\n`
       })
       escposContent += '\x1B\x21\x00' // Ensure normal text
-      
+
       escposContent += '--------------------------\n'
       escposContent += `Subtotal: Rs${calculateBillSubtotal().toFixed(2)}\n`
-      
+
       // Discount
       const discount = calculateBillDiscount()
       if (discount > 0) {
         escposContent += `Discount: -Rs${discount.toFixed(2)}\n`
       }
-      
+
       // Taxes
       const afterDiscount = calculateBillSubtotal() - discount
       const cgst = calculateBillTax(afterDiscount, billCGST)
       const sgst = calculateBillTax(afterDiscount, billSGST)
       escposContent += `CGST (${billCGST}%): Rs${cgst.toFixed(2)}\n`
       escposContent += `SGST (${billSGST}%): Rs${sgst.toFixed(2)}\n`
-      
+
       // Grand Total - Centered, Bold and Large
       escposContent += '\x1B\x61\x01' // Center align
       escposContent += '================================\n'
@@ -2316,7 +2317,7 @@ ${(() => {
               >
                 <HelpCircle className="w-5 h-5" />
               </button>
-              
+
               {/* Notification Button */}
               <div className="relative">
                 <button

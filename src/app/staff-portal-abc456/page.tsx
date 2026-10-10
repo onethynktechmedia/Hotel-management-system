@@ -4,8 +4,9 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import supabase from '@/lib/db'
 import { User, Order, Dish, Table, CartItem } from '@/types'
-import { LogOut, ShoppingCart, Plus, Minus, ArrowLeft, Users, Clock, CheckCircle, X, Crown, Printer, RotateCcw, History, Utensils, Link, Bell } from 'lucide-react'
+import { LogOut, ShoppingCart, Plus, Minus, ArrowLeft, Users, Clock, CheckCircle, X, Crown, Printer, RotateCcw, History, UtensilsCrossed, Link as LinkIcon, Bell } from 'lucide-react'
 import { playClickSound, playSuccessSound, playErrorSound, playPrintSound, playNotificationSound } from '@/lib/sound-effects'
+import GoogleTranslate from '@/components/GoogleTranslate'
 
 type Step = 'tables' | 'order-options' | 'dishes' | 'cart' | 'success' | 'alter-table' | 'repeat-order' | 'bill-preview' | 'previous-orders' | 'active-orders'
 
@@ -1572,7 +1573,7 @@ ${itemsList}
               <div className="flex items-center gap-2">
                 <div>
                   <h1 className="text-lg font-bold text-gray-900">Dhole Patil Khanawal</h1>
-                  <p className="text-sm text-gray-900">Waiter Dashboard</p>
+                  <p className="text-sm text-gray-900">Staff Portal</p>
                 </div>
               </div>
             </div>
@@ -1582,6 +1583,8 @@ ${itemsList}
                 <span className="w-2 h-2 bg-amber-500 rounded-full animate-pulse"></span>
                 <span className="text-gray-900 text-sm font-medium">Online</span>
               </div>
+              {/* Language Selector */}
+              <GoogleTranslate variant="white" />
               {/* User Profile */}
               <div className="relative profile-dropdown-container">
                 <button
@@ -3400,11 +3403,7 @@ ${itemsList}
             <button
               onClick={() => {
                 playClickSound()
-                if (currentStep === 'active-orders') {
-                  setCurrentStep('tables')
-                } else {
-                  handleBackToTables()
-                }
+                handleBackToTables()
               }}
               className="flex flex-col items-center text-gray-900 hover:text-gray-900 transition-colors py-2 px-3"
             >

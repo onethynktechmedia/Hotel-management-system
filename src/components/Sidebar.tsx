@@ -5,13 +5,13 @@ import { useRouter } from 'next/navigation'
 import {
   LayoutDashboard,
   ShoppingCart,
-  Utensils,
-  Table,
+  UtensilsCrossed,
+  Table as TableIcon,
   TrendingUp,
   Users,
   Bell,
   LogOut,
-  Menu,
+  Menu as MenuIcon,
   X,
   Calendar,
   BarChart3,
@@ -20,6 +20,7 @@ import {
   Receipt
 } from 'lucide-react'
 import { playClickSound } from '@/lib/sound-effects'
+import GoogleTranslate from '@/components/GoogleTranslate'
 
 interface SidebarProps {
   activeTab: string
@@ -34,8 +35,8 @@ export default function Sidebar({ activeTab, setActiveTab, user }: SidebarProps)
   const menuItems: { id: 'overview' | 'orders' | 'dishes' | 'tables' | 'waiters' | 'reports' | 'offline-billing' | 'online-orders', label: string, icon: any }[] = [
     { id: 'overview', label: 'Overview', icon: LayoutDashboard },
     { id: 'orders', label: 'Orders', icon: ShoppingCart },
-    { id: 'dishes', label: 'Menu Management', icon: Utensils },
-    { id: 'tables', label: 'Table Management', icon: Table },
+    { id: 'dishes', label: 'Menu Management', icon: UtensilsCrossed },
+    { id: 'tables', label: 'Table Management', icon: TableIcon },
     { id: 'waiters', label: 'Waiter Status', icon: Users },
     { id: 'reports', label: 'Reports', icon: BarChart3 },
     { id: 'offline-billing', label: 'Offline Billing', icon: Receipt },
@@ -70,7 +71,7 @@ export default function Sidebar({ activeTab, setActiveTab, user }: SidebarProps)
         className="lg:hidden fixed top-4 left-4 z-50 bg-[#5D3A1A] text-white p-3 rounded-xl shadow-lg hover:bg-[#8B4513] transition-all duration-300"
         style={{ left: isMobileMenuOpen ? '280px' : '16px' }}
       >
-        {isMobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+        {isMobileMenuOpen ? <X className="w-6 h-6" /> : <MenuIcon className="w-6 h-6" />}
       </button>
 
       {/* Overlay for mobile */}
@@ -103,14 +104,17 @@ export default function Sidebar({ activeTab, setActiveTab, user }: SidebarProps)
 
         {/* User Info */}
         <div className="p-4 mx-4 mt-4 bg-[#F5F5DC] rounded-xl">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-[#5D3A1A] rounded-full flex items-center justify-center text-white font-bold">
-              {user?.name?.charAt(0).toUpperCase() || 'A'}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-[#5D3A1A] rounded-full flex items-center justify-center text-white font-bold">
+                {user?.name?.charAt(0).toUpperCase() || 'A'}
+              </div>
+              <div>
+                <p className="font-semibold text-gray-900 text-sm">{user?.name || 'Admin'}</p>
+                <p className="text-xs text-gray-600 capitalize">{user?.role || 'Administrator'}</p>
+              </div>
             </div>
-            <div>
-              <p className="font-semibold text-gray-900 text-sm">{user?.name || 'Admin'}</p>
-              <p className="text-xs text-gray-600 capitalize">{user?.role || 'Administrator'}</p>
-            </div>
+            <GoogleTranslate variant="white" />
           </div>
         </div>
 

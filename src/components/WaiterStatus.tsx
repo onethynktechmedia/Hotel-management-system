@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
-import { Users, Bell, CheckCircle, XCircle, Clock, AlertCircle, Plus, Edit, Trash2, Key } from 'lucide-react'
+import { Users, Bell, CheckCircle, XCircle, Clock, AlertCircle, Plus, Edit, Trash2, KeyRound } from 'lucide-react'
 
 interface Waiter {
   id: string
@@ -354,7 +354,7 @@ export default function WaiterStatus() {
                         className="p-2 rounded-full bg-blue-100 text-blue-600 hover:bg-blue-200 transition-all duration-300"
                         title="Reset Password"
                       >
-                        <Key className="w-4 h-4" />
+                        <KeyRound className="w-4 h-4" />
                       </button>
                       <button
                         onClick={() => handleEditWaiter(waiter)}
