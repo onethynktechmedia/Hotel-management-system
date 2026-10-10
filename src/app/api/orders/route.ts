@@ -5,7 +5,58 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
     const status = searchParams.get('status')
+    const id = searchParams.get('id')
 
+    // If id is provided, fetch single order with items
+    if (id) {
+      const { data: order, error } = await supabase
+        .from('orders')
+        .select(`
+          *,
+          tables:table_id (*),
+          users:waiter_id (*)
+        `)
+        .eq('id', id)
+        .single()
+
+      if (error) throw error
+
+      // Fetch order items
+      const { data: items } = await supabase
+        .from('order_items')
+        .select('*')
+        .eq('order_id', order.id)
+
+      order.order_items = items || []
+
+      // Fetch dish details
+      const dishIds = [...new Set(order.order_items.map((item: any) => item.dish_id))]
+      if (dishIds.length > 0) {
+        const { data: dishes } = await supabase
+          .from('dishes')
+          .select('*')
+          .in('id', dishIds)
+
+        const dishesMap: Record<string, any> = {}
+        dishes?.forEach((dish: any) => {
+          dishesMap[dish.id] = {
+            ...dish,
+            price: parseFloat(dish.price)
+          }
+        })
+
+        order.order_items.forEach((item: any) => {
+          item.dishes = dishesMap[item.dish_id] || null
+          item.dish = dishesMap[item.dish_id] || null
+          item.price = parseFloat(item.price)
+        })
+      }
+
+      order.total_amount = parseFloat(order.total_amount)
+      return NextResponse.json(order)
+    }
+
+    // Otherwise fetch all orders
     let query = supabase
       .from('orders')
       .select(`
@@ -30,7 +81,7 @@ export async function GET(request: NextRequest) {
         .from('order_items')
         .select('*')
         .eq('order_id', order.id)
-      
+
       order.order_items = items || []
 
       // Fetch dish details
@@ -40,7 +91,7 @@ export async function GET(request: NextRequest) {
           .from('dishes')
           .select('*')
           .in('id', dishIds)
-        
+
         const dishesMap: Record<string, any> = {}
         dishes?.forEach((dish: any) => {
           dishesMap[dish.id] = {
@@ -55,7 +106,7 @@ export async function GET(request: NextRequest) {
           item.price = parseFloat(item.price)
         })
       }
-      
+
       order.total_amount = parseFloat(order.total_amount)
     }
 

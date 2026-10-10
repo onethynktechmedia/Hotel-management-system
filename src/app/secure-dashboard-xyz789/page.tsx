@@ -520,16 +520,23 @@ export default function AdminDashboard() {
   const handleGenerateBill = async (order: Order) => {
     try {
       console.log('Generating bill for order:', order.id)
+      console.log('Original order items:', order.order_items)
+
+      // Fetch the order with all its items from the API
+      const orderResponse = await fetch(`/api/orders/${order.id}`)
+      const fullOrder = await orderResponse.json()
+      console.log('Full order with items:', fullOrder)
+      console.log('Full order items count:', fullOrder.order_items?.length)
 
       // Set viewing bill state to show preview modal
-      setViewingBill(order)
-      setBillOrderItems(order.order_items || [])
+      setViewingBill(fullOrder)
+      setBillOrderItems(fullOrder.order_items || [])
       setIsEditingBill(false)
       // Reset discount and tax values
       setBillDiscountAmount('')
       setBillDiscountPercentage('')
       // Set payment type from order (map 'online' to 'upi' for consistency)
-      const orderPaymentType = (order as any).payment_type
+      const orderPaymentType = (fullOrder as any).payment_type
       setBillPaymentType(orderPaymentType === 'upi' ? 'upi' : orderPaymentType === 'card' ? 'card' : 'cash')
 
     } catch (error: any) {
@@ -664,27 +671,27 @@ export default function AdminDashboard() {
 
     try {
       console.log('Printing bill for order:', viewingBill.id)
-      console.log('Order items:', billOrderItems)
-      
+      console.log('Order items:', viewingBill.order_items)
+
       // Use order_items directly from the order object (already fetched by API)
-      const orderItems = billOrderItems
-      
+      const orderItems = viewingBill.order_items || []
+
       // Generate ESC/POS commands for direct printing
       let escposContent = ''
-      
+
       // Initialize printer
       escposContent += '\x1B\x40' // Initialize
-      
+
       // Center alignment for header
       escposContent += '\x1B\x61\x01'
-      
+
       // Hotel Name - Large and Bold
       escposContent += '\x1B\x21\x30' // Double width and height
       escposContent += 'DHOLE PATIL KHANAWAL\n'
       escposContent += '\x1B\x21\x00' // Normal
       escposContent += 'Restaurant & Bar\n'
       escposContent += '================================\n'
-      
+
       // Left align for bill info
       escposContent += '\x1B\x61\x00'
       escposContent += `Bill No: ${formatOrderId(viewingBill.id)}\n`
@@ -742,24 +749,36 @@ export default function AdminDashboard() {
       escposContent += '================================\n'
       escposContent += 'Developed by onethynk techmedia\n'
       escposContent += '================================\n\n'
-      
+
       // Cut paper
       escposContent += '\x1D\x56\x00' // Partial cut
-      
+
       console.log('ESC/POS content generated')
-      
+
       // Use WebUSB for direct printing (no Chrome dialog)
       const printer = new WebUSBPrinter()
       await printer.connect()
       await printer.print(escposContent)
       await printer.disconnect()
-      
+
       console.log('Bill printed successfully via WebUSB')
+
+      // Mark order as printed
+      await fetch(`/api/orders/${viewingBill.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ is_printed: true })
+      })
+
+      // Update local state
+      setViewingBill({ ...viewingBill, is_printed: true })
+      fetchData() // Refresh orders list
+      playSuccessSound()
       
     } catch (error: any) {
       console.error('USB printing failed:', error)
       console.log('Falling back to browser printing...')
-      
+
       // Fallback to browser printing using iframe
       try {
         const isMasterTable = viewingBill.tables?.is_master || false
@@ -903,7 +922,7 @@ ${groupOrderItems(billOrderItems).map((item: any) => {
                   }
                   body {
                     font-family: monospace;
-                    font-size: 14px;
+                    font-size: 16px;
                     line-height: 1.3;
                     font-weight: bold;
                   }
@@ -929,9 +948,13 @@ ${groupOrderItems(billOrderItems).map((item: any) => {
                 body: JSON.stringify({ is_printed: true })
               })
 
-              // Update local state
-              setSelectedOrderForBilling({ ...selectedOrderForBilling, is_printed: true })
-              setOrders(orders.map(o => o.id === selectedOrderForBilling.id ? { ...o, is_printed: true } : o))
+              // Refresh order data from API to get updated is_printed status
+              fetch(`/api/orders/${selectedOrderForBilling.id}`)
+                .then(res => res.json())
+                .then(updatedOrder => {
+                  setSelectedOrderForBilling(updatedOrder)
+                  setOrders(orders.map(o => o.id === selectedOrderForBilling.id ? updatedOrder : o))
+                })
             }, 1000)
           }, 250)
         } else {
@@ -1061,9 +1084,13 @@ ${groupOrderItems(billOrderItems).map((item: any) => {
         body: JSON.stringify({ is_printed: true })
       })
 
-      // Update local state
-      setSelectedOrderForBilling({ ...selectedOrderForBilling, is_printed: true })
-      setOrders(orders.map(o => o.id === selectedOrderForBilling.id ? { ...o, is_printed: true } : o))
+      // Refresh order data from API to get updated is_printed status
+      const updatedOrderResponse = await fetch(`/api/orders/${selectedOrderForBilling.id}`)
+      const updatedOrder = await updatedOrderResponse.json()
+
+      // Update local state with fresh data
+      setSelectedOrderForBilling(updatedOrder)
+      setOrders(orders.map(o => o.id === selectedOrderForBilling.id ? updatedOrder : o))
 
     } catch (error: any) {
       console.error('USB printing failed:', error)
@@ -1074,20 +1101,20 @@ ${groupOrderItems(billOrderItems).map((item: any) => {
         const isMasterTable = selectedOrderForBilling.tables?.is_master || false
         const plainText = `
 <div style="text-align: center; margin-bottom: 8px;">
-  <div style="font-size: 18px; font-weight: 900; color: #000;">DHOLE PATIL KHANAWAL</div>
-  <div style="font-size: 12px; font-weight: bold; color: #000;">VEG & NON-VEG</div>
+  <div style="font-size: 22px; font-weight: 900; color: #000;">DHOLE PATIL KHANAWAL</div>
+  <div style="font-size: 14px; font-weight: bold; color: #000;">VEG & NON-VEG</div>
 </div>
 <div style="border-top: 1px dashed #000; margin: 4px 0;"></div>
-<div style="text-align: center; font-size: 10px; margin-bottom: 4px; font-weight: bold; color: #000;">
+<div style="text-align: center; font-size: 12px; margin-bottom: 4px; font-weight: bold; color: #000;">
   <div>Sangamner</div>
   <div>CITY, STATE - 123456</div>
   <div>PHONE: +91 98765 43210</div>
   <div>GSTIN: 29ABCDE1234F1Z5</div>
 </div>
 <div style="border-top: 1px dashed #000; margin: 4px 0;"></div>
-<div style="text-align: center; font-size: 12px; font-weight: 900; margin: 4px 0; color: #000;">BILL / INVOICE</div>
+<div style="text-align: center; font-size: 14px; font-weight: 900; margin: 4px 0; color: #000;">BILL / INVOICE</div>
 <div style="border-top: 1px dashed #000; margin: 4px 0;"></div>
-<div style="margin: 4px 0; font-size: 10px; font-weight: bold; color: #000;">
+<div style="margin: 4px 0; font-size: 12px; font-weight: bold; color: #000;">
   <div style="display: flex; justify-content: space-between;">
     <span>BILL NO:</span>
     <span>${formatOrderId(selectedOrderForBilling.id)}</span>
@@ -1118,9 +1145,9 @@ ${groupOrderItems(billOrderItems).map((item: any) => {
   </div>
 </div>
 <div style="border-top: 1px dashed #000; margin: 4px 0;"></div>
-<div style="font-size: 10px; font-weight: 900; margin: 4px 0; color: #000;">ITEM DETAILS</div>
+<div style="font-size: 12px; font-weight: 900; margin: 4px 0; color: #000;">ITEM DETAILS</div>
 <div style="border-top: 1px dashed #000; margin: 4px 0;"></div>
-<div style="display: flex; font-size: 9px; font-weight: 900; margin-bottom: 2px; color: #000;">
+<div style="display: flex; font-size: 11px; font-weight: 900; margin-bottom: 2px; color: #000;">
   <span style="flex: 2;">ITEM</span>
   <span style="flex: 1; text-align: right;">QTY</span>
   <span style="flex: 1; text-align: right;">AMT</span>
@@ -1147,7 +1174,7 @@ ${(() => {
     const qty = item.quantity
     const total = item.total_price
     const itemName = name.length > 20 ? name.substring(0, 19) + '.' : name
-    return `<div style="display: flex; font-size: 9px; margin: 2px 0;">
+    return `<div style="display: flex; font-size: 11px; margin: 2px 0;">
   <span style="flex: 2;">${itemName}</span>
   <span style="flex: 1; text-align: right; font-weight: bold;">${qty}x</span>
   <span style="flex: 1; text-align: right;">${total.toFixed(2)}</span>
@@ -1155,7 +1182,7 @@ ${(() => {
   }).join('')
 })()}
 <div style="border-top: 1px dashed #000; margin: 4px 0;"></div>
-<div style="margin: 4px 0; font-size: 10px; font-weight: bold; color: #000;">
+<div style="margin: 4px 0; font-size: 12px; font-weight: bold; color: #000;">
   <div style="display: flex; justify-content: space-between;">
     <span>SUBTOTAL:</span>
     <span>₹${selectedOrderForBilling.total_amount.toFixed(2)}</span>
@@ -1175,16 +1202,16 @@ ${(() => {
   </div>
 </div>
 <div style="border-top: 1px dashed #000; margin: 4px 0;"></div>
-<div style="text-align: center; font-size: 12px; font-weight: 900; margin: 4px 0; color: #000;">
+<div style="text-align: center; font-size: 16px; font-weight: 900; margin: 4px 0; color: #000;">
   GRAND TOTAL: ₹${calculateFinalAmount(selectedOrderForBilling.total_amount).toFixed(2)}
 </div>
 <div style="border-top: 1px dashed #000; margin: 4px 0;"></div>
-<div style="text-align: center; font-size: 10px; margin: 4px 0; color: #000;">
+<div style="text-align: center; font-size: 12px; margin: 4px 0; color: #000;">
   <div>THANK YOU FOR DINING!</div>
   <div>VISIT US AGAIN</div>
 </div>
 <div style="border-top: 1px dashed #000; margin: 4px 0;"></div>
-<div style="text-align: center; font-size: 8px; font-weight: bold; margin: 2px 0; color: #000;">
+<div style="text-align: center; font-size: 10px; font-weight: bold; margin: 2px 0; color: #000;">
   DEVELOPED BY ONETHYNK TECHMEDIA
 </div>
 `
@@ -1228,7 +1255,7 @@ ${(() => {
                   }
                   body {
                     font-family: monospace;
-                    font-size: 14px;
+                    font-size: 16px;
                     line-height: 1.3;
                     font-weight: bold;
                   }
@@ -1254,9 +1281,13 @@ ${(() => {
                 body: JSON.stringify({ is_printed: true })
               })
 
-              // Update local state
-              setSelectedOrderForBilling({ ...selectedOrderForBilling, is_printed: true })
-              setOrders(orders.map(o => o.id === selectedOrderForBilling.id ? { ...o, is_printed: true } : o))
+              // Refresh order data from API to get updated is_printed status
+              fetch(`/api/orders/${selectedOrderForBilling.id}`)
+                .then(res => res.json())
+                .then(updatedOrder => {
+                  setSelectedOrderForBilling(updatedOrder)
+                  setOrders(orders.map(o => o.id === selectedOrderForBilling.id ? updatedOrder : o))
+                })
             }, 1000)
           }, 250)
         } else {
@@ -4013,13 +4044,13 @@ ${(() => {
                   <span className="w-20 text-right">Amount</span>
                   {isEditingBill && <span className="w-12 text-center">Action</span>}
                 </div>
-                {billOrderItems.length === 0 ? (
+                {(!viewingBill.order_items || viewingBill.order_items.length === 0) ? (
                   <div className="text-center py-8 bg-gray-50 rounded-xl">
                     <p className="text-gray-500">No items in this order</p>
                   </div>
                 ) : (
                   <div className="space-y-2">
-                    {groupOrderItems(billOrderItems).map((item, index) => (
+                    {groupOrderItems(viewingBill.order_items).map((item, index) => (
                       <div key={`${item.dish_id}-${index}`} className="flex justify-between items-center py-2 border-b border-gray-100">
                         <div className="flex-1 flex items-center gap-2">
                           {getFoodTypeIcon(item.dishes?.food_type)}
@@ -4219,10 +4250,14 @@ ${(() => {
                     </button>
                     <button
                       onClick={handlePrintPreviewBill}
-                      className="w-full flex items-center justify-center gap-2 bg-[#5D3A1A] text-white px-6 py-3 rounded-xl font-semibold hover:bg-[#8B4513] transition-all duration-300"
+                      className={`w-full flex items-center justify-center gap-2 px-6 py-3 rounded-xl font-semibold transition-all duration-300 ${
+                        viewingBill.is_printed
+                          ? 'bg-white border-2 border-[#8B4513] text-[#8B4513] hover:bg-[#F5F0E8]'
+                          : 'bg-[#5D3A1A] text-white hover:bg-[#8B4513]'
+                      }`}
                     >
                       <Printer className="w-5 h-5" />
-                      Print Bill
+                      {viewingBill.is_printed ? 'Printed' : 'Print Bill'}
                     </button>
                   </>
                 ) : (
@@ -4689,29 +4724,29 @@ ${(() => {
 
               {/* Print-only header with hotel details */}
               <div className="print-only text-center mb-2 pb-2 border-b border-gray-300">
-                <h1 className="text-sm font-bold text-black mb-1 uppercase tracking-wide">DHOLE PATIL KHANAWAL</h1>
-                <p className="text-xs font-semibold text-black mb-1">Restaurant & Bar</p>
-                <p className="text-xs text-black mb-1">123, Main Street, City, State - 123456</p>
-                <p className="text-xs text-black mb-1">Phone: +91 98765 43210</p>
-                <p className="text-xs text-black mb-1">GSTIN: 29ABCDE1234F1Z5</p>
-                <p className="text-xs font-bold text-black mt-2 border-t border-dashed border-gray-300 pt-2 uppercase">BILL / INVOICE</p>
+                <h1 className="text-lg font-bold text-black mb-1 uppercase tracking-wide">DHOLE PATIL KHANAWAL</h1>
+                <p className="text-sm font-semibold text-black mb-1">Restaurant & Bar</p>
+                <p className="text-sm text-black mb-1">123, Main Street, City, State - 123456</p>
+                <p className="text-sm text-black mb-1">Phone: +91 98765 43210</p>
+                <p className="text-sm text-black mb-1">GSTIN: 29ABCDE1234F1Z5</p>
+                <p className="text-sm font-bold text-black mt-2 border-t border-dashed border-gray-300 pt-2 uppercase">BILL / INVOICE</p>
               </div>
 
               {/* Print-only order details */}
               <div className="print-only mb-2 pb-2 border-b border-gray-300">
-                <div className="flex justify-between text-xs text-black">
+                <div className="flex justify-between text-sm text-black font-bold">
                   <span>Bill No: {formatOrderId(selectedOrderForBilling.id)}</span>
                   <span>Date: {new Date(selectedOrderForBilling.created_at).toLocaleDateString()}</span>
                 </div>
-                <div className="flex justify-between text-xs text-black mt-1">
+                <div className="flex justify-between text-sm text-black mt-1 font-bold">
                   <span>Time: {new Date(selectedOrderForBilling.created_at).toLocaleTimeString()}</span>
                   <span>Table: {selectedOrderForBilling.tables?.table_number}</span>
                 </div>
-                <div className="flex justify-between text-xs text-black mt-1">
+                <div className="flex justify-between text-sm text-black mt-1 font-bold">
                   <span>Waiter: {selectedOrderForBilling.users?.name}</span>
                   <span>Customer: {selectedOrderForBilling.customer_name || 'Guest'}</span>
                 </div>
-                <div className="flex justify-between text-xs text-black mt-1">
+                <div className="flex justify-between text-sm text-black mt-1 font-bold">
                   <span>Payment: {billPaymentType === 'cash' ? 'CASH' : 'ONLINE'}</span>
                 </div>
               </div>
@@ -4785,9 +4820,9 @@ ${(() => {
                 <table className="w-full">
                   <thead>
                     <tr>
-                      <th className="text-left text-xs font-bold text-black uppercase">Item</th>
-                      <th className="text-center text-xs font-bold text-black uppercase">Qty</th>
-                      <th className="text-right text-xs font-bold text-black uppercase">Total</th>
+                      <th className="text-left text-sm font-bold text-black uppercase">Item</th>
+                      <th className="text-center text-sm font-bold text-black uppercase">Qty</th>
+                      <th className="text-right text-sm font-bold text-black uppercase">Total</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -4809,9 +4844,9 @@ ${(() => {
                       }, [])
                       return groupedItems.map((item: any, index: number) => (
                         <tr key={`${item.dish_id}-${item.dish_type}-${index}`}>
-                          <td className="text-xs text-black">{item.dishes?.name}</td>
-                          <td className="text-xs text-center text-black font-bold">{item.quantity}x</td>
-                          <td className="text-xs text-right text-black">{item.total_price.toFixed(2)}</td>
+                          <td className="text-sm text-black font-bold">{item.dishes?.name}</td>
+                          <td className="text-sm text-center text-black font-bold">{item.quantity}x</td>
+                          <td className="text-sm text-right text-black font-bold">{item.total_price.toFixed(2)}</td>
                         </tr>
                       ))
                     })()}
@@ -4919,17 +4954,17 @@ ${(() => {
 
               {/* Print-only totals */}
               <div className="print-only mb-2 pb-2 border-t border-dashed border-black">
-                <div className="flex justify-between text-xs text-black mt-2">
+                <div className="flex justify-between text-sm text-black mt-2 font-bold">
                   <span>Subtotal:</span>
                   <span>₹{selectedOrderForBilling.total_amount.toFixed(2)}</span>
                 </div>
                 {calculateDiscountValue(selectedOrderForBilling.total_amount) > 0 && (
-                  <div className="flex justify-between text-xs text-black mt-1">
+                  <div className="flex justify-between text-sm text-black mt-1 font-bold">
                     <span>Discount ({discountType === 'amount' ? '₹' : '%'}{discountType === 'amount' ? discountAmount : discountPercentage}):</span>
                     <span>-₹{calculateDiscountValue(selectedOrderForBilling.total_amount).toFixed(2)}</span>
                   </div>
                 )}
-                <div className="flex justify-between text-xs font-bold text-black mt-2 pt-2 border-t border-dashed border-black">
+                <div className="flex justify-between text-lg font-bold text-black mt-2 pt-2 border-t border-dashed border-black">
                   <span>GRAND TOTAL:</span>
                   <span>₹{calculateFinalAmount(selectedOrderForBilling.total_amount).toFixed(2)}</span>
                 </div>
@@ -4938,10 +4973,10 @@ ${(() => {
               {/* Thank You Message (print only) */}
               <div className="text-center print-only mt-4">
                 <div className="border-t-2 border-dashed border-black mt-6 pt-4">
-                  <p className="text-sm font-bold text-black uppercase">Thank You for Dining With Us!</p>
-                  <p className="text-xs text-black mt-1 uppercase">Visit Us Again</p>
+                  <p className="text-base font-bold text-black uppercase">Thank You for Dining With Us!</p>
+                  <p className="text-sm text-black mt-1 uppercase">Visit Us Again</p>
                   <div className="border-t border-dashed border-black mt-3 pt-3">
-                    <p className="text-xs text-black uppercase">Developed by onethynk techmedia</p>
+                    <p className="text-sm text-black uppercase">Developed by onethynk techmedia</p>
                   </div>
                 </div>
                 <div className="mt-6">
