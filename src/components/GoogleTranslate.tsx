@@ -38,10 +38,10 @@ export default function GoogleTranslate({ variant = 'brown' }: GoogleTranslatePr
     // Initialize function
     window.googleTranslateElementInit = () => {
       if (typeof window !== 'undefined' && window.google && window.google.translate) {
-        new google.translate.TranslateElement({
+        new window.google.translate.TranslateElement({
           pageLanguage: 'en',
           includedLanguages: 'en,hi,mr',
-          layout: google.translate.TranslateElement.InlineLayout.SIMPLE,
+          layout: window.google.translate.TranslateElement.InlineLayout.SIMPLE,
           autoDisplay: false
         }, 'google_translate_element')
         setIsScriptLoaded(true)
@@ -49,7 +49,7 @@ export default function GoogleTranslate({ variant = 'brown' }: GoogleTranslatePr
     }
 
     // Check if already loaded
-    if (window.google && window.google.translate) {
+    if (typeof window !== 'undefined' && window.google && window.google.translate) {
       window.googleTranslateElementInit()
     }
 
