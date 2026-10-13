@@ -270,7 +270,7 @@ export default function ChefStation() {
 
       // Create updated items array directly
       const updatedItems = items.map(item =>
-        updatedItemIds.includes(item.id) ? { ...item, status: 'served' } : item
+        updatedItemIds.includes(item.id) ? { ...item, status: 'served' as const } : item
       )
 
       // Update local state
