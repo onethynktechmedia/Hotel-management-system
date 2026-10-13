@@ -3,9 +3,10 @@ import supabase from '@/lib/db'
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
+    const params = await context.params
     const { id } = params
     console.log('Fetching order with ID:', id)
 
@@ -68,6 +69,51 @@ export async function GET(
     console.error('Error fetching order:', error)
     return NextResponse.json(
       { error: 'Failed to fetch order', details: error.message },
+      { status: 500 }
+    )
+  }
+}
+
+export async function PATCH(
+  request: NextRequest,
+  context: { params: Promise<{ id: string }> }
+) {
+  try {
+    const params = await context.params
+    const { id } = params
+    const body = await request.json()
+    const { status, total_amount, is_printed } = body
+
+    console.log('Updating order with ID:', id, 'with data:', body)
+
+    const updateData: any = {}
+    if (status !== undefined) updateData.status = status
+    if (total_amount !== undefined) updateData.total_amount = total_amount
+    if (is_printed !== undefined) updateData.is_printed = is_printed
+
+    const { data: order, error } = await supabase
+      .from('orders')
+      .update(updateData)
+      .eq('id', id)
+      .select()
+      .single()
+
+    if (error) {
+      console.error('Supabase error updating order:', error)
+      throw error
+    }
+
+    console.log('Order updated successfully:', order.id, 'new status:', order.status)
+
+    if (order.total_amount) {
+      order.total_amount = parseFloat(order.total_amount)
+    }
+
+    return NextResponse.json(order)
+  } catch (error: any) {
+    console.error('Error updating order:', error)
+    return NextResponse.json(
+      { error: 'Failed to update order', details: error.message },
       { status: 500 }
     )
   }

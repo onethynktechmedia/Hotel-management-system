@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { User, Order, Dish, Table, Payment, Notification } from '@/types'
-import { Plus, Edit, Trash2, DollarSign, Users, Utensils, User as UserIcon, Search, Filter, HelpCircle, Bell, LogOut, Download, Printer, Layers, Minus, X, UtensilsCrossed } from 'lucide-react'
+import { Plus, Edit, Trash2, DollarSign, Users, Utensils, User as UserIcon, Search, Filter, HelpCircle, Bell, LogOut, Download, Printer, Layers, Minus, X, UtensilsCrossed, RefreshCw, ShoppingCart, ArrowLeft, CheckCircle } from 'lucide-react'
 import Sidebar from '@/components/Sidebar'
 import WaiterStatus from '@/components/WaiterStatus'
 import Reports from '@/components/Reports'
@@ -55,6 +55,9 @@ export default function AdminDashboard() {
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [showNotifications, setShowNotifications] = useState(false)
   const [activeTab, setActiveTab] = useState<'overview' | 'orders' | 'dishes' | 'tables' | 'waiters' | 'reports' | 'offline-billing' | 'online-orders'>('overview')
+  const [overviewSubTab, setOverviewSubTab] = useState<'all' | 'veg' | 'nonveg' | 'active' | 'occupied' | 'available'>('all')
+  const [selectedTableForOverview, setSelectedTableForOverview] = useState<Table | null>(null)
+  const [showTableOrderDetails, setShowTableOrderDetails] = useState(false)
   const [loading, setLoading] = useState(true)
   const [showDishModal, setShowDishModal] = useState(false)
   const [editingDish, setEditingDish] = useState<Dish | null>(null)
@@ -131,6 +134,19 @@ export default function AdminDashboard() {
   const [showCartModal, setShowCartModal] = useState(false)
   const [addedDishIds, setAddedDishIds] = useState<Set<string>>(new Set())
   const [billPaymentType, setBillPaymentType] = useState<'cash' | 'upi' | 'card'>('cash')
+  
+  // Admin Order Taking State
+  const [showAdminOrderModal, setShowAdminOrderModal] = useState(false)
+  const [adminOrderCart, setAdminOrderCart] = useState<any[]>([])
+  const [adminOrderTable, setAdminOrderTable] = useState<Table | null>(null)
+  const [adminOrderCustomerName, setAdminOrderCustomerName] = useState('')
+  const [adminOrderCustomerMobile, setAdminOrderCustomerMobile] = useState('')
+  const [adminOrderCategory, setAdminOrderCategory] = useState<string>('all')
+  const [adminOrderFoodType, setAdminOrderFoodType] = useState<string>('all')
+  const [adminOrderSubmitting, setAdminOrderSubmitting] = useState(false)
+  const [adminOrderStep, setAdminOrderStep] = useState<'dishes' | 'cart'>('dishes')
+  const [adminSelectedDishTypes, setAdminSelectedDishTypes] = useState<{[key: string]: string}>({})
+  const dishTypes = ['Normal', 'Medium', 'Spicy', 'Extra Spicy']
 
   useEffect(() => {
     // Check for session cookie instead of localStorage
@@ -763,15 +779,24 @@ export default function AdminDashboard() {
 
       console.log('Bill printed successfully via WebUSB')
 
-      // Mark order as printed
+      // Mark order as printed and paid
       await fetch(`/api/orders/${viewingBill.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ is_printed: true })
+        body: JSON.stringify({ is_printed: true, status: 'paid' })
       })
 
+      // Release the table
+      if (viewingBill.table_id) {
+        await fetch('/api/tables', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: viewingBill.table_id, is_occupied: false })
+        })
+      }
+
       // Update local state
-      setViewingBill({ ...viewingBill, is_printed: true })
+      setViewingBill({ ...viewingBill, is_printed: true, status: 'paid' })
       fetchData() // Refresh orders list
       playSuccessSound()
       
@@ -941,20 +966,31 @@ ${groupOrderItems(billOrderItems).map((item: any) => {
             setTimeout(() => {
               document.body.removeChild(printFrame)
 
-              // Mark order as printed
-              fetch(`/api/orders/${selectedOrderForBilling.id}`, {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ is_printed: true })
-              })
-
-              // Refresh order data from API to get updated is_printed status
-              fetch(`/api/orders/${selectedOrderForBilling.id}`)
-                .then(res => res.json())
-                .then(updatedOrder => {
-                  setSelectedOrderForBilling(updatedOrder)
-                  setOrders(orders.map(o => o.id === selectedOrderForBilling.id ? updatedOrder : o))
+              // Mark order as printed and paid
+              if (viewingBill) {
+                fetch(`/api/orders/${viewingBill.id}`, {
+                  method: 'PATCH',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ is_printed: true, status: 'paid' })
                 })
+
+                // Release the table
+                if (viewingBill.table_id) {
+                  fetch('/api/tables', {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id: viewingBill.table_id, is_occupied: false })
+                  })
+                }
+
+                // Refresh order data from API to get updated is_printed status
+                fetch(`/api/orders/${viewingBill.id}`)
+                  .then(res => res.json())
+                  .then(updatedOrder => {
+                    setViewingBill(updatedOrder)
+                    setOrders(orders.map(o => o.id === viewingBill.id ? updatedOrder : o))
+                  })
+              }
             }, 1000)
           }, 250)
         } else {
@@ -1077,12 +1113,21 @@ ${groupOrderItems(billOrderItems).map((item: any) => {
 
       console.log('Bill printed successfully via WebUSB')
 
-      // Mark order as printed
+      // Mark order as printed and paid
       await fetch(`/api/orders/${selectedOrderForBilling.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ is_printed: true })
+        body: JSON.stringify({ is_printed: true, status: 'paid' })
       })
+
+      // Release the table
+      if (selectedOrderForBilling.table_id) {
+        await fetch('/api/tables', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: selectedOrderForBilling.table_id, is_occupied: false })
+        })
+      }
 
       // Refresh order data from API to get updated is_printed status
       const updatedOrderResponse = await fetch(`/api/orders/${selectedOrderForBilling.id}`)
@@ -1274,20 +1319,31 @@ ${(() => {
             setTimeout(() => {
               document.body.removeChild(printFrame)
 
-              // Mark order as printed
-              fetch(`/api/orders/${selectedOrderForBilling.id}`, {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ is_printed: true })
-              })
-
-              // Refresh order data from API to get updated is_printed status
-              fetch(`/api/orders/${selectedOrderForBilling.id}`)
-                .then(res => res.json())
-                .then(updatedOrder => {
-                  setSelectedOrderForBilling(updatedOrder)
-                  setOrders(orders.map(o => o.id === selectedOrderForBilling.id ? updatedOrder : o))
+              // Mark order as printed and paid
+              if (selectedOrderForBilling) {
+                fetch(`/api/orders/${selectedOrderForBilling.id}`, {
+                  method: 'PATCH',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ is_printed: true, status: 'paid' })
                 })
+
+                // Release the table
+                if (selectedOrderForBilling.table_id) {
+                  fetch('/api/tables', {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id: selectedOrderForBilling.table_id, is_occupied: false })
+                  })
+                }
+
+                // Refresh order data from API to get updated is_printed status
+                fetch(`/api/orders/${selectedOrderForBilling.id}`)
+                  .then(res => res.json())
+                  .then(updatedOrder => {
+                    setSelectedOrderForBilling(updatedOrder)
+                    setOrders(orders.map(o => o.id === selectedOrderForBilling.id ? updatedOrder : o))
+                  })
+              }
             }, 1000)
           }, 250)
         } else {
@@ -1659,6 +1715,124 @@ For technical support, contact: support@everycom.com
       console.error('Error releasing table:', error)
       alert('Failed to release table')
     }
+  }
+
+  const handleAdminSubmitOrder = async () => {
+    if (adminOrderCart.length === 0) {
+      alert('Please add items to the order')
+      return
+    }
+
+    setAdminOrderSubmitting(true)
+    try {
+      // Get user_id from cookie
+      const userIdMatch = document.cookie.match(/hotel_user_id=([^;]+)/)
+      const userId = userIdMatch ? decodeURIComponent(userIdMatch[1]) : null
+
+      // Create the order
+      const orderResponse = await fetch('/api/orders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          table_id: adminOrderTable?.id,
+          waiter_id: userId,
+          customer_name: adminOrderCustomerName || null,
+          total_amount: adminOrderCart.reduce((sum, item) => sum + (item.price * item.quantity), 0),
+          status: 'pending'
+        })
+      })
+
+      if (!orderResponse.ok) throw new Error('Failed to create order')
+
+      const order = await orderResponse.json()
+
+      // Create order items
+      for (const item of adminOrderCart) {
+        await fetch('/api/order-items', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            order_id: order.id,
+            dish_id: item.dish_id,
+            quantity: item.quantity,
+            price: item.price,
+            status: 'pending',
+            dish_type: item.dish_type || 'Normal'
+          })
+        })
+      }
+
+      // Mark table as occupied
+      await fetch('/api/tables', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: adminOrderTable?.id, is_occupied: true })
+      })
+
+      // Create notifications for kitchen staff
+      const usersResponse = await fetch('/api/users')
+      const allUsers = await usersResponse.json()
+      const kitchenUsers = allUsers.filter((u: any) => u.role === 'kitchen')
+
+      for (const kitchenUser of kitchenUsers) {
+        await fetch('/api/notifications', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            user_id: kitchenUser.id,
+            message: `New order for Table ${adminOrderTable?.table_number}`,
+            type: 'new_order'
+          })
+        })
+      }
+
+      playSuccessSound()
+      setShowAdminOrderModal(false)
+      setAdminOrderTable(null)
+      setAdminOrderCart([])
+      setAdminOrderCustomerName('')
+      setAdminOrderCustomerMobile('')
+      setAdminOrderStep('dishes')
+      setAdminSelectedDishTypes({})
+      fetchData()
+      alert('Order submitted successfully!')
+    } catch (error) {
+      console.error('Error submitting order:', error)
+      playErrorSound()
+      alert('Failed to submit order. Please try again.')
+    } finally {
+      setAdminOrderSubmitting(false)
+    }
+  }
+
+  // Admin order cart helpers
+  const adminAddToCart = (dish: Dish, dishType: string = 'Normal') => {
+    setAdminOrderCart([...adminOrderCart, {
+      dish_id: dish.id,
+      name: dish.name,
+      price: dish.price,
+      quantity: 1,
+      food_type: dish.food_type,
+      dish_type: dishType
+    }])
+  }
+
+  const adminGetCartTotal = () => {
+    return adminOrderCart.reduce((sum, item) => sum + (item.price * item.quantity), 0)
+  }
+
+  const adminUpdateCartItemQuantity = (index: number, newQuantity: number) => {
+    if (newQuantity <= 0) {
+      setAdminOrderCart(adminOrderCart.filter((_, i) => i !== index))
+    } else {
+      setAdminOrderCart(adminOrderCart.map((item, i) => 
+        i === index ? { ...item, quantity: newQuantity } : item
+      ))
+    }
+  }
+
+  const adminRemoveFromCart = (index: number) => {
+    setAdminOrderCart(adminOrderCart.filter((_, i) => i !== index))
   }
 
   const handlePrebookTable = (table: Table) => {
@@ -2219,9 +2393,11 @@ ${(() => {
         activeTab={activeTab}
         setActiveTab={setActiveTab}
         user={user}
+        setOverviewSubTab={overviewSubTab}
+        setOverviewSubTab={setOverviewSubTab}
       />
 
-      <div className="flex-1 lg:ml-72">
+      <div className="flex-1 lg:ml-72 bg-[#F3F3F3]">
         {/* Top Header Bar */}
         <header className="fixed top-0 right-0 left-0 lg:left-72 bg-white/95 backdrop-blur-sm shadow-md z-30 px-4 lg:px-8 py-4">
           <div className="flex items-center justify-between">
@@ -2350,190 +2526,160 @@ ${(() => {
           </div>
         </header>
 
-        <main className="p-4 lg:p-8 pt-24 lg:pt-20">
+        <main className="p-4 lg:p-8 pt-24 lg:pt-20 pb-28">
 
         {activeTab === 'overview' && (
           <>
-            <div className="mb-6 animate-fade-in">
-              <h1 className="text-3xl font-bold text-[#5D3A1A] pt-5">
-                Welcome, {user?.name || 'Admin'}!
-              </h1>
-              <p className="text-gray-600 mt-2 text-sm">
-                {currentDateTime.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })} • 
-                {currentDateTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-              </p>
+            <div className="mb-6 animate-fade-in flex justify-between items-center">
+              <div>
+                <h1 className="text-3xl font-bold text-[#5D3A1A] pt-5">
+                  Welcome, {user?.name || 'Admin'}!
+                </h1>
+                <p className="text-gray-600 mt-2 text-sm">
+                  {currentDateTime.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })} •
+                  {currentDateTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                </p>
+              </div>
+              <button
+                onClick={() => { playClickSound(); fetchData() }}
+                className="flex items-center gap-2 bg-[#5D3A1A] text-white px-4 py-2 rounded-xl font-semibold hover:shadow-lg transition-all duration-300 transform hover:scale-105"
+              >
+                <RefreshCw className="w-4 h-4" />
+                Refresh
+              </button>
             </div>
-            <h2 className="text-2xl font-bold text-gray-900 mb-6">Dashboard Overview</h2>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-              <div className="bg-white border border-gray-200 rounded-2xl p-4 sm:p-6 text-center shadow-md hover:shadow-lg transition-all duration-300">
-                <div className="flex items-center justify-center mb-3">
-                  <Users className="w-6 h-6 sm:w-7 sm:h-7 text-[#5D3A1A] mr-2" />
-                  <span className="text-2xl sm:text-3xl font-bold text-gray-800">{orders.length}</span>
-                </div>
-                <p className="text-xs sm:text-sm font-bold text-gray-600">Total Orders</p>
-              </div>
-              <div className="bg-white border border-gray-200 rounded-2xl p-4 sm:p-6 text-center shadow-md hover:shadow-lg transition-all duration-300">
-                <div className="flex items-center justify-center mb-3">
-                  <Utensils className="w-6 h-6 sm:w-7 sm:h-7 text-orange-500 mr-2" />
-                  <span className="text-2xl sm:text-3xl font-bold text-gray-800">{orders.filter(o => o.status === 'pending' || o.status === 'preparing').length}</span>
-                </div>
-                <p className="text-xs sm:text-sm font-bold text-gray-600">Active Orders</p>
-              </div>
-              <div className="bg-white border border-gray-200 rounded-2xl p-4 sm:p-6 text-center shadow-md hover:shadow-lg transition-all duration-300">
-                <div className="flex items-center justify-center mb-3">
-                  <span className="text-[#5D3A1A] font-bold text-xl sm:text-2xl mr-2">₹</span>
-                  <span className="text-2xl sm:text-3xl font-bold text-gray-800">{orders.reduce((sum, o) => sum + (o.total_amount || 0), 0).toFixed(0)}</span>
-                </div>
-                <p className="text-xs sm:text-sm font-bold text-gray-600">Total Revenue</p>
-              </div>
-              <div className="bg-white border border-gray-200 rounded-2xl p-4 sm:p-6 text-center shadow-md hover:shadow-lg transition-all duration-300">
-                <div className="flex items-center justify-center mb-3">
-                  <Users className="w-6 h-6 sm:w-7 sm:h-7 text-blue-600 mr-2" />
-                  <span className="text-2xl sm:text-3xl font-bold text-gray-800">{tables.filter(t => t.is_occupied).length}</span>
-                </div>
-                <p className="text-xs sm:text-sm font-bold text-gray-600">Occupied Tables</p>
-              </div>
-            </div>
-            {/* Revenue Insights - Recent Orders */}
+            {/* Table Layout */}
             <div className="bg-white rounded-2xl shadow-xl overflow-hidden animate-fade-in">
               <div className="p-6 border-b border-gray-200 bg-white">
-                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-4">
-                  <h3 className="text-xl font-bold text-gray-900">Recent Orders</h3>
-                  <div className="flex flex-wrap gap-2">
-                    <button
-                      onClick={() => { playClickSound(); fetchData() }}
-                      className="flex items-center gap-2 bg-[#5D3A1A] text-white px-4 py-2 rounded-xl font-semibold hover:shadow-lg transition-all duration-300 transform hover:scale-105"
-                    >
-                      <Search className="w-4 h-4" />
-                      Refresh
-                    </button>
-                  </div>
-                </div>
-                <div className="flex flex-col md:flex-row gap-3">
-                  <div className="relative flex-1">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-                    <input
-                      type="text"
-                      placeholder="Search by order ID, table, customer, waiter..."
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      className="w-full pl-10 pr-4 py-2 border-2 border-gray-200 rounded-xl focus:border-[#8B4513] focus:outline-none transition-colors text-sm"
-                    />
-                  </div>
-                  <select
-                    value={statusFilter}
-                    onChange={(e) => setStatusFilter(e.target.value)}
-                    className="px-4 py-2 border-2 border-gray-200 rounded-xl focus:border-[#8B4513] focus:outline-none transition-colors text-sm bg-white"
-                  >
-                    <option value="all">All Status</option>
-                    <option value="pending">Pending</option>
-                    <option value="preparing">Preparing</option>
-                    <option value="ready">Ready</option>
-                    <option value="served">Served</option>
-                    <option value="paid">Paid</option>
-                  </select>
+                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                  <h3 className="text-xl font-bold text-gray-900">Restaurant Tables</h3>
                 </div>
               </div>
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Table No</th>
-                      <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Order ID</th>
-                      <th className="hidden md:table-cell px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Date</th>
-                      <th className="hidden md:table-cell px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Customer</th>
-                      <th className="hidden md:table-cell px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Waiter</th>
-                      <th className="hidden md:table-cell px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Status</th>
-                      <th className="hidden md:table-cell px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Items</th>
-                      <th className="hidden md:table-cell px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Total</th>
-                      <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-200">
-                    {orders
-                      .filter(order => {
-                        const matchesSearch = 
-                          searchQuery === '' || 
-                          order.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                          order.tables?.table_number.toString().includes(searchQuery) ||
-                          order.customer_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                          order.users?.name.toLowerCase().includes(searchQuery.toLowerCase())
-                        
-                        const matchesStatus = statusFilter === 'all' || order.status === statusFilter
-                        
-                        return matchesSearch && matchesStatus
-                      })
-                      .slice(0, 10)
-                      .map((order) => (
-                        <React.Fragment key={order.id}>
-                          <tr 
-                            className="hover:bg-amber-50 transition-colors cursor-pointer md:cursor-default"
-                            onClick={() => {
-                              if (window.innerWidth < 768) {
-                                setExpandedOrderId(expandedOrderId === order.id ? null : order.id)
-                              }
-                            }}
-                          >
-                          <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">
-                            {order.tables?.is_master ? `Table ${order.tables?.table_number || '-'} (M)` : `Table ${order.tables?.table_number || '-'}`}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">{formatOrderId(order.id)}</td>
-                          <td className="hidden md:table-cell px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                            {new Date(order.created_at).toLocaleDateString()}
-                          </td>
-                          <td className="hidden md:table-cell px-6 py-4 whitespace-nowrap text-sm text-gray-900">{order.customer_name || 'Guest'}</td>
-                          <td className="hidden md:table-cell px-6 py-4 whitespace-nowrap text-sm text-gray-900">{order.users?.name || 'Unknown'}</td>
-                          <td className="hidden md:table-cell px-6 py-4 whitespace-nowrap">
-                            <span className={`px-3 py-1 rounded-full text-xs font-bold ${
-                              order.status === 'paid' ? 'bg-[#F5F5DC] text-[#8B4513]' :
-                              order.status === 'ready' ? 'bg-[#F5F5DC] text-[#8B4513]' :
-                              order.status === 'preparing' ? 'bg-[#F5F5DC] text-[#8B4513]' :
-                              order.status === 'pending' ? 'bg-[#F5F5DC] text-[#8B4513]' :
-                              'bg-gray-100 text-gray-800'
-                            }`}>
-                              {order.status}
-                            </span>
-                          </td>
-                          <td className="hidden md:table-cell px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                            {Array.isArray(order.order_items) ? order.order_items.length : 0} items
-                          </td>
-                          <td className="hidden md:table-cell px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-900">₹{order.total_amount.toFixed(2)}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm">
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                playClickSound()
-                                handleGenerateBill(order)
-                              }}
-                              className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all duration-300 ${
-                                order.is_printed
-                                  ? 'bg-white border-2 border-[#8B4513] text-[#8B4513] hover:bg-[#F5F0E8]'
-                                  : 'bg-[#5D3A1A] text-white hover:bg-[#8B4513]'
-                              }`}
-                            >
-                              {order.is_printed ? 'Printed' : 'Print Bill'}
-                            </button>
-                          </td>
-                        </tr>
-                        {/* Mobile expanded details */}
-                        {expandedOrderId === order.id && (
-                          <tr key={`expanded-${order.id}`} className="md:hidden bg-amber-50">
-                            <td colSpan={3} className="px-6 py-4">
-                              <div className="space-y-2 text-sm">
-                                <div className="flex justify-between">
-                                  <span className="text-gray-600">Date:</span>
-                                  <span className="font-semibold text-gray-900">{new Date(order.created_at).toLocaleDateString()}</span>
+              
+              <div className="p-6">
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                  {tables.map((table) => {
+                    const tableOrders = orders.filter(o => o.table_id === table.id && 
+                      ['pending', 'preparing', 'ready'].includes(o.status))
+                    
+                    const hasVeg = tableOrders.some(o => 
+                      o.order_items?.some((item: any) => item.dishes?.food_type === 'veg')
+                    )
+                    const hasNonVeg = tableOrders.some(o => 
+                      o.order_items?.some((item: any) => item.dishes?.food_type === 'nonveg')
+                    )
+                    
+                    // Filter based on sub-tab
+                    if (overviewSubTab === 'veg' && !hasVeg) return null
+                    if (overviewSubTab === 'nonveg' && !hasNonVeg) return null
+                    // For 'active' tab, only show tables with active orders
+                    if (overviewSubTab === 'active' && tableOrders.length === 0) return null
+                    // For 'occupied' tab, only show occupied tables
+                    if (overviewSubTab === 'occupied' && !table.is_occupied) return null
+                    // For 'available' tab, only show available tables
+                    if (overviewSubTab === 'available' && table.is_occupied) return null
+
+                    return (
+                      <div
+                        key={table.id}
+                        onClick={() => {
+                          playClickSound()
+                          setSelectedTableForOverview(table)
+                          setShowTableOrderDetails(true)
+                        }}
+                        className={`cursor-pointer rounded-xl p-4 border-2 transition-all duration-300 transform hover:scale-105 hover:shadow-lg
+                          ${table.is_occupied 
+                            ? 'bg-yellow-100 border-yellow-500' 
+                            : 'bg-green-100 border-green-500'
+                          }`}
+                      >
+                        <div className="text-center">
+                          <div className="text-2xl font-bold text-gray-900 mb-1">
+                            T{table.table_number}
+                          </div>
+                          <div className="text-sm font-semibold text-gray-700 mb-2">
+                            {table.capacity} Seater
+                          </div>
+                          <div className={`text-xs font-bold px-2 py-1 rounded-full inline-block
+                            ${table.is_occupied ? 'bg-yellow-500 text-white' : 'bg-green-500 text-white'}
+                          `}>
+                            {table.is_occupied ? 'Occupied' : 'Available'}
+                          </div>
+                          {tableOrders.length > 0 && (
+                            <div className="mt-2 text-xs font-bold text-gray-700">
+                              {tableOrders.length} Active Order{tableOrders.length > 1 ? 's' : ''}
+                            </div>
+                          )}
+                          {table.is_master && (
+                            <div className="mt-1 text-xs font-bold text-[#5D3A1A]">
+                              Master Table
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            </div>
+
+            {/* Table Order Details Modal */}
+            {showTableOrderDetails && selectedTableForOverview && (
+              <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+                <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto animate-fade-in">
+                  <div className="p-6 border-b border-gray-200 bg-[#F5F5DC] flex justify-between items-center sticky top-0">
+                    <div>
+                      <h3 className="text-2xl font-bold text-gray-900">Table {selectedTableForOverview.table_number} Orders</h3>
+                      <p className="text-sm text-gray-600 mt-1">
+                        {selectedTableForOverview.capacity} Seater • {selectedTableForOverview.is_occupied ? 'Occupied' : 'Available'}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => {
+                        playClickSound()
+                        setShowTableOrderDetails(false)
+                        setSelectedTableForOverview(null)
+                      }}
+                      className="p-2 rounded-xl bg-white hover:bg-gray-100 transition-all duration-300"
+                    >
+                      <X className="w-6 h-6 text-gray-700" />
+                    </button>
+                  </div>
+                  
+                  <div className="p-6">
+                    {orders.filter(o => o.table_id === selectedTableForOverview.id && ['pending', 'preparing', 'ready'].includes(o.status)).length === 0 ? (
+                      <div className="text-center py-8">
+                        <p className="text-lg font-semibold text-gray-500 mb-4">No active orders for this table</p>
+                        <button
+                          onClick={() => {
+                            playClickSound()
+                            setAdminOrderTable(selectedTableForOverview)
+                            setAdminOrderCart([])
+                            setAdminOrderCustomerName('')
+                            setAdminOrderCustomerMobile('')
+                            setShowAdminOrderModal(true)
+                            setShowTableOrderDetails(false)
+                          }}
+                          className="inline-flex items-center gap-2 bg-[#5D3A1A] text-white px-6 py-3 rounded-xl font-semibold hover:bg-[#8B4513] transition-all duration-300 transform hover:scale-105"
+                        >
+                          <Plus className="w-5 h-5" />
+                          Take New Order
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="space-y-4">
+                        {orders
+                          .filter(o => o.table_id === selectedTableForOverview.id && ['pending', 'preparing', 'ready'].includes(o.status))
+                          .map((order) => (
+                            <div key={order.id} className="border border-gray-200 rounded-xl p-4 hover:shadow-md transition-all duration-300">
+                              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-4">
+                                <div>
+                                  <h4 className="text-lg font-bold text-gray-900">Order {formatOrderId(order.id)}</h4>
+                                  <p className="text-sm text-gray-600">
+                                    {new Date(order.created_at).toLocaleString()} • {order.customer_name || 'Guest'}
+                                  </p>
                                 </div>
-                                <div className="flex justify-between">
-                                  <span className="text-gray-600">Customer:</span>
-                                  <span className="font-semibold text-gray-900">{order.customer_name || 'Guest'}</span>
-                                </div>
-                                <div className="flex justify-between">
-                                  <span className="text-gray-600">Waiter:</span>
-                                  <span className="font-semibold text-gray-900">{order.users?.name || 'Unknown'}</span>
-                                </div>
-                                <div className="flex justify-between">
-                                  <span className="text-gray-600">Status:</span>
+                                <div className="flex items-center gap-2">
                                   <span className={`px-3 py-1 rounded-full text-xs font-bold ${
                                     order.status === 'paid' ? 'bg-[#F5F5DC] text-[#8B4513]' :
                                     order.status === 'ready' ? 'bg-[#F5F5DC] text-[#8B4513]' :
@@ -2543,23 +2689,445 @@ ${(() => {
                                   }`}>
                                     {order.status}
                                   </span>
-                                </div>
-                                <div className="flex justify-between">
-                                  <span className="text-gray-600">Items:</span>
-                                  <span className="font-semibold text-gray-900">{Array.isArray(order.order_items) ? order.order_items.length : 0} items</span>
-                                </div>
-                                <div className="flex justify-between">
-                                  <span className="text-gray-600">Total:</span>
-                                  <span className="font-bold text-gray-900">₹{order.total_amount.toFixed(2)}</span>
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      playClickSound()
+                                      handleGenerateBill(order)
+                                    }}
+                                    className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-300 ${
+                                      order.is_printed
+                                        ? 'bg-white border-2 border-[#8B4513] text-[#8B4513] hover:bg-[#F5F0E8]'
+                                        : 'bg-[#5D3A1A] text-white hover:bg-[#8B4513]'
+                                    }`}
+                                  >
+                                    {order.is_printed ? 'Printed' : 'Print Bill'}
+                                  </button>
                                 </div>
                               </div>
-                            </td>
-                          </tr>
+                              
+                              <div className="space-y-2">
+                                {order.order_items?.map((item: any) => (
+                                  <div key={item.id} className="flex items-center justify-between p-2 bg-gray-50 rounded-lg">
+                                    <div className="flex items-center gap-3">
+                                      {getFoodTypeIcon(item.dishes?.food_type)}
+                                      <div>
+                                        <p className="font-semibold text-gray-900">{item.dishes?.name || 'Unknown'}</p>
+                                        <p className="text-xs text-gray-600">Qty: {item.quantity}</p>
+                                      </div>
+                                    </div>
+                                    <p className="font-bold text-gray-900">₹{((item.dishes?.price || item.price || 0) * item.quantity).toFixed(2)}</p>
+                                  </div>
+                                ))}
+                              </div>
+                              
+                              <div className="mt-4 pt-4 border-t border-gray-200 flex justify-between items-center">
+                                <p className="text-sm text-gray-600">Total: {order.order_items?.length || 0} items</p>
+                                <p className="text-xl font-bold text-gray-900">₹{order.total_amount.toFixed(2)}</p>
+                              </div>
+                            </div>
+                          ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Admin Order Modal */}
+            {showAdminOrderModal && adminOrderTable && (
+              <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+                <div className="bg-white rounded-2xl shadow-2xl max-w-6xl w-full max-h-[90vh] overflow-y-auto animate-fade-in">
+                  {adminOrderStep === 'dishes' && (
+                    <div>
+                      {/* Header */}
+                      <div className="mb-3 sm:mb-6 bg-[#F5F5DC] rounded-2xl p-3 sm:p-4 border-2 border-[#8B4513]">
+                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                          <div>
+                            <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-1">
+                              Table {adminOrderTable.table_number}
+                            </h2>
+                            <p className="text-xs sm:text-sm text-gray-900">{adminOrderTable.capacity} seats</p>
+                          </div>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => {
+                                playClickSound()
+                                setShowAdminOrderModal(false)
+                                setAdminOrderTable(null)
+                                setAdminOrderCart([])
+                                setAdminOrderStep('dishes')
+                                setAdminSelectedDishTypes({})
+                              }}
+                              className="flex items-center gap-1 bg-white text-[#5D3A1A] px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg font-semibold hover:bg-[#FAEBD7] transition-all duration-300 border-2 border-[#8B4513] text-xs sm:text-sm"
+                            >
+                              <X className="w-3 h-3 sm:w-4 sm:h-4" />
+                              Close
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Customer Details */}
+                      <div className="mb-3 sm:mb-4 p-3 sm:p-4 bg-gray-50 rounded-xl">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-4">
+                          <div>
+                            <label className="block text-xs sm:text-sm font-semibold text-gray-700 mb-1">Customer Name</label>
+                            <input
+                              type="text"
+                              value={adminOrderCustomerName}
+                              onChange={(e) => setAdminOrderCustomerName(e.target.value)}
+                              className="w-full px-2 sm:px-4 py-1.5 sm:py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#5D3A1A] focus:border-transparent text-xs sm:text-sm"
+                              placeholder="Enter customer name"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs sm:text-sm font-semibold text-gray-700 mb-1">Mobile Number</label>
+                            <input
+                              type="text"
+                              value={adminOrderCustomerMobile}
+                              onChange={(e) => setAdminOrderCustomerMobile(e.target.value)}
+                              className="w-full px-2 sm:px-4 py-1.5 sm:py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#5D3A1A] focus:border-transparent text-xs sm:text-sm"
+                              placeholder="Enter mobile number"
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Category Filter */}
+                      <div className="flex flex-wrap gap-1 sm:gap-2 mb-2 sm:mb-3 px-2 sm:px-4">
+                        {['all', ...Array.from(new Set(dishes.map(d => d.category)))].map((category) => (
+                          <button
+                            key={category}
+                            onClick={() => { playClickSound(); setAdminOrderCategory(category) }}
+                            className={`px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg text-xs font-semibold transition-all duration-300 ${
+                              adminOrderCategory === category
+                                ? 'bg-[#5D3A1A] text-white shadow-lg'
+                                : 'bg-white text-gray-900 hover:bg-[#F5F5DC] border-2 border-amber-200'
+                            }`}
+                          >
+                            {category === 'all' ? 'All' : category}
+                          </button>
+                        ))}
+                      </div>
+
+                      {/* Food Type Filter */}
+                      <div className="flex flex-wrap gap-2 mb-3 sm:mb-4 px-2 sm:px-4">
+                        <button
+                          onClick={() => { playClickSound(); setAdminOrderFoodType('all') }}
+                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                            adminOrderFoodType === 'all'
+                              ? 'bg-[#5D3A1A] text-white shadow-lg'
+                              : 'bg-white text-gray-900 hover:bg-[#F5F5DC] border-2 border-amber-200'
+                          }`}
+                        >
+                          All
+                        </button>
+                        <button
+                          onClick={() => { playClickSound(); setAdminOrderFoodType('veg') }}
+                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                            adminOrderFoodType === 'veg'
+                              ? 'bg-amber-900 text-white shadow-lg'
+                              : 'bg-white text-gray-900 hover:bg-amber-50 border-2 border-amber-200'
+                          }`}
+                        >
+                          <div className="w-3 h-3 flex items-center justify-center border-2 border-amber-600 bg-amber-50 rounded-sm">
+                            <div className="w-1.5 h-1.5 bg-amber-900 rounded-full"></div>
+                          </div>
+                          Veg
+                        </button>
+                        <button
+                          onClick={() => { playClickSound(); setAdminOrderFoodType('nonveg') }}
+                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                            adminOrderFoodType === 'nonveg'
+                              ? 'bg-amber-900 text-white shadow-lg'
+                              : 'bg-white text-gray-900 hover:bg-amber-50 border-2 border-amber-200'
+                          }`}
+                        >
+                          <div className="w-3 h-3 flex items-center justify-center border-2 border-amber-600 bg-amber-50 rounded-sm">
+                            <div className="w-1.5 h-1.5 bg-amber-900 rounded-full"></div>
+                          </div>
+                          Non-Veg
+                        </button>
+                      </div>
+
+                      {/* Dishes List */}
+                      <div className="bg-white rounded-2xl shadow-xl overflow-hidden mb-20 sm:mb-8 px-2 sm:px-4">
+                        <div className="overflow-x-auto">
+                          <table className="w-full">
+                            <thead className="bg-[#D2691E]">
+                              <tr>
+                                <th className="px-2 sm:px-3 py-1.5 text-left text-xs font-bold text-white uppercase">Dish</th>
+                                <th className="px-2 sm:px-3 py-1.5 text-right text-xs font-bold text-white uppercase">Price</th>
+                                <th className="px-2 sm:px-3 py-1.5 text-center text-xs font-bold text-white uppercase">Status</th>
+                                <th className="px-2 sm:px-3 py-1.5 text-center text-xs font-bold text-white uppercase">Add</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-200">
+                              {dishes
+                                .filter(d => d.is_available)
+                                .filter(d => adminOrderCategory === 'all' || d.category === adminOrderCategory)
+                                .filter(d => adminOrderFoodType === 'all' || d.food_type === adminOrderFoodType)
+                                .map((dish) => (
+                                <tr key={dish.id} className="hover:bg-[#F5F5DC] transition-colors">
+                                  <td className="px-2 sm:px-3 py-2">
+                                    <div className="flex flex-col">
+                                      <div className="flex items-center gap-2">
+                                        {getFoodTypeIcon(dish.food_type)}
+                                        <h3 className="font-bold text-gray-900 text-sm">{dish.name}</h3>
+                                      </div>
+                                      <span className="text-xs text-gray-900">{dish.category}</span>
+                                    </div>
+                                  </td>
+                                  <td className="px-2 sm:px-3 py-2 text-right">
+                                    <p className="font-bold text-gray-900 text-sm">₹{dish.price.toFixed(2)}</p>
+                                  </td>
+                                  <td className="px-2 sm:px-3 py-2 text-center">
+                                    <div className={`w-7 h-7 rounded-full flex items-center justify-center mx-auto ${
+                                      dish.is_available 
+                                        ? 'bg-[#5D3A1A] text-white' 
+                                        : 'bg-amber-900 text-white'
+                                    }`}>
+                                      {dish.is_available ? (
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
+                                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                        </svg>
+                                      ) : (
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
+                                          <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                                        </svg>
+                                      )}
+                                    </div>
+                                  </td>
+                                  <td className="px-2 sm:px-3 py-2 text-center">
+                                    <div className="flex items-center gap-1 justify-center">
+                                      <select
+                                        value={adminSelectedDishTypes[dish.id] || 'Normal'}
+                                        onChange={(e) => setAdminSelectedDishTypes({...adminSelectedDishTypes, [dish.id]: e.target.value})}
+                                        className="text-xs border border-amber-300 rounded px-1 py-1 bg-white"
+                                      >
+                                        {dishTypes.map(type => (
+                                          <option key={type} value={type}>{type}</option>
+                                        ))}
+                                      </select>
+                                      <button
+                                        onClick={() => { playClickSound(); adminAddToCart(dish, adminSelectedDishTypes[dish.id] || 'Normal') }}
+                                        disabled={!dish.is_available}
+                                        className={`flex items-center justify-center gap-1 px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg font-semibold transition-all duration-300 text-xs border-2 ${
+                                          !dish.is_available
+                                            ? 'bg-amber-300 text-gray-900 border-amber-300 cursor-not-allowed'
+                                            : adminOrderCart.some(item => item.dish_id === dish.id && item.dish_type === (adminSelectedDishTypes[dish.id] || 'Normal'))
+                                              ? 'bg-white text-gray-900 border-amber-900 hover:bg-amber-100'
+                                              : 'bg-[#5D3A1A] text-white border-[#5D3A1A] hover:bg-[#8B4513]'
+                                        }`}
+                                      >
+                                        <Plus className="w-3 h-3" />
+                                        <span className="hidden sm:inline">Add</span>
+                                      </button>
+                                    </div>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+
+                      {/* Cart Summary */}
+                      {adminOrderCart.length > 0 && (
+                        <div className="hidden sm:block fixed bottom-0 left-0 right-0 bg-white shadow-2xl border-t-2 border-[#8B4513] p-2 sm:p-4 z-50">
+                          <div className="max-w-7xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-2 sm:gap-0">
+                            <div className="text-center sm:text-left">
+                              <p className="text-xs text-gray-900">{adminOrderCart.length} items</p>
+                              <p className="text-base sm:text-xl font-bold text-gray-900">
+                                ₹{adminGetCartTotal().toFixed(2)}
+                              </p>
+                            </div>
+                            <button
+                              onClick={() => { playClickSound(); setAdminOrderStep('cart') }}
+                              className="flex items-center gap-1 sm:gap-2 bg-[#5D3A1A] text-white px-3 sm:px-6 py-2 sm:py-3 rounded-lg sm:rounded-xl font-semibold hover:bg-[#8B4513] transition-all duration-300 w-full sm:w-auto justify-center text-xs sm:text-sm"
+                            >
+                              <ShoppingCart className="w-3 h-3 sm:w-5 sm:h-5" />
+                              <span className="hidden sm:inline">View Cart</span>
+                              <span className="sm:hidden">Cart</span>
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Mobile Cart Button */}
+                      {adminOrderCart.length > 0 && (
+                        <button
+                          onClick={() => { playClickSound(); setAdminOrderStep('cart') }}
+                          className="sm:hidden fixed bottom-20 right-4 bg-[#5D3A1A] text-white p-4 rounded-full shadow-2xl hover:bg-[#8B4513] transition-all duration-300 z-50"
+                        >
+                          <ShoppingCart className="w-6 h-6" />
+                          <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs w-5 h-5 rounded-full flex items-center justify-center font-bold">
+                            {adminOrderCart.length}
+                          </span>
+                        </button>
+                      )}
+                    </div>
+                  )}
+
+                  {adminOrderStep === 'cart' && (
+                    <div>
+                      {/* Header */}
+                      <div className="mb-3 sm:mb-6 bg-[#F5F5DC] rounded-2xl p-3 sm:p-4 border-2 border-[#8B4513]">
+                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                          <div>
+                            <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-1">
+                              Order Review - Table {adminOrderTable.table_number}
+                            </h2>
+                            <p className="text-xs sm:text-sm text-gray-900">{adminOrderTable.capacity} seats</p>
+                          </div>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => { playClickSound(); setAdminOrderStep('dishes') }}
+                              className="flex items-center gap-1 bg-white text-[#5D3A1A] px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg font-semibold hover:bg-[#FAEBD7] transition-all duration-300 border-2 border-[#8B4513] text-xs sm:text-sm"
+                            >
+                              <ArrowLeft className="w-3 h-3 sm:w-4 sm:h-4" />
+                              Back
+                            </button>
+                            <button
+                              onClick={() => {
+                                playClickSound()
+                                setShowAdminOrderModal(false)
+                                setAdminOrderTable(null)
+                                setAdminOrderCart([])
+                                setAdminOrderStep('dishes')
+                                setAdminSelectedDishTypes({})
+                              }}
+                              className="flex items-center gap-1 bg-white text-[#5D3A1A] px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg font-semibold hover:bg-[#FAEBD7] transition-all duration-300 border-2 border-[#8B4513] text-xs sm:text-sm"
+                            >
+                              <X className="w-3 h-3 sm:w-4 sm:h-4" />
+                              Close
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Cart Items */}
+                      <div className="bg-white rounded-2xl shadow-xl overflow-hidden mb-4 p-4">
+                        <h3 className="text-lg font-bold text-gray-900 mb-4">Order Items</h3>
+                        {adminOrderCart.length === 0 ? (
+                          <p className="text-center text-gray-500 py-8">Your cart is empty</p>
+                        ) : (
+                          <div className="space-y-3">
+                            {adminOrderCart.map((item, index) => {
+                              const dish = dishes.find(d => d.id === item.dish_id)
+                              return (
+                                <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                                  <div className="flex items-center gap-3">
+                                    {getFoodTypeIcon(dish?.food_type)}
+                                    <div>
+                                      <p className="font-semibold text-gray-900">{item.name}</p>
+                                      <p className="text-xs text-gray-600">{item.dish_type || 'Normal'} • ₹{item.price}</p>
+                                    </div>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <button
+                                      onClick={() => adminUpdateCartItemQuantity(index, item.quantity - 1)}
+                                      className="w-8 h-8 rounded-lg bg-gray-200 hover:bg-gray-300 flex items-center justify-center"
+                                    >
+                                      <Minus className="w-4 h-4" />
+                                    </button>
+                                    <span className="font-bold w-8 text-center">{item.quantity}</span>
+                                    <button
+                                      onClick={() => adminUpdateCartItemQuantity(index, item.quantity + 1)}
+                                      className="w-8 h-8 rounded-lg bg-[#5D3A1A] text-white hover:bg-[#8B4513] flex items-center justify-center"
+                                    >
+                                      <Plus className="w-4 h-4" />
+                                    </button>
+                                    <button
+                                      onClick={() => adminRemoveFromCart(index)}
+                                      className="w-8 h-8 rounded-lg bg-red-500 text-white hover:bg-red-600 flex items-center justify-center ml-2"
+                                    >
+                                      <Trash2 className="w-4 h-4" />
+                                    </button>
+                                  </div>
+                                </div>
+                              )
+                            })}
+                          </div>
                         )}
-                        </React.Fragment>
-                      ))}
-                  </tbody>
-                </table>
+                      </div>
+
+                      {/* Total and Submit */}
+                      {adminOrderCart.length > 0 && (
+                        <div className="bg-white rounded-2xl shadow-xl p-4">
+                          <div className="flex justify-between items-center text-xl font-bold mb-4">
+                            <span>Total:</span>
+                            <span>₹{adminGetCartTotal().toFixed(2)}</span>
+                          </div>
+                          <button
+                            onClick={handleAdminSubmitOrder}
+                            disabled={adminOrderSubmitting}
+                            className="w-full px-6 py-3 bg-[#5D3A1A] text-white rounded-xl font-semibold hover:bg-[#8B4513] transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            {adminOrderSubmitting ? 'Submitting...' : 'Submit Order to Kitchen'}
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Bottom Statistics Bar */}
+            <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-2xl z-50">
+              <div className="max-w-7xl mx-auto px-2 sm:px-4">
+                <div className="grid grid-cols-4 gap-1 sm:gap-2 py-2 sm:py-3">
+                  <button
+                    onClick={() => { playClickSound(); setOverviewSubTab('active') }}
+                    className={`flex flex-col items-center justify-center gap-0.5 px-1 sm:px-3 py-1.5 sm:py-2 rounded-lg transition-all ${
+                      overviewSubTab === 'active'
+                        ? 'bg-[#5D3A1A] text-white'
+                        : 'text-[#5D3A1A] hover:bg-[#F5F5DC]'
+                    }`}
+                  >
+                    <Users className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />
+                    <span className="text-xs sm:text-sm font-semibold leading-tight">Active</span>
+                    <span className="text-xs sm:text-sm font-bold leading-tight">{tables.filter(t => t.is_occupied).length}</span>
+                  </button>
+                  <button
+                    onClick={() => { playClickSound(); setOverviewSubTab('occupied') }}
+                    className={`flex flex-col items-center justify-center gap-0.5 px-1 sm:px-3 py-1.5 sm:py-2 rounded-lg transition-all ${
+                      overviewSubTab === 'occupied'
+                        ? 'bg-[#5D3A1A] text-white'
+                        : 'text-[#5D3A1A] hover:bg-[#F5F5DC]'
+                    }`}
+                  >
+                    <Utensils className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />
+                    <span className="text-xs sm:text-sm font-semibold leading-tight">Occupied</span>
+                    <span className="text-xs sm:text-sm font-bold leading-tight">{tables.filter(t => t.is_occupied).length}</span>
+                  </button>
+                  <button
+                    onClick={() => { playClickSound(); setOverviewSubTab('all') }}
+                    className={`flex flex-col items-center justify-center gap-0.5 px-1 sm:px-3 py-1.5 sm:py-2 rounded-lg transition-all ${
+                      overviewSubTab === 'all'
+                        ? 'bg-[#5D3A1A] text-white'
+                        : 'text-[#5D3A1A] hover:bg-[#F5F5DC]'
+                    }`}
+                  >
+                    <Users className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />
+                    <span className="text-xs sm:text-sm font-semibold leading-tight">Total</span>
+                    <span className="text-xs sm:text-sm font-bold leading-tight">{tables.length}</span>
+                  </button>
+                  <button
+                    onClick={() => { playClickSound(); setOverviewSubTab('available') }}
+                    className={`flex flex-col items-center justify-center gap-0.5 px-1 sm:px-3 py-1.5 sm:py-2 rounded-lg transition-all ${
+                      overviewSubTab === 'available'
+                        ? 'bg-[#5D3A1A] text-white'
+                        : 'text-[#5D3A1A] hover:bg-[#F5F5DC]'
+                    }`}
+                  >
+                    <CheckCircle className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />
+                    <span className="text-xs sm:text-sm font-semibold leading-tight">Available</span>
+                    <span className="text-xs sm:text-sm font-bold leading-tight">{tables.filter(t => !t.is_occupied).length}</span>
+                  </button>
+                </div>
               </div>
             </div>
           </>
@@ -2573,9 +3141,10 @@ ${(() => {
                 <h3 className="text-xl font-bold text-gray-900">All Orders</h3>
               <button
                 onClick={() => { playClickSound(); fetchData() }}
-                className="flex items-center bg-[#5D3A1A] text-white px-4 py-2 rounded-xl font-semibold hover:shadow-lg transition-all duration-300 transform hover:scale-105"
+                className="flex items-center gap-2 bg-[#5D3A1A] text-white px-4 py-2 rounded-xl font-semibold hover:shadow-lg transition-all duration-300 transform hover:scale-105"
               >
-                🔄 Refresh
+                <RefreshCw className="w-4 h-4" />
+                Refresh
               </button>
             </div>
             <div className="overflow-x-auto">

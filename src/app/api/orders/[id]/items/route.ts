@@ -42,8 +42,13 @@ export async function GET(
       item.price = parseFloat(item.price)
     })
 
-    console.log('Order items fetched:', items)
-    return NextResponse.json(items || [])
+    console.log('Order items fetched:', items?.map((i: any) => ({ id: i.id, status: i.status })))
+    return NextResponse.json(items || [], {
+      headers: {
+        'Cache-Control': 'no-store, no-cache, must-revalidate',
+        'Pragma': 'no-cache',
+      }
+    })
   } catch (error) {
     console.error('Error fetching order items:', error)
     return NextResponse.json({ error: 'Failed to fetch order items' }, { status: 500 })

@@ -95,26 +95,26 @@ export default function ChefStation() {
 
     fetchData()
 
-    // Set up real-time subscription for orders
-    const subscription = supabase
-      .channel('orders')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, (_payload: any) => {
-        fetchData()
-      })
-      .subscribe()
+    // Temporarily disable real-time subscriptions to prevent overwriting local state
+    // TODO: Re-enable after fixing database RLS issues
+    // const subscription = supabase
+    //   .channel('orders')
+    //   .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, (_payload: any) => {
+    //     fetchData()
+    //   })
+    //   .subscribe()
 
-    // Set up real-time subscription for order items
-    const itemsSubscription = supabase
-      .channel('order_items')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'order_items' }, (_payload: any) => {
-        fetchData()
-      })
-      .subscribe()
+    // const itemsSubscription = supabase
+    //   .channel('order_items')
+    //   .on('postgres_changes', { event: '*', schema: 'public', table: 'order_items' }, (_payload: any) => {
+    //     fetchData()
+    //   })
+    //   .subscribe()
 
-    return () => {
-      subscription.unsubscribe()
-      itemsSubscription.unsubscribe()
-    }
+    // return () => {
+    //   subscription.unsubscribe()
+    //   itemsSubscription.unsubscribe()
+    // }
   }, [router])
 
   const fetchData = async () => {
@@ -125,18 +125,17 @@ export default function ChefStation() {
         fetch('/api/tables').then(res => res.json())
       ])
 
-      // Filter orders to only include those with status not completed/paid
-      const activeOrders = ordersRes.filter((order: Order) => 
-        !['completed', 'paid'].includes(order.status)
-      )
-
       // Play notification sound if new orders detected
+      const activeOrders = ordersRes.filter((order: Order) => 
+        !['completed', 'paid', 'served'].includes(order.status)
+      )
       if (activeOrders.length > previousOrderCount && previousOrderCount > 0) {
         playNotificationSound('order')
       }
       setPreviousOrderCount(activeOrders.length)
 
-      setOrders(activeOrders)
+      // Set all orders (including served) so we can track served count correctly
+      setOrders(ordersRes)
       setDishes(dishesRes)
       setTables(tablesRes)
 
@@ -219,9 +218,20 @@ export default function ChefStation() {
   }
 
   const handleCompleteKOT = async (orderId: string, foodType: string) => {
+    // Prevent multiple clicks by checking if already updating
+    if (updating === `${orderId}-${foodType}`) {
+      console.log('Already updating, ignoring click')
+      return
+    }
+
     try {
+      setUpdating(`${orderId}-${foodType}`)
+      console.log('handleCompleteKOT called for order:', orderId, 'foodType:', foodType)
+
       // Update only items of the specified food type to 'served'
       const items = orderItems[orderId] || []
+      const updatedItemIds: string[] = []
+
       for (const item of items) {
         const dish = dishes.find(d => d.id === item.dish_id)
         const itemFoodType = dish?.food_type
@@ -231,31 +241,88 @@ export default function ChefStation() {
           (foodType === 'nonveg' && itemFoodType === 'nonveg') ||
           (foodType === 'other' && itemFoodType !== 'veg' && itemFoodType !== 'nonveg')
         ) {
-          await fetch(`/api/order-items/${item.id}`, {
+          console.log('Updating item:', item.id, 'to served status')
+          const response = await fetch(`/api/order-items/${item.id}`, {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ status: 'served' })
           })
+
+          const responseData = await response.json()
+          console.log('API response:', responseData)
+
+          if (response.ok) {
+            updatedItemIds.push(item.id)
+            console.log('Item updated successfully:', item.id, 'returned status:', responseData.status)
+          } else {
+            console.error('Failed to update item:', item.id, response.status, responseData)
+          }
         }
       }
 
-      // Check if all items in the order are now served
-      const allItemsServed = items.every(item => item.status === 'served')
+      if (updatedItemIds.length === 0) {
+        alert('No items were updated.')
+        setUpdating(null)
+        return
+      }
 
-      // If all items are served, update order status
+      console.log('Items updated:', updatedItemIds.length)
+
+      // Create updated items array directly
+      const updatedItems = items.map(item =>
+        updatedItemIds.includes(item.id) ? { ...item, status: 'served' } : item
+      )
+
+      // Update local state
+      setOrderItems(prev => ({
+        ...prev,
+        [orderId]: updatedItems
+      }))
+
+      // Now check if all items of the specific food type are served using the updated items
+      const foodTypeItems = updatedItems.filter((item: any) => {
+        const dish = dishes.find(d => d.id === item.dish_id)
+        const itemFoodType = dish?.food_type
+        const isMatch =
+          (foodType === 'veg' && itemFoodType === 'veg') ||
+          (foodType === 'nonveg' && itemFoodType === 'nonveg') ||
+          (foodType === 'other' && itemFoodType !== 'veg' && itemFoodType !== 'nonveg')
+        if (isMatch) {
+          console.log('Matched item:', item.id, 'food_type:', itemFoodType, 'status:', item.status)
+        }
+        return isMatch
+      })
+
+      const foodTypeItemsServed = foodTypeItems.every((item: any) => item.status === 'served')
+      console.log(foodType.toUpperCase(), 'items:', foodTypeItems.length, 'served:', foodTypeItemsServed)
+
+      // Check if all items in the entire order are now served
+      const allItemsServed = updatedItems.every((item: any) => item.status === 'served')
+      console.log('All items in order served?', allItemsServed)
+
+      // Only update order status to 'served' if ALL items are served
       if (allItemsServed) {
-        await fetch(`/api/orders/${orderId}`, {
+        console.log('Updating order status to served (all items served)')
+        const orderResponse = await fetch(`/api/orders/${orderId}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ status: 'served' })
         })
+
+        if (orderResponse.ok) {
+          console.log('Order status updated to served')
+        } else {
+          console.error('Failed to update order status:', orderResponse.status)
+        }
       }
 
       playSuccessSound()
-      fetchData()
+      // Don't call fetchData() as it will overwrite our local state update
     } catch (error) {
       console.error('Error completing KOT:', error)
       alert('Failed to complete KOT')
+    } finally {
+      setUpdating(null)
     }
   }
 
@@ -372,13 +439,90 @@ export default function ChefStation() {
     }
   }
 
+  // Count served KOTs based on item status
+  const countServedKOTs = () => {
+    let servedKOTCount = 0
+    orders.forEach(order => {
+      const items = orderItems[order.id] || []
+      if (items.length === 0) return
+
+      // Group items by food type
+      const vegItems = items.filter(item => {
+        const dish = dishes.find(d => d.id === item.dish_id)
+        return dish?.food_type === 'veg'
+      })
+      const nonVegItems = items.filter(item => {
+        const dish = dishes.find(d => d.id === item.dish_id)
+        return dish?.food_type === 'nonveg'
+      })
+      const otherItems = items.filter(item => {
+        const dish = dishes.find(d => d.id === item.dish_id)
+        return dish?.food_type !== 'veg' && dish?.food_type !== 'nonveg'
+      })
+
+      // Count served KOTs for each food type
+      if (vegItems.length > 0 && vegItems.every(item => item.status === 'served')) {
+        servedKOTCount++
+      }
+      if (nonVegItems.length > 0 && nonVegItems.every(item => item.status === 'served')) {
+        servedKOTCount++
+      }
+      if (otherItems.length > 0 && otherItems.every(item => item.status === 'served')) {
+        servedKOTCount++
+      }
+    })
+    return servedKOTCount
+  }
+
   const filteredOrders = orders.filter(order => {
     if (filterStatus === 'all') return true
     if (filterStatus === 'pending') return order.status === 'pending' || order.status === 'confirmed'
     if (filterStatus === 'served') return order.status === 'served'
-    if (filterStatus === 'preparing') return order.status === 'preparing'
     return true
   })
+
+  // For the default view (all), show all orders except completed/paid
+  // KOT cards will handle showing/hiding based on their served status
+  const displayOrders = filterStatus === 'all'
+    ? orders.filter(order => order.status !== 'completed' && order.status !== 'paid')
+    : filterStatus === 'served'
+    ? orders.filter(order => {
+        // Show orders that have at least one fully served KOT
+        const items = orderItems[order.id] || []
+        if (items.length === 0) return false
+
+        // Group items by food type
+        const vegItems = items.filter(item => {
+          const dish = dishes.find(d => d.id === item.dish_id)
+          return dish?.food_type === 'veg'
+        })
+        const nonVegItems = items.filter(item => {
+          const dish = dishes.find(d => d.id === item.dish_id)
+          return dish?.food_type === 'nonveg'
+        })
+        const otherItems = items.filter(item => {
+          const dish = dishes.find(d => d.id === item.dish_id)
+          return dish?.food_type !== 'veg' && dish?.food_type !== 'nonveg'
+        })
+
+        // Check if any KOT is fully served
+        const hasServedKOT =
+          (vegItems.length > 0 && vegItems.every(item => item.status === 'served')) ||
+          (nonVegItems.length > 0 && nonVegItems.every(item => item.status === 'served')) ||
+          (otherItems.length > 0 && otherItems.every(item => item.status === 'served'))
+
+        return hasServedKOT
+      })
+    : filterStatus === 'pending'
+    ? orders.filter(order => {
+        // Show orders that have at least one pending item
+        const items = orderItems[order.id] || []
+        if (items.length === 0) return false
+
+        const hasPendingItems = items.some(item => item.status === 'pending')
+        return hasPendingItems
+      })
+    : filteredOrders
 
   if (loading) {
     return (
@@ -419,7 +563,7 @@ export default function ChefStation() {
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         {/* Orders Grid - Split by Food Type */}
-        {filteredOrders.length === 0 ? (
+        {displayOrders.length === 0 ? (
           <div className="text-center py-16 bg-white rounded-3xl shadow-xl border border-[#E8DFD0]">
             <div className="bg-[#F5F0E8] w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4">
               <UtensilsCrossed className="w-10 h-10 text-[#8B4513]" />
@@ -429,7 +573,7 @@ export default function ChefStation() {
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
-            {filteredOrders.map((order) => {
+            {displayOrders.map((order) => {
               const items = orderItems[order.id] || []
               const table = tables.find(t => t.id === order.table_id)
 
@@ -449,6 +593,13 @@ export default function ChefStation() {
                 return acc
               }, [])
 
+              // Calculate served status for each grouped item
+              groupedItems.forEach(groupedItem => {
+                const originalItems = items.filter(item => groupedItem.itemIds.includes(item.id))
+                groupedItem.anyServed = originalItems.some(item => item.status === 'served')
+                groupedItem.allServed = originalItems.every(item => item.status === 'served')
+              })
+
               // Separate grouped items by food type
               const vegItems = groupedItems.filter(item => {
                 const dish = dishes.find(d => d.id === item.dish_id)
@@ -464,36 +615,110 @@ export default function ChefStation() {
               })
 
               // Create separate KOT cards for each food type
+              // In default view (all): show all KOTs (both served and unserved)
+              // In served view: show only fully served KOTs
+              // In pending view: show only KOTs with pending items
               const kotCards = []
 
-              if (vegItems.length > 0) {
-                kotCards.push({
-                  type: 'veg',
-                  bgColor: 'bg-white',
-                  borderColor: 'border-[#8B4513]',
-                  items: vegItems,
-                  label: 'VEG'
-                })
-              }
+              if (filterStatus === 'served') {
+                // In served view, show only fully served KOTs
+                const vegAllServed = vegItems.length > 0 && vegItems.every(item => item.allServed)
+                if (vegAllServed) {
+                  kotCards.push({
+                    type: 'veg',
+                    bgColor: 'bg-white',
+                    borderColor: 'border-[#8B4513]',
+                    items: vegItems,
+                    label: 'VEG'
+                  })
+                }
 
-              if (nonVegItems.length > 0) {
-                kotCards.push({
-                  type: 'nonveg',
-                  bgColor: 'bg-white',
-                  borderColor: 'border-[#8B4513]',
-                  items: nonVegItems,
-                  label: 'NON-VEG'
-                })
-              }
+                const nonVegAllServed = nonVegItems.length > 0 && nonVegItems.every(item => item.allServed)
+                if (nonVegAllServed) {
+                  kotCards.push({
+                    type: 'nonveg',
+                    bgColor: 'bg-white',
+                    borderColor: 'border-[#8B4513]',
+                    items: nonVegItems,
+                    label: 'NON-VEG'
+                  })
+                }
 
-              if (otherItems.length > 0) {
-                kotCards.push({
-                  type: 'other',
-                  bgColor: 'bg-white',
-                  borderColor: 'border-[#8B4513]',
-                  items: otherItems,
-                  label: 'OTHER'
-                })
+                const otherAllServed = otherItems.length > 0 && otherItems.every(item => item.allServed)
+                if (otherAllServed) {
+                  kotCards.push({
+                    type: 'other',
+                    bgColor: 'bg-white',
+                    borderColor: 'border-[#8B4513]',
+                    items: otherItems,
+                    label: 'OTHER'
+                  })
+                }
+              } else if (filterStatus === 'pending') {
+                // In pending view, show only KOTs with pending items
+                const vegHasPending = vegItems.some(item => !item.allServed)
+                if (vegItems.length > 0 && vegHasPending) {
+                  kotCards.push({
+                    type: 'veg',
+                    bgColor: 'bg-white',
+                    borderColor: 'border-[#8B4513]',
+                    items: vegItems,
+                    label: 'VEG'
+                  })
+                }
+
+                const nonVegHasPending = nonVegItems.some(item => !item.allServed)
+                if (nonVegItems.length > 0 && nonVegHasPending) {
+                  kotCards.push({
+                    type: 'nonveg',
+                    bgColor: 'bg-white',
+                    borderColor: 'border-[#8B4513]',
+                    items: nonVegItems,
+                    label: 'NON-VEG'
+                  })
+                }
+
+                const otherHasPending = otherItems.some(item => !item.allServed)
+                if (otherItems.length > 0 && otherHasPending) {
+                  kotCards.push({
+                    type: 'other',
+                    bgColor: 'bg-white',
+                    borderColor: 'border-[#8B4513]',
+                    items: otherItems,
+                    label: 'OTHER'
+                  })
+                }
+              } else {
+                // In default view (all), show all KOTs
+                if (vegItems.length > 0) {
+                  kotCards.push({
+                    type: 'veg',
+                    bgColor: 'bg-white',
+                    borderColor: 'border-[#8B4513]',
+                    items: vegItems,
+                    label: 'VEG'
+                  })
+                }
+
+                if (nonVegItems.length > 0) {
+                  kotCards.push({
+                    type: 'nonveg',
+                    bgColor: 'bg-white',
+                    borderColor: 'border-[#8B4513]',
+                    items: nonVegItems,
+                    label: 'NON-VEG'
+                  })
+                }
+
+                if (otherItems.length > 0) {
+                  kotCards.push({
+                    type: 'other',
+                    bgColor: 'bg-white',
+                    borderColor: 'border-[#8B4513]',
+                    items: otherItems,
+                    label: 'OTHER'
+                  })
+                }
               }
 
               return kotCards.map((kot, kotIndex) => {
@@ -587,13 +812,13 @@ export default function ChefStation() {
                               </div>
                               <div className="flex items-center gap-2 ml-2">
                                 <span className={`text-xs px-2 py-0.5 rounded-full font-bold border ${
-                                  item.status === 'served'
+                                  item.allServed
                                     ? 'bg-[#E8F5E9] text-[#4CAF50] border-[#81C784]'
-                                    : item.status === 'pending'
-                                    ? 'bg-[#FFF3E0] text-[#FF9800] border-[#FFB74D]'
-                                    : 'bg-[#E3F2FD] text-[#2196F3] border-[#90CAF9]'
+                                    : item.anyServed
+                                    ? 'bg-[#E3F2FD] text-[#2196F3] border-[#90CAF9]'
+                                    : 'bg-[#FFF3E0] text-[#FF9800] border-[#FFB74D]'
                                 }`}>
-                                  {item.status === 'served' ? 'Served' : item.status}
+                                  {item.allServed ? 'Served' : item.anyServed ? 'Partial' : 'Pending'}
                                 </span>
                                 <span className="bg-[#8B4513] text-white text-xs px-2 py-0.5 rounded font-bold">
                                   x{item.quantity}
@@ -615,7 +840,7 @@ export default function ChefStation() {
                           <Printer className="w-4 h-4" />
                           Print
                         </button>
-                        {allItemsServed ? (
+                        {filterStatus === 'served' || allItemsServed ? (
                           <button
                             className="flex-1 px-3 py-2 bg-[#E8DFD0] text-[#8B4513] rounded-lg font-semibold cursor-not-allowed text-sm"
                             disabled
@@ -625,9 +850,14 @@ export default function ChefStation() {
                         ) : (
                           <button
                             onClick={() => handleCompleteKOT(order.id, kot.type)}
-                            className="flex-1 px-3 py-2 bg-[#8B4513] text-white rounded-lg font-semibold hover:bg-[#6B3410] transition-all shadow-md text-sm"
+                            disabled={updating === `${order.id}-${kot.type}`}
+                            className={`flex-1 px-3 py-2 rounded-lg font-semibold transition-all shadow-md text-sm ${
+                              updating === `${order.id}-${kot.type}`
+                                ? 'bg-gray-400 text-white cursor-not-allowed'
+                                : 'bg-[#8B4513] text-white hover:bg-[#6B3410]'
+                            }`}
                           >
-                            Complete
+                            {updating === `${order.id}-${kot.type}` ? 'Completing...' : 'Complete'}
                           </button>
                         )}
                       </div>
@@ -681,21 +911,7 @@ export default function ChefStation() {
               <CheckCircle className="w-4 h-4" />
               <span className="text-xs font-semibold">Served</span>
               <span className="text-xs font-bold">
-                {orders.filter(o => o.status === 'served').length}
-              </span>
-            </button>
-            <button
-              onClick={() => { playClickSound(); setFilterStatus('preparing') }}
-              className={`flex flex-col items-center gap-0.5 px-4 py-2 rounded-lg transition-all min-w-[70px] ${
-                filterStatus === 'preparing'
-                  ? 'bg-[#8B4513] text-white'
-                  : 'text-[#8B4513] hover:bg-[#F5F0E8]'
-              }`}
-            >
-              <ChefHat className="w-4 h-4" />
-              <span className="text-xs font-semibold">Preparing</span>
-              <span className="text-xs font-bold">
-                {orders.filter(o => o.status === 'preparing').length}
+                {countServedKOTs()}
               </span>
             </button>
             <button

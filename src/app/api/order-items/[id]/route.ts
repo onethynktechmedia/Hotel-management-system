@@ -30,6 +30,8 @@ export async function PATCH(
     const body = await request.json()
     const { status, quantity } = body
 
+    console.log('Updating order item:', params.id, 'with status:', status)
+
     const updateData: any = {}
     if (status !== undefined) {
       updateData.status = status
@@ -45,7 +47,12 @@ export async function PATCH(
       .select()
       .single()
 
-    if (error) throw error
+    if (error) {
+      console.error('Supabase error updating order item:', error)
+      throw error
+    }
+
+    console.log('Order item updated successfully:', orderItem.id, 'new status:', orderItem.status)
 
     if (orderItem.price) {
       orderItem.price = parseFloat(orderItem.price)
@@ -53,6 +60,7 @@ export async function PATCH(
 
     return NextResponse.json(orderItem)
   } catch (error) {
+    console.error('Error updating order item:', error)
     return NextResponse.json({ error: 'Failed to update order item' }, { status: 500 })
   }
 }

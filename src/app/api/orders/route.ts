@@ -190,6 +190,8 @@ export async function PATCH(request: NextRequest) {
     const body = await request.json()
     const { id, status, total_amount, is_printed } = body
 
+    console.log('PATCH /api/orders - Updating order:', id, 'with data:', body)
+
     const updateData: any = {}
     if (status !== undefined) updateData.status = status
     if (total_amount !== undefined) updateData.total_amount = total_amount
@@ -202,11 +204,17 @@ export async function PATCH(request: NextRequest) {
       .select()
       .single()
 
-    if (error) throw error
+    if (error) {
+      console.error('Supabase error updating order:', error)
+      throw error
+    }
+
+    console.log('Order updated successfully:', order.id, 'new status:', order.status)
 
     order.total_amount = parseFloat(order.total_amount)
     return NextResponse.json(order)
-  } catch (error) {
-    return NextResponse.json({ error: 'Failed to update order' }, { status: 500 })
+  } catch (error: any) {
+    console.error('Error updating order:', error)
+    return NextResponse.json({ error: 'Failed to update order', details: error.message }, { status: 500 })
   }
 }
