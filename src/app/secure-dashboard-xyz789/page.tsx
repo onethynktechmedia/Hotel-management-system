@@ -2393,7 +2393,7 @@ ${(() => {
         activeTab={activeTab}
         setActiveTab={setActiveTab}
         user={user}
-        setOverviewSubTab={overviewSubTab}
+        overviewSubTab={overviewSubTab}
         setOverviewSubTab={setOverviewSubTab}
       />
 
