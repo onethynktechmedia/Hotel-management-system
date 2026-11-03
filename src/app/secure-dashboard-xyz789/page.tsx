@@ -4047,7 +4047,9 @@ ${(() => {
 
       // Use WebUSB printer instead
       const webusbPrinter = new WebUSBPrinter()
-      await webusbPrinter.printReceipt(plainText)
+      await webusbPrinter.connect()
+      await webusbPrinter.print(plainText)
+      await webusbPrinter.disconnect()
       playSuccessSound()
     } catch (error) {
       console.error('Print failed:', error)
@@ -4233,28 +4235,40 @@ ${(() => {
 
             {/* Key Metrics Cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-              <div className="bg-gray-50 rounded-xl shadow-lg p-6 border-l-4 border-[#6B3E26]">
-                <div>
-                  <p className="text-sm text-gray-600 font-semibold">Today's Revenue</p>
-                  <p className="text-2xl font-bold text-[#6B3E26]">₹12,450</p>
+              <div className="bg-white rounded-xl shadow-lg p-6 border-l-4 border-[#6B3E26]">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-600 font-semibold">Today's Revenue</p>
+                    <p className="text-2xl font-bold text-[#6B3E26]">₹12,450</p>
+                  </div>
+                  <DollarSign className="w-8 h-8 text-[#6B3E26]" />
                 </div>
               </div>
-              <div className="bg-gray-50 rounded-xl shadow-lg p-6 border-l-4 border-[#9A572D]">
-                <div>
-                  <p className="text-sm text-gray-600 font-semibold">Today's Orders</p>
-                  <p className="text-2xl font-bold text-[#9A572D]">48</p>
+              <div className="bg-white rounded-xl shadow-lg p-6 border-l-4 border-[#9A572D]">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-600 font-semibold">Today's Orders</p>
+                    <p className="text-2xl font-bold text-[#9A572D]">48</p>
+                  </div>
+                  <ShoppingCart className="w-8 h-8 text-[#9A572D]" />
                 </div>
               </div>
-              <div className="bg-gray-50 rounded-xl shadow-lg p-6 border-l-4 border-[#D4A574]">
-                <div>
-                  <p className="text-sm text-gray-600 font-semibold">Occupied Tables</p>
-                  <p className="text-2xl font-bold text-[#D4A574]">{tables.filter(t => t.is_occupied).length}/{tables.length}</p>
+              <div className="bg-white rounded-xl shadow-lg p-6 border-l-4 border-[#D4A574]">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-600 font-semibold">Occupied Tables</p>
+                    <p className="text-2xl font-bold text-[#D4A574]">{tables.filter(t => t.is_occupied).length}/{tables.length}</p>
+                  </div>
+                  <Users className="w-8 h-8 text-[#D4A574]" />
                 </div>
               </div>
-              <div className="bg-gray-50 rounded-xl shadow-lg p-6 border-l-4 border-[#E8B478]">
-                <div>
-                  <p className="text-sm text-gray-600 font-semibold">Kitchen Queue</p>
-                  <p className="text-2xl font-bold text-[#E8B478]">{orders.filter(o => o.status === 'pending' || o.status === 'preparing').length}</p>
+              <div className="bg-white rounded-xl shadow-lg p-6 border-l-4 border-[#E8B478]">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-600 font-semibold">Kitchen Queue</p>
+                    <p className="text-2xl font-bold text-[#E8B478]">{orders.filter(o => o.status === 'pending' || o.status === 'preparing').length}</p>
+                  </div>
+                  <ChefHat className="w-8 h-8 text-[#E8B478]" />
                 </div>
               </div>
             </div>
@@ -4922,28 +4936,40 @@ ${(() => {
 
             {/* Key Metrics */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-              <div className="bg-gray-50 rounded-xl shadow-lg p-6 border-l-4 border-[#6B3E26]">
-                <div>
-                  <p className="text-sm text-gray-600 font-semibold">Today's Revenue</p>
-                  <p className="text-2xl font-bold text-[#6B3E26]">₹12,450</p>
+              <div className="bg-white rounded-xl shadow-lg p-6 border-l-4 border-[#6B3E26]">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-600 font-semibold">Today's Revenue</p>
+                    <p className="text-2xl font-bold text-[#6B3E26]">₹12,450</p>
+                  </div>
+                  <DollarSign className="w-8 h-8 text-[#6B3E26]" />
                 </div>
               </div>
-              <div className="bg-gray-50 rounded-xl shadow-lg p-6 border-l-4 border-[#9A572D]">
-                <div>
-                  <p className="text-sm text-gray-600 font-semibold">Today's Orders</p>
-                  <p className="text-2xl font-bold text-[#9A572D]">48</p>
+              <div className="bg-white rounded-xl shadow-lg p-6 border-l-4 border-[#9A572D]">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-600 font-semibold">Today's Orders</p>
+                    <p className="text-2xl font-bold text-[#9A572D]">48</p>
+                  </div>
+                  <ShoppingCart className="w-8 h-8 text-[#9A572D]" />
                 </div>
               </div>
-              <div className="bg-gray-50 rounded-xl shadow-lg p-6 border-l-4 border-[#D4A574]">
-                <div>
-                  <p className="text-sm text-gray-600 font-semibold">Occupied Tables</p>
-                  <p className="text-2xl font-bold text-[#D4A574]">{tables.filter(t => t.is_occupied).length}/{tables.length}</p>
+              <div className="bg-white rounded-xl shadow-lg p-6 border-l-4 border-[#D4A574]">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-600 font-semibold">Occupied Tables</p>
+                    <p className="text-2xl font-bold text-[#D4A574]">{tables.filter(t => t.is_occupied).length}/{tables.length}</p>
+                  </div>
+                  <Users className="w-8 h-8 text-[#D4A574]" />
                 </div>
               </div>
-              <div className="bg-gray-50 rounded-xl shadow-lg p-6 border-l-4 border-[#E8B478]">
-                <div>
-                  <p className="text-sm text-gray-600 font-semibold">Kitchen Queue</p>
-                  <p className="text-2xl font-bold text-[#E8B478]">{orders.filter(o => o.status === 'pending' || o.status === 'preparing').length}</p>
+              <div className="bg-white rounded-xl shadow-lg p-6 border-l-4 border-[#E8B478]">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-600 font-semibold">Kitchen Queue</p>
+                    <p className="text-2xl font-bold text-[#E8B478]">{orders.filter(o => o.status === 'pending' || o.status === 'preparing').length}</p>
+                  </div>
+                  <ChefHat className="w-8 h-8 text-[#E8B478]" />
                 </div>
               </div>
             </div>
@@ -10872,4 +10898,23 @@ ${(() => {
                 onClick={handleThermalPrint}
                 className={`flex-1 px-6 py-3 rounded-xl font-semibold transition-all duration-300 ${
                   selectedOrderForBilling.is_printed
-                    ? 'bg-white border-2 border-[#
+                    ? 'bg-white border-2 border-[#9A572D] text-[#9A572D] hover:bg-[#F5F0E8]'
+                    : 'bg-[#6B3E26] text-white hover:bg-[#9A572D]'
+                }`}
+              >
+                {selectedOrderForBilling.is_printed ? 'Printed' : 'Print Bill'}
+              </button>
+              <button
+                onClick={() => selectedOrderForBilling && handleMarkAsPaid(selectedOrderForBilling)}
+                className="flex-1 px-6 py-3 bg-[#6B3E26] text-white rounded-xl font-semibold hover:shadow-lg transition-all duration-300"
+              >
+                Mark as Paid
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      </div>
+    </div>
+  )
+}
