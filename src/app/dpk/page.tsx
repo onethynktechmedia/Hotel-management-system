@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { User } from '@/types'
@@ -13,6 +13,29 @@ export default function LoginPage() {
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [checkingAuth, setCheckingAuth] = useState(true)
+
+  useEffect(() => {
+    // Always show login page on /dpk - don't auto-redirect
+    // This allows users to explicitly login at /dpk
+    setCheckingAuth(false)
+  }, [])
+
+  if (checkingAuth) {
+    return (
+      <div className="min-h-screen bg-[#F5F5DC] flex items-center justify-center">
+        <div className="text-2xl font-bold text-[#5D3A1A]">Checking authentication...</div>
+      </div>
+    )
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#F5F5DC] flex items-center justify-center">
+        <div className="text-2xl font-bold text-[#5D3A1A]">Logging in...</div>
+      </div>
+    )
+  }
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -34,12 +57,21 @@ export default function LoginPage() {
       if (!response.ok) {
         playErrorSound()
         setError(data.error || 'Invalid credentials')
+        setLoading(false)
         return
       }
 
       // Set secure cookies for session management
       // Use secure flag only in production (https)
       const isSecure = process.env.NODE_ENV === 'production'
+
+      // Clear existing cookies first to prevent conflicts
+      document.cookie = `hotel_session=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT`
+      document.cookie = `hotel_role=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT`
+      document.cookie = `hotel_user_id=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT`
+      document.cookie = `hotel_user_name=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT`
+
+      // Set new cookies
       document.cookie = `hotel_session=${data.session_token || data.user.id}; path=/; ${isSecure ? 'secure;' : ''} samesite=strict; max-age=86400`
       document.cookie = `hotel_role=${data.user.role}; path=/; ${isSecure ? 'secure;' : ''} samesite=strict; max-age=86400`
       document.cookie = `hotel_user_id=${data.user.id}; path=/; ${isSecure ? 'secure;' : ''} samesite=strict; max-age=86400`
@@ -48,7 +80,7 @@ export default function LoginPage() {
       // Store minimal user data in localStorage for UI (non-sensitive)
       localStorage.setItem('user_name', data.user.name || '')
       localStorage.setItem('user_role', data.user.role || '')
-      
+
       playSuccessSound()
 
       // Redirect based on role to secure routes
@@ -76,6 +108,18 @@ export default function LoginPage() {
     }
   }
 
+  const handleLogout = () => {
+    playClickSound()
+    // Clear all cookies
+    document.cookie = `hotel_session=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT`
+    document.cookie = `hotel_role=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT`
+    document.cookie = `hotel_user_id=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT`
+    document.cookie = `hotel_user_name=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT`
+    localStorage.clear()
+    setError('')
+    setPassword('')
+  }
+
   return (
     <div className="min-h-screen bg-[#F5F5DC] flex items-center justify-center px-4">
       <div className="max-w-md w-full bg-white rounded-2xl shadow-xl p-8 border-2 border-[#5D3A1A]">
@@ -92,6 +136,13 @@ export default function LoginPage() {
           <p className="text-xl font-semibold text-[#5D3A1A] mb-2">Khanawal</p>
           <p className="text-gray-600">Staff Portal</p>
           <p className="text-sm text-gray-500 mt-1">Please login to continue</p>
+          <button
+            type="button"
+            onClick={handleLogout}
+            className="mt-4 text-sm text-[#8B4513] hover:text-[#5D3A1A] underline"
+          >
+            Clear session and login as different user
+          </button>
         </div>
 
         <form onSubmit={handleLogin} className="space-y-6">

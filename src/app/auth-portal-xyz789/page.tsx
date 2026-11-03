@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { User } from '@/types'
@@ -12,6 +12,49 @@ export default function LoginPage() {
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [checkingAuth, setCheckingAuth] = useState(true)
+
+  useEffect(() => {
+    // Check if user is already logged in
+    const sessionToken = document.cookie
+      .split('; ')
+      .find(row => row.startsWith('hotel_session='))
+      ?.split('=')[1]
+
+    if (sessionToken) {
+      // User is already logged in, redirect to appropriate dashboard
+      const role = document.cookie
+        .split('; ')
+        .find(row => row.startsWith('hotel_role='))
+        ?.split('=')[1] || 'admin'
+
+      let dashboardUrl = '/secure-dashboard-xyz789'
+      if (role === 'waiter') dashboardUrl = '/staff-portal-abc456'
+      else if (role === 'kitchen') dashboardUrl = '/chef-station-def123'
+      else if (role === 'offline-admin') dashboardUrl = '/backup-control-ghi789'
+
+      router.push(dashboardUrl)
+    } else {
+      setCheckingAuth(false)
+    }
+  }, [router])
+
+  if (checkingAuth) {
+    return (
+      <div className="min-h-screen bg-[#F5F5DC] flex items-center justify-center">
+        <div className="text-2xl font-bold text-[#5D3A1A]">Checking authentication...</div>
+      </div>
+    )
+  }
+
+  // Show full loader during login submission
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#F5F5DC] flex items-center justify-center">
+        <div className="text-2xl font-bold text-[#5D3A1A]">Logging in...</div>
+      </div>
+    )
+  }
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -33,10 +76,18 @@ export default function LoginPage() {
       if (!response.ok) {
         playErrorSound()
         setError(data.error || 'Invalid credentials')
+        setLoading(false)
         return
       }
 
       // Set secure cookies for session management
+      // Clear existing cookies first to prevent conflicts
+      document.cookie = `hotel_session=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT`
+      document.cookie = `hotel_role=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT`
+      document.cookie = `hotel_user_id=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT`
+      document.cookie = `hotel_user_name=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT`
+
+      // Set new cookies
       document.cookie = `hotel_session=${data.session_token || data.user.id}; path=/; secure; samesite=strict; max-age=86400`
       document.cookie = `hotel_role=${data.user.role}; path=/; secure; samesite=strict; max-age=86400`
       document.cookie = `hotel_user_id=${data.user.id}; path=/; secure; samesite=strict; max-age=86400`

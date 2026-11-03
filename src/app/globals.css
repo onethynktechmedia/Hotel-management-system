@@ -290,6 +290,33 @@ body {
   }
 }
 
+@keyframes spin3d {
+  0% {
+    transform: rotateY(0deg) rotateX(0deg);
+  }
+  25% {
+    transform: rotateY(90deg) rotateX(10deg);
+  }
+  50% {
+    transform: rotateY(180deg) rotateX(0deg);
+  }
+  75% {
+    transform: rotateY(270deg) rotateX(-10deg);
+  }
+  100% {
+    transform: rotateY(360deg) rotateX(0deg);
+  }
+}
+
+@keyframes bounce {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
 @keyframes slideIn {
   from {
     opacity: 0;
@@ -460,8 +487,24 @@ body > * {
   animation: glow 1.5s ease-in-out infinite;
 }
 
+.animate-fade-in-custom {
+  animation: fadeIn 1s ease-out;
+}
+
+.animate-fade-in-delayed {
+  animation: fadeIn 1s ease-out 0.3s both;
+}
+
 .animate-shake {
   animation: shake 0.5s ease-in-out;
+}
+
+.animate-spin3d {
+  animation: spin3d 3s ease-in-out infinite;
+}
+
+.animate-bounce-custom {
+  animation: bounce 1s infinite;
 }
 
 /* Smooth transitions for all interactive elements */

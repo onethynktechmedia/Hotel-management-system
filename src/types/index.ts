@@ -24,11 +24,16 @@ export interface Dish {
   name: string
   marathi_name?: string
   description: string | null
+  marathi_description?: string | null
   price: number
   category: string
   image_url: string | null
   is_available: boolean
   food_type?: 'veg' | 'nonveg' | 'custom' | 'parcel'
+  is_service?: boolean
+  rating?: number
+  offer?: string | null
+  offer_discount?: number | null
   created_at: string
 }
 
@@ -93,4 +98,19 @@ export interface CartItem {
   quantity: number
   image_url: string | null
   dish_type?: string
+}
+
+export interface Offer {
+  id: string
+  title: string
+  description: string | null
+  discount_percent: number
+  min_order_value: number | null
+  max_discount: number | null
+  start_date: string
+  end_date: string
+  is_active: boolean
+  is_promotional: boolean
+  applicable_dishes: string[] | null
+  created_at: string
 }

@@ -7,6 +7,7 @@ import { User, Order, Dish, Table, CartItem } from '@/types'
 import { LogOut, ShoppingCart, Plus, Minus, ArrowLeft, Users, Clock, CheckCircle, X, Crown, Printer, RotateCcw, History, UtensilsCrossed, Link as LinkIcon, Bell } from 'lucide-react'
 import { playClickSound, playSuccessSound, playErrorSound, playPrintSound, playNotificationSound } from '@/lib/sound-effects'
 import GoogleTranslate from '@/components/GoogleTranslate'
+import DPKLoader from '@/components/DPKLoader'
 import { printSilently, generateKOTESCPOS } from '@/lib/webusb-printer'
 
 type Step = 'tables' | 'order-options' | 'dishes' | 'cart' | 'success' | 'alter-table' | 'repeat-order' | 'bill-preview' | 'previous-orders' | 'active-orders'
@@ -31,6 +32,7 @@ export default function WaiterPage() {
   const [selectedTable, setSelectedTable] = useState<Table | null>(null)
   const [currentStep, setCurrentStep] = useState<Step>('tables')
   const [loading, setLoading] = useState(true)
+  const [showLoader, setShowLoader] = useState(true)
   const [selectedCategory, setSelectedCategory] = useState<string>('all')
   const [selectedFoodType, setSelectedFoodType] = useState<string>('all')
   const [submitting, setSubmitting] = useState(false)
@@ -75,52 +77,53 @@ export default function WaiterPage() {
   }, [showProfileDropdown])
 
   useEffect(() => {
-    // Check for session cookie instead of localStorage
-    const sessionCookie = document.cookie.includes('hotel_session=')
-    const userRoleCookie = document.cookie.includes('hotel_role=')
-    
-    if (!sessionCookie || !userRoleCookie) {
-      router.push('/dpk')
-      return
-    }
-    
-    // Get user role from cookie
-    const roleMatch = document.cookie.match(/hotel_role=([^;]+)/)
-    const userRole = roleMatch ? decodeURIComponent(roleMatch[1]) : null
-    
-    if (userRole !== 'waiter') {
-      router.push('/dpk')
-      return
-    }
-    
-    // Get user ID from cookie
-    const userIdMatch = document.cookie.match(/hotel_user_id=([^;]+)/)
-    const userId = userIdMatch ? decodeURIComponent(userIdMatch[1]) : null
-    const userNameMatch = document.cookie.match(/hotel_user_name=([^;]+)/)
-    const userName = userNameMatch ? decodeURIComponent(userNameMatch[1]) : localStorage.getItem('user_name') || 'Waiter'
+    const verifySession = async () => {
+      try {
+        // Check role from cookie first for quick redirect
+        const role = document.cookie
+          .split('; ')
+          .find(row => row.startsWith('hotel_role='))
+          ?.split('=')[1]
 
-    console.log('Waiter login data:', { userId, userName, userRole })
+        if (role !== 'waiter' && role !== 'admin') {
+          router.push('/auth-portal-xyz789')
+          return
+        }
 
-    setUser({
-      id: userId || '',
-      email: '',
-      role: userRole || 'waiter',
-      name: userName,
-      created_at: new Date().toISOString()
-    })
-    
-    fetchData()
-    
-    const subscription = supabase
-      .channel('tables')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'tables' }, (payload) => {
+        const response = await fetch('/api/auth/verify')
+        const data = await response.json()
+
+        if (!response.ok || !data.authenticated) {
+          router.push('/auth-portal-xyz789')
+          return
+        }
+
+        // Check if user has waiter role (admin can also access)
+        if (data.user.role !== 'waiter' && data.user.role !== 'admin') {
+          router.push('/auth-portal-xyz789')
+          return
+        }
+
+        setUser(data.user)
         fetchData()
-      })
-      .subscribe()
 
-    return () => {
-      subscription.unsubscribe()
+        // Use polling instead of real-time subscription to avoid CSP issues
+        const interval = setInterval(() => {
+          if (navigator.onLine) {
+            fetchData()
+          }
+        }, 5000)
+
+        return () => {
+          clearInterval(interval)
+        }
+      } catch (error) {
+        console.error('Session verification failed:', error)
+        router.push('/auth-portal-xyz789')
+      }
     }
+
+    verifySession()
   }, [router])
 
   const fetchData = async () => {
@@ -756,18 +759,15 @@ export default function WaiterPage() {
     }
   }
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     playClickSound()
-    // Clear all cookies
-    document.cookie = 'hotel_session=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT'
-    document.cookie = 'hotel_role=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT'
-    document.cookie = 'hotel_user_id=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT'
-    
-    // Clear localStorage
+    try {
+      await fetch('/api/auth/logout', { method: 'POST' })
+    } catch (error) {
+      console.error('Logout error:', error)
+    }
     localStorage.clear()
-    
-    // Redirect to main page
-    router.push('/')
+    router.push('/auth-portal-xyz789')
   }
 
   const handleCreateMasterTable = async () => {
@@ -1544,7 +1544,14 @@ ${itemsList}
   }
 
   return (
-    <div className={`min-h-screen bg-amber-50 pb-20 ${currentStep === 'active-orders' ? 'pt-0 mt-0' : ''}`}>
+    <>
+      <DPKLoader
+        duration={2500}
+        onComplete={() => setShowLoader(false)}
+      />
+
+      {!showLoader && (
+        <div className={`min-h-screen bg-amber-50 pb-20 ${currentStep === 'active-orders' ? 'pt-0 mt-0' : ''}`}>
       {/* Header - Hide on active-orders page */}
       {currentStep !== 'active-orders' && (
         <nav className="bg-white shadow-sm sticky top-0 z-40">
@@ -3455,5 +3462,7 @@ ${itemsList}
       </div>
       )}
     </div>
+      )}
+    </>
   )
 }

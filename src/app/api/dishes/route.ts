@@ -18,7 +18,7 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { name, marathi_name, description, price, category, image_url, is_available, food_type } = body
+    const { name, marathi_name, description, marathi_description, price, category, image_url, is_available, food_type, is_service, offer, offer_discount } = body
 
     const { data: dish, error } = await supabase
       .from('dishes')
@@ -26,11 +26,15 @@ export async function POST(request: NextRequest) {
         name,
         marathi_name,
         description,
+        marathi_description,
         price,
         category,
         image_url,
         is_available: is_available !== undefined ? is_available : true,
-        food_type: food_type || 'veg'
+        food_type: food_type || 'veg',
+        is_service: is_service || false,
+        offer: offer || null,
+        offer_discount: offer_discount || null
       })
       .select()
       .single()
@@ -68,7 +72,7 @@ export async function DELETE(request: NextRequest) {
 export async function PATCH(request: NextRequest) {
   try {
     const body = await request.json()
-    const { id, name, marathi_name, description, price, category, image_url, is_available, food_type } = body
+    const { id, name, marathi_name, description, marathi_description, price, category, image_url, is_available, food_type, is_service, offer, offer_discount } = body
 
     console.log('=== PATCH dishes request ===')
     console.log('Full body:', body)
@@ -90,11 +94,15 @@ export async function PATCH(request: NextRequest) {
     if (name !== undefined && name !== null) updateData.name = name
     if (marathi_name !== undefined && marathi_name !== null) updateData.marathi_name = marathi_name
     if (description !== undefined && description !== null) updateData.description = description
+    if (marathi_description !== undefined && marathi_description !== null) updateData.marathi_description = marathi_description
     if (price !== undefined && price !== null) updateData.price = price
     if (category !== undefined && category !== null) updateData.category = category
     if (image_url !== undefined && image_url !== null) updateData.image_url = image_url
     if (is_available !== undefined && is_available !== null) updateData.is_available = is_available
     if (food_type !== undefined && food_type !== null) updateData.food_type = food_type
+    if (is_service !== undefined && is_service !== null) updateData.is_service = is_service
+    if (offer !== undefined && offer !== null) updateData.offer = offer
+    if (offer_discount !== undefined && offer_discount !== null) updateData.offer_discount = offer_discount
 
     console.log('Update data:', updateData)
 

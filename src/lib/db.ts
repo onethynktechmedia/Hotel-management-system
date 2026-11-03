@@ -1,7 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 
-const supabaseUrl = 'https://qthtkmlvoarafrxyjdpe.supabase.co'
-const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF0aHRrbWx2b2FyYWZyeHlqZHBlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg2NjY2MTcsImV4cCI6MjEwNDI0MjYxN30.VagDFieZVq2Ni5ofDBXENH0KC34SD744hjbqIGD1IvE'
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 
 const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
@@ -29,3 +29,6 @@ export async function query(text: string, params?: any[]) {
 }
 
 export default supabase
+
+
+

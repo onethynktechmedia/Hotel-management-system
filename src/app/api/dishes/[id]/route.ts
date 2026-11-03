@@ -29,7 +29,7 @@ export async function PATCH(
   try {
     const params = await context.params
     const body = await request.json()
-    const { name, marathi_name, description, price, category, image_url, is_available, food_type } = body
+    const { name, marathi_name, description, price, category, image_url, is_available, food_type, offer, offer_discount } = body
 
     const updateData: any = {}
     if (name !== undefined && name !== null) updateData.name = name
@@ -40,6 +40,8 @@ export async function PATCH(
     if (image_url !== undefined && image_url !== null) updateData.image_url = image_url
     if (is_available !== undefined && is_available !== null) updateData.is_available = is_available
     if (food_type !== undefined && food_type !== null) updateData.food_type = food_type
+    if (offer !== undefined && offer !== null) updateData.offer = offer
+    if (offer_discount !== undefined && offer_discount !== null) updateData.offer_discount = offer_discount
 
     const { data: dish, error } = await supabase
       .from('dishes')

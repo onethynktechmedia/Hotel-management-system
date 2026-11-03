@@ -2,11 +2,12 @@
 
 import React, { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Plus, Trash2, DollarSign, Users, Utensils, User as UserIcon, Search, Download, Printer, ShoppingCart, X, Edit, Save, WifiOff, Bell, TrendingUp, Clock, CheckCircle, AlertCircle, Settings, Database, FileText, Calendar, LogOut, Wifi } from 'lucide-react'
+import { Plus, Trash2, DollarSign, Users, Utensils, User as UserIcon, Search, Download, Printer, ShoppingCart, X, Edit, Save, WifiOff, Bell, TrendingUp, Clock, CheckCircle, AlertCircle, Settings, Database, FileText, Calendar, LogOut, Wifi, RefreshCw } from 'lucide-react'
 import { localStorageDB, LocalOrder, LocalDish, LocalTable, LocalUser, LocalOrderItem } from '@/lib/local-storage-db'
 import { printWithFallback, WebUSBPrinter } from '@/lib/webusb-printer'
 import { playClickSound, playSuccessSound, playErrorSound, playPrintSound, playNotificationSound } from '@/lib/sound-effects'
 import Sidebar from '@/components/Sidebar'
+import { electronDB } from '@/lib/electron-db'
 
 const formatOrderId = (orderId: string) => {
   const hash = orderId.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0)
@@ -55,6 +56,10 @@ export default function OfflineAdminPage() {
   // Internet connectivity state
   const [isOnline, setIsOnline] = useState(true)
   
+  // Sync state
+  const [syncStatus, setSyncStatus] = useState<{ pending: number; isSyncing: boolean }>({ pending: 0, isSyncing: false })
+  const [isElectron, setIsElectron] = useState(false)
+  
   // Animation states
   const [cartAnimation, setCartAnimation] = useState(false)
 
@@ -70,6 +75,9 @@ export default function OfflineAdminPage() {
     const timer = setInterval(() => setCurrentDateTime(new Date()), 1000)
     setLoading(false)
     
+    // Check if running in Electron
+    setIsElectron(typeof window !== 'undefined' && window.electronAPI !== undefined)
+    
     // Internet connectivity detection
     const handleOnline = () => setIsOnline(true)
     const handleOffline = () => setIsOnline(false)
@@ -78,12 +86,17 @@ export default function OfflineAdminPage() {
     window.addEventListener('offline', handleOffline)
     setIsOnline(navigator.onLine)
     
+    // Load sync status if in Electron
+    if (isElectron) {
+      loadSyncStatus()
+    }
+    
     return () => {
       clearInterval(timer)
       window.removeEventListener('online', handleOnline)
       window.removeEventListener('offline', handleOffline)
     }
-  }, [router])
+  }, [router, isElectron])
 
   const loadOfflineData = () => {
     setOrders(localStorageDB.getOrders())
@@ -409,6 +422,56 @@ export default function OfflineAdminPage() {
     }
   }
 
+  // Sync functions
+  const loadSyncStatus = async () => {
+    if (!isElectron) return
+    try {
+      const result = await electronDB.getSyncStatus()
+      if (result.success) {
+        setSyncStatus({
+          pending: result.pending || 0,
+          isSyncing: result.isSyncing || false
+        })
+      }
+    } catch (error) {
+      console.error('Failed to load sync status:', error)
+    }
+  }
+
+  const handleSyncToSupabase = async () => {
+    if (!isElectron) {
+      alert('Sync is only available in Electron mode')
+      return
+    }
+    
+    if (!isOnline) {
+      playErrorSound()
+      alert('No internet connection. Please connect to the internet to sync.')
+      return
+    }
+
+    playClickSound()
+    setSyncStatus(prev => ({ ...prev, isSyncing: true }))
+
+    try {
+      const result = await electronDB.syncToSupabase()
+      
+      if (result.success) {
+        playSuccessSound()
+        alert(`Sync completed: ${result.synced} records synced, ${result.failed} failed`)
+        await loadSyncStatus()
+      } else {
+        playErrorSound()
+        alert(`Sync failed: ${result.error}`)
+      }
+    } catch (error: any) {
+      playErrorSound()
+      alert(`Sync error: ${error.message}`)
+    } finally {
+      setSyncStatus(prev => ({ ...prev, isSyncing: false }))
+    }
+  }
+
   const calculateDiscountValue = (total: number) => {
     return discountType === 'amount' ? parseFloat(discountAmount) || 0 : (parseFloat(discountPercentage) || 0) / 100 * total
   }
@@ -428,7 +491,7 @@ export default function OfflineAdminPage() {
       // 58mm paper width = approximately 32-35 characters per line
       const plainText = `
 <div style="text-align: center; margin-bottom: 8px;">
-  <img src="/dhole patil logo-03.png" alt="Dhole Patil Logo" style="width: 120px; height: auto; margin-bottom: 8px;" />
+  <img src="/dhole patil logo-03.png" alt="Dhole Patil Logo" style="width: 200px; height: auto; margin-bottom: 8px;" />
 </div>
 <strong class="header" style="font-size: 22px; font-weight: 900;">DHOLE PATIL Khanawal</strong><br>
 Restaurant & Bar<br>
@@ -1124,6 +1187,42 @@ Visit Us Again<br>
                     {printerConnected ? 'Printer Connected' : 'Connect Printer'}
                   </button>
                 </div>
+                {isElectron && (
+                  <div className="border-b pb-6">
+                    <h3 className="text-lg font-semibold mb-4">Cloud Synchronization</h3>
+                    <div className="space-y-4">
+                      <div className="flex items-center gap-4">
+                        <div className={`flex items-center gap-2 ${isOnline ? 'text-green-600' : 'text-red-600'}`}>
+                          {isOnline ? <Wifi size={20} /> : <WifiOff size={20} />}
+                          <span>{isOnline ? 'Online' : 'Offline'}</span>
+                        </div>
+                        {syncStatus.pending > 0 && (
+                          <div className="flex items-center gap-2 text-orange-600">
+                            <Database size={20} />
+                            <span>{syncStatus.pending} pending sync</span>
+                          </div>
+                        )}
+                      </div>
+                      <button
+                        onClick={handleSyncToSupabase}
+                        disabled={!isOnline || syncStatus.isSyncing}
+                        className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white px-4 py-2 rounded-lg flex items-center gap-2"
+                      >
+                        {syncStatus.isSyncing ? (
+                          <>
+                            <RefreshCw className="w-4 h-4 animate-spin" />
+                            Syncing...
+                          </>
+                        ) : (
+                          <>
+                            <RefreshCw className="w-4 h-4" />
+                            Sync to Cloud
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                )}
                 <div>
                   <h3 className="text-lg font-semibold mb-4">System Info</h3>
                   <div className="space-y-2 text-sm text-gray-600">

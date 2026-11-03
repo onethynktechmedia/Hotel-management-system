@@ -1,22 +1,31 @@
 {
-  "name": "galaxy-garden-hotel-admin",
+  "name": "dhole-patil-khanawal",
   "version": "1.0.0",
   "private": true,
   "main": "electron/main.js",
+  "author": {
+    "name": "Dhole Patil Khanawal",
+    "email": "phapaletejas11@gmail.com"
+  },
+  "description": "Hotel Billing and Management System",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "electron": "electron .",
-    "electron-dev": "concurrently \"cross-env BROWSER=none npm run dev\" \"wait-on http://localhost:3000 && electron .\"",
-    "electron-build": "npm run build && electron-builder",
-    "electron-build-win": "npm run build && electron-builder --win",
-    "electron-build-mac": "npm run build && electron-builder --mac",
-    "electron-build-linux": "npm run build && electron-builder --linux",
+    "electron": "npm run electron:build && electron-builder --dir",
+    "electron:dev": "concurrently \"cross-env BROWSER=none npm run dev\" \"wait-on http://localhost:3000 && electron .\"",
+    "electron:build": "next build",
+    "dist": "npm run electron:build && electron-builder",
+    "dist:win": "npm run electron:build && electron-builder --win",
+    "dist:win:portable": "npm run electron:build && electron-builder --win --publish never",
+    "dist:linux": "npm run electron:build && electron-builder --linux",
+    "dist:mac": "npm run electron:build && electron-builder --mac",
+    "rebuild-native": "electron-rebuild -f -w better-sqlite3",
     "offline-dev": "next dev",
     "offline-build": "next build",
-    "offline-start": "next start"
+    "offline-start": "next start",
+    "setup-prod": "node scripts/setup-production.js"
   },
   "dependencies": {
     "@supabase/auth-helpers-nextjs": "^0.15.0",
@@ -28,25 +37,28 @@
     "jspdf-autotable": "^5.0.8",
     "lucide-react": "^1.41.0",
     "next": "14.2.15",
+    "node-fetch": "^3.3.2",
     "pg": "^8.23.0",
     "pusher": "^5.3.4",
     "pusher-js": "^8.6.0",
+    "qz-tray": "^2.3.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "recharts": "^3.10.1",
     "resend": "^6.32.0",
-    "tailwind-merge": "^3.6.0"
+    "tailwind-merge": "^3.6.0",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
+    "@electron-forge/cli": "^8.0.1",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
     "concurrently": "^10.0.5",
     "cross-env": "^10.1.0",
-    "electron": "^44.4.3",
+    "electron": "^30.0.0",
     "electron-builder": "^26.15.3",
-    "electron-is-dev": "^3.0.1",
     "eslint": "^9",
     "eslint-config-next": "16.3.4",
     "tailwindcss": "^4",
@@ -54,20 +66,22 @@
     "wait-on": "^9.1.0"
   },
   "build": {
-    "appId": "com.galaxygarden.hoteladmin",
-    "productName": "Galaxy Garden Hotel Admin",
+    "appId": "com.dholepatil.khanawal",
+    "productName": "Dhole Patil Khanawal",
     "directories": {
       "output": "dist"
     },
     "files": [
       "electron/**/*",
       ".next/**/*",
-      "node_modules/**/*",
       "public/**/*",
       "package.json",
-      "next.config.ts"
+      "next.config.mjs"
     ],
     "asar": true,
+    "asarUnpack": [
+      "node_modules/better-sqlite3/**/*"
+    ],
     "compression": "maximum",
     "fileAssociations": [],
     "win": {
@@ -78,7 +92,10 @@
             "x64"
           ]
         }
-      ]
+      ],
+      "icon": "public/app-icon.ico",
+      "artifactName": "${productName}-${version}-${arch}.${ext}",
+      "ffmpegChromium": true
     },
     "mac": {
       "target": [
@@ -97,7 +114,8 @@
           ]
         }
       ],
-      "category": "public.app-category.business"
+      "category": "public.app-category.business",
+      "icon": "public/icon.png"
     },
     "linux": {
       "target": [
@@ -114,13 +132,12 @@
           ]
         }
       ],
-      "category": "Office"
+      "category": "Office",
+      "icon": "public/logo.png",
+      "maintainer": "Dhole Patil Khanawal <phapaletejas11@gmail.com>"
     },
-    "nsis": {
-      "oneClick": false,
-      "allowToChangeInstallationDirectory": true,
-      "createDesktopShortcut": true,
-      "createStartMenuShortcut": true
+    "portable": {
+      "artifactName": "${productName}-Portable-${version}.${ext}"
     }
   }
 }

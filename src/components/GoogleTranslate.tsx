@@ -67,21 +67,30 @@ export default function GoogleTranslate({ variant = 'brown' }: GoogleTranslatePr
     setSelectedLang(langCode)
     setIsOpen(false)
 
-    // Use Google Translate to change language
-    const selectElement = document.querySelector('.goog-te-combo') as HTMLSelectElement
-    if (selectElement) {
-      selectElement.value = langCode
-      selectElement.dispatchEvent(new Event('change'))
-    } else {
-      // Fallback: use Google Translate cookie method
-      const domain = window.location.hostname
-      document.cookie = `googtrans=/en/${langCode}; path=/; domain=${domain}`
-      window.location.reload()
+    // Use Google Translate cookie method for reliable translation
+    const domain = window.location.hostname
+    document.cookie = `googtrans=/en/${langCode}; path=/; domain=${domain}; max-age=31536000`
+
+    // Also set for subdomains
+    document.cookie = `googtrans=/en/${langCode}; path=/; domain=.${domain}; max-age=31536000`
+
+    // Trigger Google Translate
+    if (typeof window !== 'undefined' && (window as any).google && (window as any).google.translate) {
+      const selectElement = document.querySelector('.goog-te-combo') as HTMLSelectElement
+      if (selectElement) {
+        selectElement.value = langCode
+        selectElement.dispatchEvent(new Event('change'))
+      }
     }
+
+    // Reload page to apply translation
+    setTimeout(() => {
+      window.location.reload()
+    }, 100)
   }
 
   const buttonBg = variant === 'brown' ? 'bg-white/10 hover:bg-white/20' : 'bg-[#F5F5DC] hover:bg-[#DEB887]'
-  const buttonText = variant === 'brown' ? 'text-white' : 'text-[#5D3A1A]'
+  const buttonText = variant === 'brown' ? 'text-white' : 'text-[#6B3E26]'
 
   const selectedLanguage = languages.find(l => l.code === selectedLang)
 
@@ -112,7 +121,7 @@ export default function GoogleTranslate({ variant = 'brown' }: GoogleTranslatePr
                 onClick={() => handleLanguageChange(language.code)}
                 className={`w-full text-left px-3 py-2 rounded-md transition-colors flex items-center gap-2 ${
                   selectedLang === language.code
-                    ? 'bg-[#8B4513] text-white'
+                    ? 'bg-[#6B3E26] text-white'
                     : 'hover:bg-gray-100 text-gray-700'
                 }`}
               >

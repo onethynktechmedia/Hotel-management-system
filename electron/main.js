@@ -1,77 +1,125 @@
 const { app, BrowserWindow } = require('electron')
 const path = require('path')
-const isDev = require('electron-is-dev')
-const { spawn } = require('child_process')
+const fs = require('fs')
 
 let mainWindow
-let serverProcess
+let splashWindow
 
-function startServer() {
-  return new Promise((resolve, reject) => {
-    if (isDev) {
-      // In development, server is already running via npm run dev
-      resolve()
-      return
+// Load environment variables from .env file
+function loadEnv() {
+  try {
+    const envPath = path.join(__dirname, '../.env')
+    if (fs.existsSync(envPath)) {
+      const envContent = fs.readFileSync(envPath, 'utf-8')
+      envContent.split('\n').forEach(line => {
+        const match = line.match(/^([^=]+)=(.*)$/)
+        if (match) {
+          const [, key, value] = match
+          if (!process.env[key]) {
+            process.env[key] = value.trim()
+          }
+        }
+      })
+      console.log('Environment variables loaded from .env')
     }
+  } catch (error) {
+    console.error('Error loading .env file:', error)
+  }
+}
 
-    // In production, start the Next.js server
-    const serverPath = path.join(__dirname, '../node_modules/.bin/next')
-    serverProcess = spawn(serverPath, ['start', '-p', '3000'], {
-      cwd: path.join(__dirname, '..'),
-      shell: true
-    })
-
-    serverProcess.stdout.on('data', (data) => {
-      console.log(`Server stdout: ${data}`)
-      if (data.toString().includes('ready')) {
-        resolve()
-      }
-    })
-
-    serverProcess.stderr.on('data', (data) => {
-      console.error(`Server stderr: ${data}`)
-    })
-
-    serverProcess.on('close', (code) => {
-      console.log(`Server process exited with code ${code}`)
-      if (code !== 0) {
-        reject(new Error(`Server process exited with code ${code}`))
-      }
-    })
-
-    // Wait a bit for server to start
-    setTimeout(resolve, 3000)
+function createSplashWindow() {
+  splashWindow = new BrowserWindow({
+    width: 500,
+    height: 600,
+    transparent: true,
+    frame: false,
+    alwaysOnTop: true,
+    resizable: false,
+    skipTaskbar: true,
+    webPreferences: {
+      nodeIntegration: false,
+      contextIsolation: true
+    }
   })
+
+  splashWindow.loadFile(path.join(__dirname, 'splash.html'))
 }
 
 function createWindow() {
+  const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged
+
+  // Set icon based on platform
+  let iconPath
+  if (process.platform === 'win32') {
+    iconPath = path.join(__dirname, '../public/app-icon.ico')
+  } else if (process.platform === 'darwin') {
+    iconPath = path.join(__dirname, '../public/icon.png')
+  } else {
+    iconPath = path.join(__dirname, '../public/logo.png')
+  }
+
   mainWindow = new BrowserWindow({
     width: 1400,
     height: 900,
     minWidth: 1024,
     minHeight: 768,
     webPreferences: {
-      nodeIntegration: true,
-      contextIsolation: false,
-      webSecurity: false
+      nodeIntegration: false,
+      contextIsolation: true,
+      preload: path.join(__dirname, 'preload.js'),
+      webSecurity: true,
+      sandbox: false,
+      allowRunningInsecureContent: false
     },
-    icon: path.join(__dirname, '../public/icon.png'),
-    title: 'Galaxy Garden Hotel Admin - OFFLINE'
+    icon: iconPath,
+    title: 'Dhole Patil Khanawal',
+    show: false
   })
 
-  // Load the app - start with offline login page
+  mainWindow.once('ready-to-show', () => {
+    if (splashWindow) {
+      splashWindow.close()
+      splashWindow = null
+    }
+    mainWindow.show()
+  })
+
+  // Load from localhost in development
   if (isDev) {
-    mainWindow.loadURL('http://localhost:3000/offline-login')
-    // Open DevTools in development
+    mainWindow.loadURL('http://localhost:3000')
     mainWindow.webContents.openDevTools()
   } else {
-    // In production, wait for server then load
-    startServer().then(() => {
-      mainWindow.loadURL('http://localhost:3000/offline-login')
-    }).catch((err) => {
-      console.error('Failed to start server:', err)
-      app.quit()
+    // In production, use custom protocol to serve .next files
+    const protocol = require('electron').protocol
+
+    protocol.registerFileProtocol('app', (request, callback) => {
+      const filePath = path.join(__dirname, '..', request.url.slice(6))
+
+      // Handle root path
+      if (request.url === 'app:///' || request.url === 'app:/') {
+        callback({ path: path.join(__dirname, '../.next/server/app/index.html') })
+        return
+      }
+
+      // Handle static assets
+      if (request.url.startsWith('app://_next/static/')) {
+        const relativePath = request.url.replace('app://_next/static/', '')
+        const staticPath = path.join(__dirname, '../.next/static', relativePath)
+        if (fs.existsSync(staticPath)) {
+          callback({ path: staticPath })
+          return
+        }
+      }
+
+      // Handle other .next files
+      if (fs.existsSync(filePath)) {
+        callback({ path: filePath })
+      } else {
+        callback({ error: -2 }) // FILE_NOT_FOUND
+      }
     })
+
+    mainWindow.loadURL('app:///')
   }
 
   mainWindow.on('closed', () => {
@@ -79,13 +127,19 @@ function createWindow() {
   })
 }
 
-app.on('ready', createWindow)
+app.on('ready', () => {
+  loadEnv()
+  try {
+    require('./ipc-handler')
+  } catch (err) {
+    console.error('Error loading ipc-handler:', err)
+  }
+  createSplashWindow()
+  createWindow()
+})
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
-    if (serverProcess) {
-      serverProcess.kill()
-    }
     app.quit()
   }
 })
@@ -93,11 +147,5 @@ app.on('window-all-closed', () => {
 app.on('activate', () => {
   if (mainWindow === null) {
     createWindow()
-  }
-})
-
-app.on('before-quit', () => {
-  if (serverProcess) {
-    serverProcess.kill()
   }
 })

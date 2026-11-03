@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
+import { playClickSound } from '@/lib/sound-effects'
 import { Users, Bell, CheckCircle, XCircle, Clock, AlertCircle, Plus, Edit, Trash2, KeyRound } from 'lucide-react'
 
 interface Waiter {
@@ -18,6 +19,7 @@ export default function WaiterStatus() {
   const [waiters, setWaiters] = useState<Waiter[]>([])
   const [notifications, setNotifications] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [showWaiterModal, setShowWaiterModal] = useState(false)
   const [editingWaiter, setEditingWaiter] = useState<Waiter | null>(null)
   const [waiterForm, setWaiterForm] = useState({
@@ -31,51 +33,69 @@ export default function WaiterStatus() {
   useEffect(() => {
     fetchWaiters()
     fetchNotifications()
-    
-    // Set up real-time subscription
-    const channel = supabase
-      .channel('waiters-changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'users' }, () => {
-        fetchWaiters()
-      })
-      .subscribe()
+
+    // Set up polling as fallback for real-time updates (since WebSocket is blocked by CSP)
+    const interval = setInterval(() => {
+      fetchWaiters()
+      fetchNotifications()
+    }, 30000) // Poll every 30 seconds
 
     return () => {
-      supabase.removeChannel(channel)
+      clearInterval(interval)
     }
   }, [])
 
   const fetchWaiters = async () => {
     try {
-      const { data: users } = await supabase
+      const { data: users, error } = await supabase
         .from('users')
         .select('*')
         .eq('role', 'waiter')
-        .order('created_at', { ascending: false }) // Show newest first
+        .order('created_at', { ascending: false })
+
+      if (error) {
+        console.error('Supabase error fetching waiters:', error)
+        setLoading(false)
+        return
+      }
 
       console.log('Fetched waiters:', users)
 
-      if (users) {
+      if (users && users.length > 0) {
         const waitersWithStats = await Promise.all(
           users.map(async (waiter) => {
-            const { data: orders } = await supabase
-              .from('orders')
-              .select('*')
-              .eq('waiter_id', waiter.id)
-              .in('status', ['pending', 'preparing', 'ready'])
+            try {
+              const { data: orders } = await supabase
+                .from('orders')
+                .select('*')
+                .eq('waiter_id', waiter.id)
+                .in('status', ['pending', 'preparing', 'ready'])
 
-            return {
-              ...waiter,
-              is_available: waiter.is_available ?? true,
-              last_active: waiter.last_active ?? new Date().toISOString(),
-              active_orders: orders?.length || 0
+              return {
+                ...waiter,
+                is_available: waiter.is_available ?? true,
+                last_active: waiter.last_active ?? new Date().toISOString(),
+                active_orders: orders?.length || 0
+              }
+            } catch (err) {
+              console.error('Error fetching orders for waiter:', waiter.id, err)
+              return {
+                ...waiter,
+                is_available: waiter.is_available ?? true,
+                last_active: waiter.last_active ?? new Date().toISOString(),
+                active_orders: 0
+              }
             }
           })
         )
         setWaiters(waitersWithStats)
+      } else {
+        setWaiters([])
       }
     } catch (error) {
       console.error('Error fetching waiters:', error)
+      setError('Failed to load waiters. Please check your connection.')
+      setWaiters([])
     } finally {
       setLoading(false)
     }
@@ -83,15 +103,22 @@ export default function WaiterStatus() {
 
   const fetchNotifications = async () => {
     try {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('notifications')
         .select('*')
         .order('created_at', { ascending: false })
         .limit(10)
 
+      if (error) {
+        console.error('Supabase error fetching notifications:', error)
+        setNotifications([])
+        return
+      }
+
       setNotifications(data || [])
     } catch (error) {
       console.error('Error fetching notifications:', error)
+      setNotifications([])
     }
   }
 
@@ -255,7 +282,33 @@ export default function WaiterStatus() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="text-lg font-semibold text-gray-600">Loading waiter status...</div>
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-12 h-12 border-4 border-[#5D3A1A] border-t-transparent rounded-full animate-spin"></div>
+          <div className="text-lg font-semibold text-gray-600">Loading waiter status...</div>
+        </div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="flex flex-col items-center gap-4 text-center">
+          <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center">
+            <AlertCircle className="w-8 h-8 text-red-600" />
+          </div>
+          <div className="text-lg font-semibold text-red-600">{error}</div>
+          <button
+            onClick={() => {
+              setError(null)
+              setLoading(true)
+              fetchWaiters()
+            }}
+            className="px-6 py-2 bg-[#5D3A1A] text-white rounded-xl font-semibold hover:bg-[#8B4513] transition-all"
+          >
+            Retry
+          </button>
+        </div>
       </div>
     )
   }
@@ -264,7 +317,7 @@ export default function WaiterStatus() {
   const totalWaiters = waiters.length
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-fade-in">
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="bg-white rounded-xl shadow-lg p-6 hover:shadow-xl transition-all duration-300">
@@ -320,7 +373,7 @@ export default function WaiterStatus() {
               Waiter Management
             </h3>
             <button
-              onClick={handleAddWaiter}
+              onClick={() => { playClickSound(); handleAddWaiter() }}
               className="flex items-center bg-[#5D3A1A] text-white px-4 py-2 rounded-xl font-semibold hover:bg-[#8B4513] transition-all duration-300 transform hover:scale-105"
             >
               <Plus className="w-4 h-4 mr-2" />
@@ -350,28 +403,28 @@ export default function WaiterStatus() {
                     </div>
                     <div className="flex items-center gap-2">
                       <button
-                        onClick={() => handleResetPassword(waiter.id)}
+                        onClick={() => { playClickSound(); handleResetPassword(waiter.id) }}
                         className="p-2 rounded-full bg-blue-100 text-blue-600 hover:bg-blue-200 transition-all duration-300"
                         title="Reset Password"
                       >
                         <KeyRound className="w-4 h-4" />
                       </button>
                       <button
-                        onClick={() => handleEditWaiter(waiter)}
+                        onClick={() => { playClickSound(); handleEditWaiter(waiter) }}
                         className="p-2 rounded-full bg-green-100 text-green-600 hover:bg-green-200 transition-all duration-300"
                         title="Edit"
                       >
                         <Edit className="w-4 h-4" />
                       </button>
                       <button
-                        onClick={() => handleDeleteWaiter(waiter.id)}
+                        onClick={() => { playClickSound(); handleDeleteWaiter(waiter.id) }}
                         className="p-2 rounded-full bg-red-100 text-red-600 hover:bg-red-200 transition-all duration-300"
                         title="Delete"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
                       <button
-                        onClick={() => toggleWaiterAvailability(waiter.id, waiter.is_available)}
+                        onClick={() => { playClickSound(); toggleWaiterAvailability(waiter.id, waiter.is_available) }}
                         className={`p-2 rounded-full transition-all duration-300 ${
                           waiter.is_available
                             ? 'bg-green-100 text-green-600 hover:bg-green-200'

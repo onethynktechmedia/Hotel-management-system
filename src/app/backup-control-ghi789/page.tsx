@@ -58,6 +58,17 @@ export default function OfflineAdminPage() {
   const [cartAnimation, setCartAnimation] = useState(false)
 
   useEffect(() => {
+    // Check role from cookie first for quick redirect
+    const role = document.cookie
+      .split('; ')
+      .find(row => row.startsWith('hotel_role='))
+      ?.split('=')[1]
+
+    if (role !== 'offline-admin' && role !== 'admin') {
+      router.push('/auth-portal-xyz789')
+      return
+    }
+
     localStorageDB.initializeSampleData()
     loadOfflineData()
     const userData = localStorage.getItem('offline_user')
@@ -68,15 +79,15 @@ export default function OfflineAdminPage() {
     setUser(JSON.parse(userData))
     const timer = setInterval(() => setCurrentDateTime(new Date()), 1000)
     setLoading(false)
-    
+
     // Internet connectivity detection
     const handleOnline = () => setIsOnline(true)
     const handleOffline = () => setIsOnline(false)
-    
+
     window.addEventListener('online', handleOnline)
     window.addEventListener('offline', handleOffline)
     setIsOnline(navigator.onLine)
-    
+
     return () => {
       clearInterval(timer)
       window.removeEventListener('online', handleOnline)
@@ -90,19 +101,16 @@ export default function OfflineAdminPage() {
     setTables(localStorageDB.getTables())
   }
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     playClickSound()
-    // Clear all cookies
-    document.cookie = 'hotel_session=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT'
-    document.cookie = 'hotel_role=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT'
-    document.cookie = 'hotel_user_id=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT'
-    
-    // Clear localStorage
+    try {
+      await fetch('/api/auth/logout', { method: 'POST' })
+    } catch (error) {
+      console.error('Logout error:', error)
+    }
     localStorage.removeItem('offline_user')
     localStorage.clear()
-    
-    // Redirect to main page
-    router.push('/')
+    router.push('/auth-portal-xyz789')
   }
 
   // Function to switch to online mode
@@ -359,7 +367,7 @@ export default function OfflineAdminPage() {
       // 58mm paper width = approximately 32-35 characters per line
       const plainText = `
 <div style="text-align: center; margin-bottom: 8px;">
-  <img src="/dhole patil logo-03.png" alt="Dhole Patil Logo" style="width: 120px; height: auto; margin-bottom: 8px;" />
+  <img src="/dhole patil logo-03.png" alt="Dhole Patil Logo" style="width: 200px; height: auto; margin-bottom: 8px;" />
 </div>
 <strong class="header" style="font-size: 22px; font-weight: 900;">DHOLE PATIL Khanawal</strong><br>
 Restaurant & Bar<br>

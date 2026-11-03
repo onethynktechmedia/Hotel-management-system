@@ -61,60 +61,63 @@ export default function ChefStation() {
   const [previousOrderCount, setPreviousOrderCount] = useState(0)
 
   useEffect(() => {
-    // Check for session cookie
-    const sessionCookie = document.cookie.includes('hotel_session=')
-    const userRoleCookie = document.cookie.includes('hotel_role=')
+    const verifySession = async () => {
+      try {
+        // Check role from cookie first for quick redirect
+        const role = document.cookie
+          .split('; ')
+          .find(row => row.startsWith('hotel_role='))
+          ?.split('=')[1]
 
-    if (!sessionCookie || !userRoleCookie) {
-      router.push('/dpk')
-      return
+        if (!['kitchen', 'admin', 'waiter'].includes(role || '')) {
+          router.push('/auth-portal-xyz789')
+          return
+        }
+
+        const response = await fetch('/api/auth/verify')
+        const data = await response.json()
+
+        if (!response.ok || !data.authenticated) {
+          router.push('/auth-portal-xyz789')
+          return
+        }
+
+        // Check if user has kitchen, admin, or waiter role
+        if (!['kitchen', 'admin', 'waiter'].includes(data.user.role)) {
+          router.push('/auth-portal-xyz789')
+          return
+        }
+
+        setUser(data.user)
+        fetchData()
+
+        // Temporarily disable real-time subscriptions to prevent overwriting local state
+        // TODO: Re-enable after fixing database RLS issues
+        // const subscription = supabase
+        //   .channel('orders')
+        //   .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, (_payload: any) => {
+        //     fetchData()
+        //   })
+        //   .subscribe()
+
+        // const itemsSubscription = supabase
+        //   .channel('order_items')
+        //   .on('postgres_changes', { event: '*', schema: 'public', table: 'order_items' }, (_payload: any) => {
+        //     fetchData()
+        //   })
+        //   .subscribe()
+
+        // return () => {
+        //   subscription.unsubscribe()
+        //   itemsSubscription.unsubscribe()
+        // }
+      } catch (error) {
+        console.error('Session verification failed:', error)
+        router.push('/auth-portal-xyz789')
+      }
     }
 
-    // Get user role from cookie
-    const roleMatch = document.cookie.match(/hotel_role=([^;]+)/)
-    const userRole = roleMatch ? decodeURIComponent(roleMatch[1]) : null
-
-    // Allow kitchen, admin, or waiter to access chef station for testing
-    if (!['kitchen', 'admin', 'waiter'].includes(userRole || '')) {
-      router.push('/dpk')
-      return
-    }
-
-    // Get user ID and name from cookie
-    const userIdMatch = document.cookie.match(/hotel_user_id=([^;]+)/)
-    const userId = userIdMatch ? decodeURIComponent(userIdMatch[1]) : null
-    const userName = localStorage.getItem('user_name') || 'Chef'
-
-    setUser({
-      id: userId || '',
-      email: '',
-      role: (userRole as 'kitchen' | 'admin' | 'waiter') || 'kitchen',
-      name: userName,
-      created_at: new Date().toISOString()
-    })
-
-    fetchData()
-
-    // Temporarily disable real-time subscriptions to prevent overwriting local state
-    // TODO: Re-enable after fixing database RLS issues
-    // const subscription = supabase
-    //   .channel('orders')
-    //   .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, (_payload: any) => {
-    //     fetchData()
-    //   })
-    //   .subscribe()
-
-    // const itemsSubscription = supabase
-    //   .channel('order_items')
-    //   .on('postgres_changes', { event: '*', schema: 'public', table: 'order_items' }, (_payload: any) => {
-    //     fetchData()
-    //   })
-    //   .subscribe()
-
-    // return () => {
-    //   subscription.unsubscribe()
-    //   itemsSubscription.unsubscribe()
-    // }
+    verifySession()
   }, [router])
 
   const fetchData = async () => {
@@ -160,13 +163,15 @@ export default function ChefStation() {
     }
   }
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     playClickSound()
-    document.cookie = 'hotel_session=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT'
-    document.cookie = 'hotel_role=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT'
-    document.cookie = 'hotel_user_id=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT'
+    try {
+      await fetch('/api/auth/logout', { method: 'POST' })
+    } catch (error) {
+      console.error('Logout error:', error)
+    }
     localStorage.clear()
-    router.push('/dpk')
+    router.push('/auth-portal-xyz789')
   }
 
   const handleUpdateItemStatus = async (itemId: string, newStatus: string) => {

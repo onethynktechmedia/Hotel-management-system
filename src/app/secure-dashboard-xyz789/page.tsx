@@ -2,8 +2,8 @@
 
 import React, { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { User, Order, Dish, Table, Payment, Notification } from '@/types'
-import { Plus, Edit, Trash2, DollarSign, Users, Utensils, User as UserIcon, Search, Filter, HelpCircle, Bell, LogOut, Download, Printer, Layers, Minus, X, UtensilsCrossed, RefreshCw, ShoppingCart, ArrowLeft, CheckCircle } from 'lucide-react'
+import { User, Order, Dish, Table, Payment, Notification, Offer } from '@/types'
+import { Plus, Edit, Trash2, DollarSign, Users, Utensils, User as UserIcon, Search, Filter, HelpCircle, Bell, LogOut, Download, Printer, Layers, Minus, X, UtensilsCrossed, RefreshCw, ShoppingCart, ArrowLeft, CheckCircle, ChefHat, Calendar, LayoutDashboard, BarChart3, CreditCard, Receipt, Clock, Wifi, WifiOff, CalendarCheck } from 'lucide-react'
 import Sidebar from '@/components/Sidebar'
 import WaiterStatus from '@/components/WaiterStatus'
 import Reports from '@/components/Reports'
@@ -54,7 +54,33 @@ export default function AdminDashboard() {
   const [payments, setPayments] = useState<Payment[]>([])
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [showNotifications, setShowNotifications] = useState(false)
-  const [activeTab, setActiveTab] = useState<'overview' | 'orders' | 'dishes' | 'tables' | 'waiters' | 'reports' | 'offline-billing' | 'online-orders'>('overview')
+  const [offers, setOffers] = useState<Offer[]>([])
+  const [showOfferModal, setShowOfferModal] = useState(false)
+  const [editingOffer, setEditingOffer] = useState<Offer | null>(null)
+  const [offerForm, setOfferForm] = useState({
+    title: '',
+    description: '',
+    discount_percent: '',
+    min_order_value: '',
+    max_discount: '',
+    start_date: '',
+    end_date: '',
+    is_active: true,
+    is_promotional: false,
+    applicable_dishes: [] as string[]
+  } as {
+    title: string
+    description: string
+    discount_percent: string
+    min_order_value: string
+    max_discount: string
+    start_date: string
+    end_date: string
+    is_active: boolean
+    is_promotional: boolean
+    applicable_dishes: string[]
+  })
+  const [activeTab, setActiveTab] = useState<'overview' | 'pos' | 'orders' | 'dishes' | 'tables' | 'waiters' | 'reports' | 'offline-billing' | 'online-orders' | 'reservations' | 'rooms' | 'bookings' | 'kitchen' | 'customers' | 'inventory' | 'delivery' | 'team' | 'accounting' | 'marketing' | 'operations' | 'attendance' | 'offers' | 'settings'>('overview')
   const [overviewSubTab, setOverviewSubTab] = useState<'all' | 'veg' | 'nonveg' | 'active' | 'occupied' | 'available'>('all')
   const [selectedTableForOverview, setSelectedTableForOverview] = useState<Table | null>(null)
   const [showTableOrderDetails, setShowTableOrderDetails] = useState(false)
@@ -94,7 +120,9 @@ export default function AdminDashboard() {
     category: '',
     image_url: '',
     food_type: 'veg' as 'veg' | 'nonveg' | 'custom' | 'parcel',
-    is_available: true
+    is_available: true,
+    offer: '',
+    offer_discount: ''
   } as {
     name: string
     marathi_name: string
@@ -104,6 +132,8 @@ export default function AdminDashboard() {
     image_url: string
     food_type: 'veg' | 'nonveg' | 'custom' | 'parcel'
     is_available: boolean
+    offer: string
+    offer_discount: string
   })
   const [selectedOrderForBilling, setSelectedOrderForBilling] = useState<Order | null>(null)
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null)
@@ -148,56 +178,255 @@ export default function AdminDashboard() {
   const [adminSelectedDishTypes, setAdminSelectedDishTypes] = useState<{[key: string]: string}>({})
   const dishTypes = ['Normal', 'Medium', 'Spicy', 'Extra Spicy']
 
+  // Occupied Table Order State
+  const [showOccupiedTableOrderModal, setShowOccupiedTableOrderModal] = useState(false)
+  const [selectedOccupiedTableOrder, setSelectedOccupiedTableOrder] = useState<any>(null)
+
+  // Reservations State
+  const [reservations, setReservations] = useState<any[]>([])
+  const [showReservationModal, setShowReservationModal] = useState(false)
+  const [editingReservation, setEditingReservation] = useState<any>(null)
+  const [reservationForm, setReservationForm] = useState({
+    customer_name: '',
+    customer_mobile: '',
+    table_id: '',
+    date: '',
+    time: '',
+    guests: '',
+    special_requests: ''
+  })
+
+  // Rooms State
+  const [rooms, setRooms] = useState<any[]>([])
+  const [showRoomModal, setShowRoomModal] = useState(false)
+  const [editingRoom, setEditingRoom] = useState<any>(null)
+  const [roomForm, setRoomForm] = useState({
+    room_number: '',
+    room_type: '',
+    floor: '',
+    capacity: '',
+    price_per_night: '',
+    amenities: '',
+    status: 'available'
+  })
+
+  // Bookings State
+  const [bookings, setBookings] = useState<any[]>([])
+  const [showBookingModal, setShowBookingModal] = useState(false)
+  const [editingBooking, setEditingBooking] = useState<any>(null)
+  const [bookingForm, setBookingForm] = useState({
+    customer_name: '',
+    customer_mobile: '',
+    room_id: '',
+    check_in: '',
+    check_out: '',
+    guests: '',
+    total_amount: '',
+    status: 'confirmed'
+  })
+
+  // Customers State
+  const [customers, setCustomers] = useState<any[]>([])
+  const [showCustomerModal, setShowCustomerModal] = useState(false)
+  const [editingCustomer, setEditingCustomer] = useState<any>(null)
+  const [customerForm, setCustomerForm] = useState({
+    name: '',
+    mobile: '',
+    email: '',
+    address: '',
+    preferences: ''
+  })
+
+  // Inventory State
+  const [inventory, setInventory] = useState<any[]>([])
+  const [showInventoryModal, setShowInventoryModal] = useState(false)
+  const [editingInventory, setEditingInventory] = useState<any>(null)
+  const [inventoryForm, setInventoryForm] = useState({
+    item_name: '',
+    category: '',
+    quantity: '',
+    unit: '',
+    unit_price: '',
+    minimum_stock: '',
+    supplier: ''
+  })
+
+  // Team State
+  const [team, setTeam] = useState<any[]>([])
+  const [showTeamModal, setShowTeamModal] = useState(false)
+  const [editingTeam, setEditingTeam] = useState<any>(null)
+  const [teamForm, setTeamForm] = useState({
+    name: '',
+    role: '',
+    mobile: '',
+    email: '',
+    department: '',
+    salary: ''
+  })
+
+  // Delivery State
+  const [deliveries, setDeliveries] = useState<any[]>([])
+  const [showDeliveryModal, setShowDeliveryModal] = useState(false)
+  const [editingDelivery, setEditingDelivery] = useState<any>(null)
+  const [deliveryForm, setDeliveryForm] = useState({
+    customer_name: '',
+    mobile: '',
+    address: '',
+    order_id: '',
+    driver_id: '',
+    status: 'pending',
+    delivery_fee: '',
+    notes: ''
+  })
+  const [deliverySubTab, setDeliverySubTab] = useState<'active' | 'history' | 'zones'>('active')
+
+  // Accounting State
+  const [transactions, setTransactions] = useState<any[]>([])
+  const [showTransactionModal, setShowTransactionModal] = useState(false)
+  const [editingTransaction, setEditingTransaction] = useState<any>(null)
+  const [transactionForm, setTransactionForm] = useState({
+    date: '',
+    type: 'income',
+    category: '',
+    amount: '',
+    description: '',
+    reference: ''
+  })
+  const [accountingFilter, setAccountingFilter] = useState<'all' | 'income' | 'expense'>('all')
+
+  // Marketing State
+  const [campaigns, setCampaigns] = useState<any[]>([])
+  const [showCampaignModal, setShowCampaignModal] = useState(false)
+  const [editingCampaign, setEditingCampaign] = useState<any>(null)
+  const [campaignForm, setCampaignForm] = useState({
+    name: '',
+    type: 'promotion',
+    start_date: '',
+    end_date: '',
+    budget: '',
+    status: 'active',
+    description: ''
+  })
+
+  // Operations State
+  const [shifts, setShifts] = useState<any[]>([])
+  const [showShiftModal, setShowShiftModal] = useState(false)
+  const [editingShift, setEditingShift] = useState<any>(null)
+  const [shiftForm, setShiftForm] = useState({
+    date: '',
+    staff_id: '',
+    start_time: '',
+    end_time: '',
+    status: 'scheduled',
+    notes: ''
+  })
+
+  // Attendance State
+  const [attendanceRecords, setAttendanceRecords] = useState<any[]>([])
+  const [showAttendanceModal, setShowAttendanceModal] = useState(false)
+  const [editingAttendance, setEditingAttendance] = useState<any>(null)
+  const [attendanceForm, setAttendanceForm] = useState({
+    staff_id: '',
+    date: '',
+    check_in: '',
+    check_out: '',
+    status: 'present',
+    notes: ''
+  })
+
+  // Settings State
+  const [hotelSettings, setHotelSettings] = useState({
+    hotel_name: 'Dhole Patil Khanawal',
+    logo_url: '',
+    address: 'New Gunjalwadi Road, Gunjalwadi, Sangamner',
+    phone: '+91 9371967595',
+    email: '',
+    gstin: '',
+    tax_rates: {
+      cgst: 5,
+      sgst: 5
+    },
+    printer_settings: {
+      printer_type: 'thermal_58mm',
+      auto_print: true,
+      paper_size: '58mm'
+    },
+    notification_settings: {
+      new_orders: true,
+      low_inventory: true,
+      staff_changes: false
+    },
+    theme_settings: {
+      primary_color: '#6B3E26',
+      secondary_color: '#9A572D'
+    },
+    currency: 'INR'
+  })
+  const [logoPreview, setLogoPreview] = useState('')
+
   useEffect(() => {
-    // Check for session cookie instead of localStorage
-    const sessionCookie = document.cookie.includes('hotel_session=')
-    const userRoleCookie = document.cookie.includes('hotel_role=')
-    
-    if (!sessionCookie || !userRoleCookie) {
-      router.push('/dpk')
-      return
-    }
-    
-    // Get user role from cookie
-    const roleMatch = document.cookie.match(/hotel_role=([^;]+)/)
-    const userRole = roleMatch ? decodeURIComponent(roleMatch[1]) : null
-    
-    if (userRole !== 'admin') {
-      router.push('/dpk')
-      return
-    }
-    
-    // Set minimal user data from cookies
-    const userIdMatch = document.cookie.match(/hotel_user_id=([^;]+)/)
-    const userId = userIdMatch ? decodeURIComponent(userIdMatch[1]) : null
-    const userName = localStorage.getItem('user_name') || 'Admin'
-    
-    setUser({
-      id: userId || '',
-      name: userName,
-      email: '',
-      role: userRole || 'admin',
-      created_at: new Date().toISOString()
-    })
+    const verifySession = async () => {
+      try {
+        // Check role from cookie first for quick redirect
+        const role = document.cookie
+          .split('; ')
+          .find(row => row.startsWith('hotel_role='))
+          ?.split('=')[1]
 
-    // Load cached data first
-    loadCachedData()
+        if (role !== 'admin') {
+          router.push('/auth-portal-xyz789')
+          return
+        }
 
-    // Then fetch from API if online
-    if (navigator.onLine) {
-      fetchData()
-    }
+        const response = await fetch('/api/auth/verify')
+        const data = await response.json()
 
-    // Set up polling for order updates (replacing real-time subscription)
-    const interval = setInterval(() => {
-      if (navigator.onLine) {
-        fetchData()
+        if (!response.ok || !data.authenticated) {
+          // Session invalid, redirect to login
+          router.push('/auth-portal-xyz789')
+          return
+        }
+
+        // Double-check role from API response
+        if (data.user.role !== 'admin') {
+          router.push('/auth-portal-xyz789')
+          return
+        }
+
+        // Check if user has admin role
+        if (data.user.role !== 'admin') {
+          router.push('/auth-portal-xyz789')
+          return
+        }
+
+        // Set user data from verified session
+        setUser(data.user)
+
+        // Load cached data first
+        loadCachedData()
+
+        // Then fetch from API if online
+        if (navigator.onLine) {
+          fetchData()
+        }
+
+        // Set up polling for order updates (replacing real-time subscription)
+        const interval = setInterval(() => {
+          if (navigator.onLine) {
+            fetchData()
+          }
+        }, 5000)
+
+        return () => {
+          clearInterval(interval)
+        }
+      } catch (error) {
+        console.error('Session verification failed:', error)
+        router.push('/auth-portal-xyz789')
       }
-    }, 5000)
-
-    return () => {
-      clearInterval(interval)
     }
+
+    verifySession()
   }, [router])
 
   useEffect(() => {
@@ -205,6 +434,163 @@ export default function AdminDashboard() {
       setCurrentDateTime(new Date())
     }, 1000)
     return () => clearInterval(timer)
+  }, [])
+
+  // Load reservations
+  useEffect(() => {
+    const loadReservations = async () => {
+      try {
+        const response = await fetch('/api/reservations')
+        if (response.ok) {
+          const data = await response.json()
+          setReservations(data)
+        }
+      } catch (error) {
+        console.error('Error loading reservations:', error)
+      }
+    }
+    loadReservations()
+  }, [])
+
+  // Load rooms
+  useEffect(() => {
+    const loadRooms = async () => {
+      try {
+        const response = await fetch('/api/rooms')
+        if (response.ok) {
+          const data = await response.json()
+          setRooms(data)
+        }
+      } catch (error) {
+        console.error('Error loading rooms:', error)
+      }
+    }
+    loadRooms()
+  }, [])
+
+  // Load bookings, customers, inventory, team
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        const [bookingsRes, customersRes, inventoryRes, teamRes] = await Promise.all([
+          fetch('/api/bookings').then(res => res.ok ? res.json() : []),
+          fetch('/api/customers').then(res => res.ok ? res.json() : []),
+          fetch('/api/inventory').then(res => res.ok ? res.json() : []),
+          fetch('/api/team').then(res => res.ok ? res.json() : [])
+        ])
+        setBookings(bookingsRes)
+        setCustomers(customersRes)
+        setInventory(inventoryRes)
+        setTeam(teamRes)
+      } catch (error) {
+        console.error('Error loading data:', error)
+      }
+    }
+    loadData()
+  }, [])
+
+  // Load deliveries
+  useEffect(() => {
+    const loadDeliveries = async () => {
+      try {
+        const response = await fetch('/api/deliveries')
+        if (response.ok) {
+          const data = await response.json()
+          setDeliveries(data)
+        }
+      } catch (error) {
+        console.error('Error loading deliveries:', error)
+      }
+    }
+    loadDeliveries()
+  }, [])
+
+  // Load transactions
+  useEffect(() => {
+    const loadTransactions = async () => {
+      try {
+        const response = await fetch('/api/accounting')
+        if (response.ok) {
+          const data = await response.json()
+          setTransactions(data)
+        }
+      } catch (error) {
+        console.error('Error loading transactions:', error)
+      }
+    }
+    loadTransactions()
+  }, [])
+
+  // Load campaigns
+  useEffect(() => {
+    const loadCampaigns = async () => {
+      try {
+        const response = await fetch('/api/marketing')
+        if (response.ok) {
+          const data = await response.json()
+          setCampaigns(data)
+        }
+      } catch (error) {
+        console.error('Error loading campaigns:', error)
+      }
+    }
+    loadCampaigns()
+  }, [])
+
+  // Load shifts
+  useEffect(() => {
+    const loadShifts = async () => {
+      try {
+        const response = await fetch('/api/operations')
+        if (response.ok) {
+          const data = await response.json()
+          setShifts(data)
+        }
+      } catch (error) {
+        console.error('Error loading shifts:', error)
+      }
+    }
+    loadShifts()
+  }, [])
+
+  // Load attendance
+  useEffect(() => {
+    const loadAttendance = async () => {
+      try {
+        const response = await fetch('/api/attendance')
+        if (response.ok) {
+          const data = await response.json()
+          setAttendanceRecords(data)
+        }
+      } catch (error) {
+        console.error('Error loading attendance:', error)
+      }
+    }
+    loadAttendance()
+  }, [])
+
+  // Load settings
+  useEffect(() => {
+    const loadSettings = async () => {
+      try {
+        const response = await fetch('/api/settings')
+        if (response.ok) {
+          const data = await response.json()
+          setHotelSettings(data)
+          if (data.logo_url) {
+            setLogoPreview(data.logo_url)
+          }
+        }
+      } catch (error) {
+        console.error('Error loading settings:', error)
+      }
+    }
+    loadSettings()
+  }, [])
+
+  // Load offers
+  useEffect(() => {
+    fetchOffers()
   }, [])
 
   // Track online/offline status
@@ -423,7 +809,9 @@ export default function AdminDashboard() {
       category: '',
       image_url: '',
       food_type: 'veg',
-      is_available: true
+      is_available: true,
+      offer: '',
+      offer_discount: ''
     })
     setShowDishModal(true)
   }
@@ -438,7 +826,9 @@ export default function AdminDashboard() {
       category: dish.category,
       image_url: dish.image_url ?? '',
       food_type: dish.food_type ?? 'veg',
-      is_available: dish.is_available
+      is_available: dish.is_available,
+      offer: dish.offer ?? '',
+      offer_discount: dish.offer_discount?.toString() ?? ''
     })
     setShowDishModal(true)
   }
@@ -478,6 +868,230 @@ export default function AdminDashboard() {
     }
   }
 
+  const handleAddOffer = () => {
+    playClickSound()
+    setEditingOffer(null)
+    setOfferForm({
+      title: '',
+      description: '',
+      discount_percent: '',
+      min_order_value: '',
+      max_discount: '',
+      start_date: '',
+      end_date: '',
+      is_active: true,
+      is_promotional: false,
+      applicable_dishes: []
+    })
+    setShowOfferModal(true)
+  }
+
+  const handleEditOffer = (offer: Offer) => {
+    playClickSound()
+    setEditingOffer(offer)
+    setOfferForm({
+      title: offer.title,
+      description: offer.description,
+      discount_percent: offer.discount_percent.toString(),
+      min_order_value: offer.min_order_value?.toString() || '',
+      max_discount: offer.max_discount?.toString() || '',
+      start_date: offer.start_date,
+      end_date: offer.end_date,
+      is_active: offer.is_active,
+      is_promotional: offer.is_promotional || false,
+      applicable_dishes: offer.applicable_dishes || []
+    })
+    setShowOfferModal(true)
+  }
+
+  const handleDeleteOffer = async (id: string) => {
+    playClickSound()
+    if (!confirm('Are you sure you want to delete this offer?')) return
+
+    try {
+      const offerToDelete = offers.find(o => o.id === id)
+
+      const response = await fetch(`/api/offers/${id}`, {
+        method: 'DELETE'
+      })
+
+      if (!response.ok) throw new Error('Failed to delete offer')
+
+      // Remove offer from applicable dishes
+      if (offerToDelete?.applicable_dishes && offerToDelete.applicable_dishes.length > 0) {
+        for (const dishId of offerToDelete.applicable_dishes) {
+          try {
+            await fetch(`/api/dishes/${dishId}`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                offer: null,
+                offer_discount: null
+              })
+            })
+          } catch (error) {
+            console.error(`Error removing offer from dish ${dishId}:`, error)
+          }
+        }
+      }
+
+      fetchOffers()
+      fetchData()
+      playSuccessSound()
+    } catch (error) {
+      console.error('Error deleting offer:', error)
+      alert('Failed to delete offer')
+      playErrorSound()
+    }
+  }
+
+  const handleToggleOfferStatus = async (offer: Offer) => {
+    try {
+      const newStatus = !offer.is_active
+
+      const response = await fetch(`/api/offers/${offer.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ is_active: newStatus })
+      })
+
+      if (!response.ok) throw new Error('Failed to update offer status')
+
+      // Update offer status on applicable dishes
+      if (offer.applicable_dishes && offer.applicable_dishes.length > 0) {
+        const offerText = `${offer.discount_percent}% OFF`
+        for (const dishId of offer.applicable_dishes) {
+          try {
+            await fetch(`/api/dishes/${dishId}`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                offer: newStatus ? offerText : null,
+                offer_discount: newStatus ? offer.discount_percent : null
+              })
+            })
+          } catch (error) {
+            console.error(`Error updating offer status on dish ${dishId}:`, error)
+          }
+        }
+      }
+
+      fetchOffers()
+      fetchData()
+      playSuccessSound()
+    } catch (error) {
+      console.error('Error toggling offer status:', error)
+      alert('Failed to update offer status')
+      playErrorSound()
+    }
+  }
+
+  const handleOfferSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    playClickSound()
+
+    try {
+      const payload = {
+        title: offerForm.title,
+        description: offerForm.description,
+        discount_percent: parseFloat(offerForm.discount_percent),
+        min_order_value: offerForm.min_order_value ? parseFloat(offerForm.min_order_value) : null,
+        max_discount: offerForm.max_discount ? parseFloat(offerForm.max_discount) : null,
+        start_date: offerForm.start_date,
+        end_date: offerForm.end_date,
+        is_active: offerForm.is_active,
+        is_promotional: offerForm.is_promotional,
+        applicable_dishes: offerForm.applicable_dishes
+      }
+
+      const url = editingOffer ? `/api/offers/${editingOffer.id}` : '/api/offers'
+      const method = editingOffer ? 'PATCH' : 'POST'
+
+      const response = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      })
+
+      if (!response.ok) throw new Error('Failed to save offer')
+
+      const offerText = `${offerForm.discount_percent}% OFF`
+
+      // If editing, remove offer from previously selected dishes that are no longer selected
+      if (editingOffer && editingOffer.applicable_dishes) {
+        const removedDishes = editingOffer.applicable_dishes.filter(
+          id => !offerForm.applicable_dishes.includes(id)
+        )
+        for (const dishId of removedDishes) {
+          try {
+            await fetch(`/api/dishes/${dishId}`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                offer: null,
+                offer_discount: null
+              })
+            })
+          } catch (error) {
+            console.error(`Error removing offer from dish ${dishId}:`, error)
+          }
+        }
+      }
+
+      // Apply offer to newly selected dishes
+      if (offerForm.applicable_dishes.length > 0) {
+        for (const dishId of offerForm.applicable_dishes) {
+          try {
+            await fetch(`/api/dishes/${dishId}`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                offer: offerText,
+                offer_discount: parseFloat(offerForm.discount_percent)
+              })
+            })
+          } catch (error) {
+            console.error(`Error applying offer to dish ${dishId}:`, error)
+          }
+        }
+      }
+
+      setShowOfferModal(false)
+      setEditingOffer(null)
+      setOfferForm({
+        title: '',
+        description: '',
+        discount_percent: '',
+        min_order_value: '',
+        max_discount: '',
+        start_date: '',
+        end_date: '',
+        is_active: true,
+        is_promotional: false,
+        applicable_dishes: []
+      })
+      fetchOffers()
+      fetchData()
+      playSuccessSound()
+    } catch (error) {
+      console.error('Error saving offer:', error)
+      alert('Failed to save offer')
+      playErrorSound()
+    }
+  }
+
+  const fetchOffers = async () => {
+    try {
+      const response = await fetch('/api/offers')
+      const data = await response.json()
+      if (Array.isArray(data)) {
+        setOffers(data)
+      }
+    } catch (error) {
+      console.error('Error fetching offers:', error)
+    }
+  }
+
   const handleSaveDish = async () => {
     try {
       const payload = {
@@ -488,7 +1102,9 @@ export default function AdminDashboard() {
         category: dishForm.category,
         image_url: dishForm.image_url,
         food_type: dishForm.food_type,
-        is_available: dishForm.is_available
+        is_available: dishForm.is_available,
+        offer: dishForm.offer || null,
+        offer_discount: dishForm.offer_discount ? parseFloat(dishForm.offer_discount) : null
       }
 
       console.log('=== Saving dish ===')
@@ -507,6 +1123,19 @@ export default function AdminDashboard() {
       if (!response.ok) throw new Error('Failed to save dish')
 
       setShowDishModal(false)
+      setEditingDish(null)
+      setDishForm({
+        name: '',
+        marathi_name: '',
+        description: '',
+        price: '',
+        category: '',
+        image_url: '',
+        food_type: 'veg',
+        is_available: true,
+        offer: '',
+        offer_discount: ''
+      })
       fetchData()
     } catch (error) {
       console.error('Error saving dish:', error)
@@ -1482,15 +2111,16 @@ For technical support, contact: support@everycom.com
     }
   }
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     playClickSound()
-    // Clear cookies
-    document.cookie = 'hotel_session=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT'
-    document.cookie = 'hotel_role=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT'
-    document.cookie = 'hotel_user_id=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT'
+    try {
+      await fetch('/api/auth/logout', { method: 'POST' })
+    } catch (error) {
+      console.error('Logout error:', error)
+    }
     // Clear localStorage
     localStorage.clear()
-    router.push('/dpk')
+    router.push('/auth-portal-xyz789')
   }
 
   // Table Management Functions
@@ -1825,9 +2455,86 @@ For technical support, contact: support@everycom.com
     if (newQuantity <= 0) {
       setAdminOrderCart(adminOrderCart.filter((_, i) => i !== index))
     } else {
-      setAdminOrderCart(adminOrderCart.map((item, i) => 
+      setAdminOrderCart(adminOrderCart.map((item, i) =>
         i === index ? { ...item, quantity: newQuantity } : item
       ))
+    }
+  }
+
+  // Handle click on occupied table to show active order
+  const handleOccupiedTableClick = async (table: Table) => {
+    playClickSound()
+    try {
+      // Find active order for this table
+      const activeOrder = orders.find(order =>
+        order.table_id === table.id &&
+        (order.status === 'pending' || order.status === 'preparing' || order.status === 'ready')
+      )
+
+      if (activeOrder) {
+        // Fetch order items
+        const itemsResponse = await fetch(`/api/orders/${activeOrder.id}/items`)
+        const orderItems = await itemsResponse.json()
+        setSelectedOccupiedTableOrder({ ...activeOrder, order_items: orderItems })
+        setShowOccupiedTableOrderModal(true)
+      } else {
+        alert('No active order found for this table')
+      }
+    } catch (error) {
+      console.error('Error fetching table order:', error)
+      alert('Failed to fetch table order')
+    }
+  }
+
+  // Handle repeat order
+  const handleRepeatOrder = () => {
+    playClickSound()
+    if (selectedOccupiedTableOrder) {
+      // Convert order items to cart format
+      const cartItems = selectedOccupiedTableOrder.order_items.map((item: any) => ({
+        dish_id: item.dish_id,
+        name: item.dish?.name || 'Unknown',
+        price: item.price,
+        quantity: item.quantity,
+        food_type: item.dish?.food_type || 'veg',
+        dish_type: item.dish_type || 'Normal'
+      }))
+
+      setAdminOrderCart(cartItems)
+      setAdminOrderTable(tables.find(t => t.id === selectedOccupiedTableOrder.table_id) || null)
+      setAdminOrderCustomerName(selectedOccupiedTableOrder.customer_name || '')
+      setAdminOrderCustomerMobile(selectedOccupiedTableOrder.customer_mobile || '')
+      setShowOccupiedTableOrderModal(false)
+      setShowAdminOrderModal(true)
+      setAdminOrderStep('cart')
+    }
+  }
+
+  // Handle print order
+  const handlePrintOrder = async () => {
+    playClickSound()
+    if (!selectedOccupiedTableOrder) return
+
+    try {
+      // Update order status to 'printed' to remove from waiter and kitchen dashboards
+      await fetch(`/api/orders/${selectedOccupiedTableOrder.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          is_printed: true,
+          status: 'served'
+        })
+      })
+
+      playSuccessSound()
+      setShowOccupiedTableOrderModal(false)
+      setSelectedOccupiedTableOrder(null)
+      fetchData()
+      alert('Order printed and marked as served!')
+    } catch (error) {
+      console.error('Error printing order:', error)
+      playErrorSound()
+      alert('Failed to print order')
     }
   }
 
@@ -2252,6 +2959,956 @@ ${(() => {
     localStorage.setItem('offline_orders', JSON.stringify(updatedOrders))
   }
 
+  // Reservations Handlers
+  const handleAddReservation = () => {
+    playClickSound()
+    setEditingReservation(null)
+    setReservationForm({
+      customer_name: '',
+      customer_mobile: '',
+      table_id: '',
+      date: new Date().toISOString().split('T')[0],
+      time: '',
+      guests: '',
+      special_requests: ''
+    })
+    setShowReservationModal(true)
+  }
+
+  const handleEditReservation = (reservation: any) => {
+    playClickSound()
+    setEditingReservation(reservation)
+    setReservationForm({
+      customer_name: reservation.customer_name,
+      customer_mobile: reservation.customer_mobile,
+      table_id: reservation.table_id,
+      date: reservation.date,
+      time: reservation.time,
+      guests: reservation.guests,
+      special_requests: reservation.special_requests || ''
+    })
+    setShowReservationModal(true)
+  }
+
+  const handleDeleteReservation = async (id: string) => {
+    playClickSound()
+    if (!confirm('Are you sure you want to delete this reservation?')) return
+
+    try {
+      const response = await fetch(`/api/reservations/${id}`, {
+        method: 'DELETE'
+      })
+
+      if (!response.ok) throw new Error('Failed to delete reservation')
+
+      setReservations(reservations.filter(r => r.id !== id))
+      playSuccessSound()
+    } catch (error) {
+      console.error('Error deleting reservation:', error)
+      playErrorSound()
+      alert('Failed to delete reservation')
+    }
+  }
+
+  const handleSaveReservation = async () => {
+    try {
+      const payload = {
+        customer_name: reservationForm.customer_name,
+        customer_mobile: reservationForm.customer_mobile,
+        table_id: reservationForm.table_id,
+        date: reservationForm.date,
+        time: reservationForm.time,
+        guests: parseInt(reservationForm.guests),
+        special_requests: reservationForm.special_requests,
+        status: 'confirmed'
+      }
+
+      const url = editingReservation ? `/api/reservations/${editingReservation.id}` : '/api/reservations'
+      const response = await fetch(url, {
+        method: editingReservation ? 'PATCH' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(editingReservation ? { ...payload, id: editingReservation.id } : payload)
+      })
+
+      if (!response.ok) throw new Error('Failed to save reservation')
+
+      setShowReservationModal(false)
+      playSuccessSound()
+      // Refresh reservations
+      const updatedReservations = await fetch('/api/reservations').then(res => res.json())
+      setReservations(updatedReservations)
+    } catch (error) {
+      console.error('Error saving reservation:', error)
+      playErrorSound()
+      alert('Failed to save reservation')
+    }
+  }
+
+  // Rooms Handlers
+  const handleAddRoom = () => {
+    playClickSound()
+    setEditingRoom(null)
+    setRoomForm({
+      room_number: '',
+      room_type: '',
+      floor: '',
+      capacity: '',
+      price_per_night: '',
+      amenities: '',
+      status: 'available'
+    })
+    setShowRoomModal(true)
+  }
+
+  const handleEditRoom = (room: any) => {
+    playClickSound()
+    setEditingRoom(room)
+    setRoomForm({
+      room_number: room.room_number,
+      room_type: room.room_type,
+      floor: room.floor,
+      capacity: room.capacity,
+      price_per_night: room.price_per_night,
+      amenities: room.amenities || '',
+      status: room.status
+    })
+    setShowRoomModal(true)
+  }
+
+  const handleDeleteRoom = async (id: string) => {
+    playClickSound()
+    if (!confirm('Are you sure you want to delete this room?')) return
+
+    try {
+      const response = await fetch(`/api/rooms/${id}`, {
+        method: 'DELETE'
+      })
+
+      if (!response.ok) throw new Error('Failed to delete room')
+
+      setRooms(rooms.filter(r => r.id !== id))
+      playSuccessSound()
+    } catch (error) {
+      console.error('Error deleting room:', error)
+      playErrorSound()
+      alert('Failed to delete room')
+    }
+  }
+
+  const handleSaveRoom = async () => {
+    try {
+      const payload = {
+        room_number: roomForm.room_number,
+        room_type: roomForm.room_type,
+        floor: parseInt(roomForm.floor),
+        capacity: parseInt(roomForm.capacity),
+        price_per_night: parseFloat(roomForm.price_per_night),
+        amenities: roomForm.amenities,
+        status: roomForm.status
+      }
+
+      const url = editingRoom ? `/api/rooms/${editingRoom.id}` : '/api/rooms'
+      const response = await fetch(url, {
+        method: editingRoom ? 'PATCH' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(editingRoom ? { ...payload, id: editingRoom.id } : payload)
+      })
+
+      if (!response.ok) throw new Error('Failed to save room')
+
+      setShowRoomModal(false)
+      playSuccessSound()
+      // Refresh rooms
+      const updatedRooms = await fetch('/api/rooms').then(res => res.json())
+      setRooms(updatedRooms)
+    } catch (error) {
+      console.error('Error saving room:', error)
+      playErrorSound()
+      alert('Failed to save room')
+    }
+  }
+
+  // Bookings Handlers
+  const handleAddBooking = () => {
+    playClickSound()
+    setEditingBooking(null)
+    setBookingForm({
+      customer_name: '',
+      customer_mobile: '',
+      room_id: '',
+      check_in: new Date().toISOString().split('T')[0],
+      check_out: '',
+      guests: '',
+      total_amount: '',
+      status: 'confirmed'
+    })
+    setShowBookingModal(true)
+  }
+
+  const handleEditBooking = (booking: any) => {
+    playClickSound()
+    setEditingBooking(booking)
+    setBookingForm({
+      customer_name: booking.customer_name,
+      customer_mobile: booking.customer_mobile,
+      room_id: booking.room_id,
+      check_in: booking.check_in,
+      check_out: booking.check_out,
+      guests: booking.guests,
+      total_amount: booking.total_amount,
+      status: booking.status
+    })
+    setShowBookingModal(true)
+  }
+
+  const handleDeleteBooking = async (id: string) => {
+    playClickSound()
+    if (!confirm('Are you sure you want to delete this booking?')) return
+
+    try {
+      const response = await fetch(`/api/bookings/${id}`, {
+        method: 'DELETE'
+      })
+
+      if (!response.ok) throw new Error('Failed to delete booking')
+
+      setBookings(bookings.filter(b => b.id !== id))
+      playSuccessSound()
+    } catch (error) {
+      console.error('Error deleting booking:', error)
+      playErrorSound()
+      alert('Failed to delete booking')
+    }
+  }
+
+  const handleSaveBooking = async () => {
+    try {
+      const payload = {
+        customer_name: bookingForm.customer_name,
+        customer_mobile: bookingForm.customer_mobile,
+        room_id: bookingForm.room_id,
+        check_in: bookingForm.check_in,
+        check_out: bookingForm.check_out,
+        guests: parseInt(bookingForm.guests),
+        total_amount: parseFloat(bookingForm.total_amount),
+        status: bookingForm.status
+      }
+
+      const url = editingBooking ? `/api/bookings/${editingBooking.id}` : '/api/bookings'
+      const response = await fetch(url, {
+        method: editingBooking ? 'PATCH' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(editingBooking ? { ...payload, id: editingBooking.id } : payload)
+      })
+
+      if (!response.ok) throw new Error('Failed to save booking')
+
+      setShowBookingModal(false)
+      playSuccessSound()
+      const updatedBookings = await fetch('/api/bookings').then(res => res.json())
+      setBookings(updatedBookings)
+    } catch (error) {
+      console.error('Error saving booking:', error)
+      playErrorSound()
+      alert('Failed to save booking')
+    }
+  }
+
+  // Customers Handlers
+  const handleAddCustomer = () => {
+    playClickSound()
+    setEditingCustomer(null)
+    setCustomerForm({
+      name: '',
+      mobile: '',
+      email: '',
+      address: '',
+      preferences: ''
+    })
+    setShowCustomerModal(true)
+  }
+
+  const handleEditCustomer = (customer: any) => {
+    playClickSound()
+    setEditingCustomer(customer)
+    setCustomerForm({
+      name: customer.name,
+      mobile: customer.mobile,
+      email: customer.email || '',
+      address: customer.address || '',
+      preferences: customer.preferences || ''
+    })
+    setShowCustomerModal(true)
+  }
+
+  const handleDeleteCustomer = async (id: string) => {
+    playClickSound()
+    if (!confirm('Are you sure you want to delete this customer?')) return
+
+    try {
+      const response = await fetch(`/api/customers/${id}`, {
+        method: 'DELETE'
+      })
+
+      if (!response.ok) throw new Error('Failed to delete customer')
+
+      setCustomers(customers.filter(c => c.id !== id))
+      playSuccessSound()
+    } catch (error) {
+      console.error('Error deleting customer:', error)
+      playErrorSound()
+      alert('Failed to delete customer')
+    }
+  }
+
+  const handleSaveCustomer = async () => {
+    try {
+      const payload = {
+        name: customerForm.name,
+        mobile: customerForm.mobile,
+        email: customerForm.email,
+        address: customerForm.address,
+        preferences: customerForm.preferences
+      }
+
+      const url = editingCustomer ? `/api/customers/${editingCustomer.id}` : '/api/customers'
+      const response = await fetch(url, {
+        method: editingCustomer ? 'PATCH' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(editingCustomer ? { ...payload, id: editingCustomer.id } : payload)
+      })
+
+      if (!response.ok) throw new Error('Failed to save customer')
+
+      setShowCustomerModal(false)
+      playSuccessSound()
+      const updatedCustomers = await fetch('/api/customers').then(res => res.json())
+      setCustomers(updatedCustomers)
+    } catch (error) {
+      console.error('Error saving customer:', error)
+      playErrorSound()
+      alert('Failed to save customer')
+    }
+  }
+
+  // Inventory Handlers
+  const handleAddInventory = () => {
+    playClickSound()
+    setEditingInventory(null)
+    setInventoryForm({
+      item_name: '',
+      category: '',
+      quantity: '',
+      unit: '',
+      unit_price: '',
+      minimum_stock: '',
+      supplier: ''
+    })
+    setShowInventoryModal(true)
+  }
+
+  const handleEditInventory = (item: any) => {
+    playClickSound()
+    setEditingInventory(item)
+    setInventoryForm({
+      item_name: item.item_name,
+      category: item.category,
+      quantity: item.quantity,
+      unit: item.unit,
+      unit_price: item.unit_price,
+      minimum_stock: item.minimum_stock,
+      supplier: item.supplier || ''
+    })
+    setShowInventoryModal(true)
+  }
+
+  const handleDeleteInventory = async (id: string) => {
+    playClickSound()
+    if (!confirm('Are you sure you want to delete this item?')) return
+
+    try {
+      const response = await fetch(`/api/inventory/${id}`, {
+        method: 'DELETE'
+      })
+
+      if (!response.ok) throw new Error('Failed to delete item')
+
+      setInventory(inventory.filter(i => i.id !== id))
+      playSuccessSound()
+    } catch (error) {
+      console.error('Error deleting item:', error)
+      playErrorSound()
+      alert('Failed to delete item')
+    }
+  }
+
+  const handleSaveInventory = async () => {
+    try {
+      const payload = {
+        item_name: inventoryForm.item_name,
+        category: inventoryForm.category,
+        quantity: parseInt(inventoryForm.quantity),
+        unit: inventoryForm.unit,
+        unit_price: parseFloat(inventoryForm.unit_price),
+        minimum_stock: parseInt(inventoryForm.minimum_stock),
+        supplier: inventoryForm.supplier
+      }
+
+      const url = editingInventory ? `/api/inventory/${editingInventory.id}` : '/api/inventory'
+      const response = await fetch(url, {
+        method: editingInventory ? 'PATCH' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(editingInventory ? { ...payload, id: editingInventory.id } : payload)
+      })
+
+      if (!response.ok) throw new Error('Failed to save item')
+
+      setShowInventoryModal(false)
+      playSuccessSound()
+      const updatedInventory = await fetch('/api/inventory').then(res => res.json())
+      setInventory(updatedInventory)
+    } catch (error) {
+      console.error('Error saving item:', error)
+      playErrorSound()
+      alert('Failed to save item')
+    }
+  }
+
+  // Team Handlers
+  const handleAddTeam = () => {
+    playClickSound()
+    setEditingTeam(null)
+    setTeamForm({
+      name: '',
+      role: '',
+      mobile: '',
+      email: '',
+      department: '',
+      salary: ''
+    })
+    setShowTeamModal(true)
+  }
+
+  const handleEditTeam = (member: any) => {
+    playClickSound()
+    setEditingTeam(member)
+    setTeamForm({
+      name: member.name,
+      role: member.role,
+      mobile: member.mobile,
+      email: member.email || '',
+      department: member.department,
+      salary: member.salary
+    })
+    setShowTeamModal(true)
+  }
+
+  const handleDeleteTeam = async (id: string) => {
+    playClickSound()
+    if (!confirm('Are you sure you want to delete this team member?')) return
+
+    try {
+      const response = await fetch(`/api/team/${id}`, {
+        method: 'DELETE'
+      })
+
+      if (!response.ok) throw new Error('Failed to delete team member')
+
+      setTeam(team.filter(t => t.id !== id))
+      playSuccessSound()
+    } catch (error) {
+      console.error('Error deleting team member:', error)
+      playErrorSound()
+      alert('Failed to delete team member')
+    }
+  }
+
+  const handleSaveTeam = async () => {
+    try {
+      const payload = {
+        name: teamForm.name,
+        role: teamForm.role,
+        mobile: teamForm.mobile,
+        email: teamForm.email,
+        department: teamForm.department,
+        salary: parseFloat(teamForm.salary)
+      }
+
+      const url = editingTeam ? `/api/team/${editingTeam.id}` : '/api/team'
+      const response = await fetch(url, {
+        method: editingTeam ? 'PATCH' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(editingTeam ? { ...payload, id: editingTeam.id } : payload)
+      })
+
+      if (!response.ok) throw new Error('Failed to save team member')
+
+      setShowTeamModal(false)
+      playSuccessSound()
+      const updatedTeam = await fetch('/api/team').then(res => res.json())
+      setTeam(updatedTeam)
+    } catch (error) {
+      console.error('Error saving team member:', error)
+      playErrorSound()
+      alert('Failed to save team member')
+    }
+  }
+
+  // Delivery Handlers
+  const handleAddDelivery = () => {
+    playClickSound()
+    setEditingDelivery(null)
+    setDeliveryForm({
+      customer_name: '',
+      mobile: '',
+      address: '',
+      order_id: '',
+      driver_id: '',
+      status: 'pending',
+      delivery_fee: '',
+      notes: ''
+    })
+    setShowDeliveryModal(true)
+  }
+
+  const handleEditDelivery = (delivery: any) => {
+    playClickSound()
+    setEditingDelivery(delivery)
+    setDeliveryForm({
+      customer_name: delivery.customer_name,
+      mobile: delivery.mobile,
+      address: delivery.address,
+      order_id: delivery.order_id,
+      driver_id: delivery.driver_id || '',
+      status: delivery.status,
+      delivery_fee: delivery.delivery_fee?.toString() || '',
+      notes: delivery.notes || ''
+    })
+    setShowDeliveryModal(true)
+  }
+
+  const handleDeleteDelivery = async (id: string) => {
+    playClickSound()
+    if (!confirm('Are you sure you want to delete this delivery?')) return
+
+    try {
+      const response = await fetch(`/api/deliveries/${id}`, {
+        method: 'DELETE'
+      })
+
+      if (!response.ok) throw new Error('Failed to delete delivery')
+
+      setDeliveries(deliveries.filter(d => d.id !== id))
+      playSuccessSound()
+    } catch (error) {
+      console.error('Error deleting delivery:', error)
+      playErrorSound()
+      alert('Failed to delete delivery')
+    }
+  }
+
+  const handleSaveDelivery = async () => {
+    try {
+      const payload = {
+        customer_name: deliveryForm.customer_name,
+        mobile: deliveryForm.mobile,
+        address: deliveryForm.address,
+        order_id: deliveryForm.order_id,
+        driver_id: deliveryForm.driver_id,
+        status: deliveryForm.status,
+        delivery_fee: parseFloat(deliveryForm.delivery_fee) || 0,
+        notes: deliveryForm.notes
+      }
+
+      const url = editingDelivery ? `/api/deliveries/${editingDelivery.id}` : '/api/deliveries'
+      const response = await fetch(url, {
+        method: editingDelivery ? 'PATCH' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(editingDelivery ? { ...payload, id: editingDelivery.id } : payload)
+      })
+
+      if (!response.ok) throw new Error('Failed to save delivery')
+
+      setShowDeliveryModal(false)
+      playSuccessSound()
+      const updatedDeliveries = await fetch('/api/deliveries').then(res => res.json())
+      setDeliveries(updatedDeliveries)
+    } catch (error) {
+      console.error('Error saving delivery:', error)
+      playErrorSound()
+      alert('Failed to save delivery')
+    }
+  }
+
+  // Accounting Handlers
+  const handleAddTransaction = () => {
+    playClickSound()
+    setEditingTransaction(null)
+    setTransactionForm({
+      date: new Date().toISOString().split('T')[0],
+      type: 'income',
+      category: '',
+      amount: '',
+      description: '',
+      reference: ''
+    })
+    setShowTransactionModal(true)
+  }
+
+  const handleEditTransaction = (transaction: any) => {
+    playClickSound()
+    setEditingTransaction(transaction)
+    setTransactionForm({
+      date: transaction.date?.split('T')[0] || '',
+      type: transaction.type,
+      category: transaction.category,
+      amount: transaction.amount?.toString() || '',
+      description: transaction.description || '',
+      reference: transaction.reference || ''
+    })
+    setShowTransactionModal(true)
+  }
+
+  const handleDeleteTransaction = async (id: string) => {
+    playClickSound()
+    if (!confirm('Are you sure you want to delete this transaction?')) return
+
+    try {
+      const response = await fetch(`/api/accounting/${id}`, {
+        method: 'DELETE'
+      })
+
+      if (!response.ok) throw new Error('Failed to delete transaction')
+
+      setTransactions(transactions.filter(t => t.id !== id))
+      playSuccessSound()
+    } catch (error) {
+      console.error('Error deleting transaction:', error)
+      playErrorSound()
+      alert('Failed to delete transaction')
+    }
+  }
+
+  const handleSaveTransaction = async () => {
+    try {
+      const payload = {
+        date: transactionForm.date,
+        type: transactionForm.type,
+        category: transactionForm.category,
+        amount: parseFloat(transactionForm.amount),
+        description: transactionForm.description,
+        reference: transactionForm.reference
+      }
+
+      const url = editingTransaction ? `/api/accounting/${editingTransaction.id}` : '/api/accounting'
+      const response = await fetch(url, {
+        method: editingTransaction ? 'PATCH' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(editingTransaction ? { ...payload, id: editingTransaction.id } : payload)
+      })
+
+      if (!response.ok) throw new Error('Failed to save transaction')
+
+      setShowTransactionModal(false)
+      playSuccessSound()
+      const updatedTransactions = await fetch('/api/accounting').then(res => res.json())
+      setTransactions(updatedTransactions)
+    } catch (error) {
+      console.error('Error saving transaction:', error)
+      playErrorSound()
+      alert('Failed to save transaction')
+    }
+  }
+
+  // Marketing Handlers
+  const handleAddCampaign = () => {
+    playClickSound()
+    setEditingCampaign(null)
+    setCampaignForm({
+      name: '',
+      type: 'promotion',
+      start_date: '',
+      end_date: '',
+      budget: '',
+      status: 'active',
+      description: ''
+    })
+    setShowCampaignModal(true)
+  }
+
+  const handleEditCampaign = (campaign: any) => {
+    playClickSound()
+    setEditingCampaign(campaign)
+    setCampaignForm({
+      name: campaign.name,
+      type: campaign.type,
+      start_date: campaign.start_date?.split('T')[0] || '',
+      end_date: campaign.end_date?.split('T')[0] || '',
+      budget: campaign.budget?.toString() || '',
+      status: campaign.status,
+      description: campaign.description || ''
+    })
+    setShowCampaignModal(true)
+  }
+
+  const handleDeleteCampaign = async (id: string) => {
+    playClickSound()
+    if (!confirm('Are you sure you want to delete this campaign?')) return
+
+    try {
+      const response = await fetch(`/api/marketing/${id}`, {
+        method: 'DELETE'
+      })
+
+      if (!response.ok) throw new Error('Failed to delete campaign')
+
+      setCampaigns(campaigns.filter(c => c.id !== id))
+      playSuccessSound()
+    } catch (error) {
+      console.error('Error deleting campaign:', error)
+      playErrorSound()
+      alert('Failed to delete campaign')
+    }
+  }
+
+  const handleSaveCampaign = async () => {
+    try {
+      const payload = {
+        name: campaignForm.name,
+        type: campaignForm.type,
+        start_date: campaignForm.start_date,
+        end_date: campaignForm.end_date,
+        budget: parseFloat(campaignForm.budget) || 0,
+        status: campaignForm.status,
+        description: campaignForm.description
+      }
+
+      const url = editingCampaign ? `/api/marketing/${editingCampaign.id}` : '/api/marketing'
+      const response = await fetch(url, {
+        method: editingCampaign ? 'PATCH' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(editingCampaign ? { ...payload, id: editingCampaign.id } : payload)
+      })
+
+      if (!response.ok) throw new Error('Failed to save campaign')
+
+      setShowCampaignModal(false)
+      playSuccessSound()
+      const updatedCampaigns = await fetch('/api/marketing').then(res => res.json())
+      setCampaigns(updatedCampaigns)
+    } catch (error) {
+      console.error('Error saving campaign:', error)
+      playErrorSound()
+      alert('Failed to save campaign')
+    }
+  }
+
+  // Operations Handlers
+  const handleAddShift = () => {
+    playClickSound()
+    setEditingShift(null)
+    setShiftForm({
+      date: new Date().toISOString().split('T')[0],
+      staff_id: '',
+      start_time: '',
+      end_time: '',
+      status: 'scheduled',
+      notes: ''
+    })
+    setShowShiftModal(true)
+  }
+
+  const handleEditShift = (shift: any) => {
+    playClickSound()
+    setEditingShift(shift)
+    setShiftForm({
+      date: shift.date?.split('T')[0] || '',
+      staff_id: shift.staff_id,
+      start_time: shift.start_time,
+      end_time: shift.end_time,
+      status: shift.status,
+      notes: shift.notes || ''
+    })
+    setShowShiftModal(true)
+  }
+
+  const handleDeleteShift = async (id: string) => {
+    playClickSound()
+    if (!confirm('Are you sure you want to delete this shift?')) return
+
+    try {
+      const response = await fetch(`/api/operations/${id}`, {
+        method: 'DELETE'
+      })
+
+      if (!response.ok) throw new Error('Failed to delete shift')
+
+      setShifts(shifts.filter(s => s.id !== id))
+      playSuccessSound()
+    } catch (error) {
+      console.error('Error deleting shift:', error)
+      playErrorSound()
+      alert('Failed to delete shift')
+    }
+  }
+
+  const handleSaveShift = async () => {
+    try {
+      const payload = {
+        date: shiftForm.date,
+        staff_id: shiftForm.staff_id,
+        start_time: shiftForm.start_time,
+        end_time: shiftForm.end_time,
+        status: shiftForm.status,
+        notes: shiftForm.notes
+      }
+
+      const url = editingShift ? `/api/operations/${editingShift.id}` : '/api/operations'
+      const response = await fetch(url, {
+        method: editingShift ? 'PATCH' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(editingShift ? { ...payload, id: editingShift.id } : payload)
+      })
+
+      if (!response.ok) throw new Error('Failed to save shift')
+
+      setShowShiftModal(false)
+      playSuccessSound()
+      const updatedShifts = await fetch('/api/operations').then(res => res.json())
+      setShifts(updatedShifts)
+    } catch (error) {
+      console.error('Error saving shift:', error)
+      playErrorSound()
+      alert('Failed to save shift')
+    }
+  }
+
+  // Attendance Handlers
+  const handleAddAttendance = () => {
+    playClickSound()
+    setEditingAttendance(null)
+    setAttendanceForm({
+      staff_id: '',
+      date: new Date().toISOString().split('T')[0],
+      check_in: '',
+      check_out: '',
+      status: 'present',
+      notes: ''
+    })
+    setShowAttendanceModal(true)
+  }
+
+  const handleEditAttendance = (attendance: any) => {
+    playClickSound()
+    setEditingAttendance(attendance)
+    setAttendanceForm({
+      staff_id: attendance.staff_id,
+      date: attendance.date?.split('T')[0] || '',
+      check_in: attendance.check_in,
+      check_out: attendance.check_out,
+      status: attendance.status,
+      notes: attendance.notes || ''
+    })
+    setShowAttendanceModal(true)
+  }
+
+  const handleDeleteAttendance = async (id: string) => {
+    playClickSound()
+    if (!confirm('Are you sure you want to delete this attendance record?')) return
+
+    try {
+      const response = await fetch(`/api/attendance/${id}`, {
+        method: 'DELETE'
+      })
+
+      if (!response.ok) throw new Error('Failed to delete attendance record')
+
+      setAttendanceRecords(attendanceRecords.filter(a => a.id !== id))
+      playSuccessSound()
+    } catch (error) {
+      console.error('Error deleting attendance record:', error)
+      playErrorSound()
+      alert('Failed to delete attendance record')
+    }
+  }
+
+  const handleSaveAttendance = async () => {
+    try {
+      const payload = {
+        staff_id: attendanceForm.staff_id,
+        date: attendanceForm.date,
+        check_in: attendanceForm.check_in,
+        check_out: attendanceForm.check_out,
+        status: attendanceForm.status,
+        notes: attendanceForm.notes
+      }
+
+      const url = editingAttendance ? `/api/attendance/${editingAttendance.id}` : '/api/attendance'
+      const response = await fetch(url, {
+        method: editingAttendance ? 'PATCH' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(editingAttendance ? { ...payload, id: editingAttendance.id } : payload)
+      })
+
+      if (!response.ok) throw new Error('Failed to save attendance record')
+
+      setShowAttendanceModal(false)
+      playSuccessSound()
+      const updatedAttendance = await fetch('/api/attendance').then(res => res.json())
+      setAttendanceRecords(updatedAttendance)
+    } catch (error) {
+      console.error('Error saving attendance record:', error)
+      playErrorSound()
+      alert('Failed to save attendance record')
+    }
+  }
+
+  // Settings Handler
+  const handleSaveSettings = async () => {
+    try {
+      const response = await fetch('/api/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(hotelSettings)
+      })
+
+      if (!response.ok) throw new Error('Failed to save settings')
+
+      playSuccessSound()
+      alert('Settings saved successfully!')
+    } catch (error) {
+      console.error('Error saving settings:', error)
+      playErrorSound()
+      alert('Failed to save settings')
+    }
+  }
+
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+
+      const response = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData
+      })
+
+      if (!response.ok) throw new Error('Failed to upload logo')
+
+      const data = await response.json()
+      setLogoPreview(data.url)
+      setHotelSettings({ ...hotelSettings, logo_url: data.url })
+      playSuccessSound()
+    } catch (error) {
+      console.error('Error uploading logo:', error)
+      playErrorSound()
+      alert('Failed to upload logo')
+    }
+  }
+
   // Calculate bill total with discount
   const calculateBillTotal = () => {
     const subtotal = getCartTotal()
@@ -2372,15 +4029,37 @@ ${(() => {
 
     console.log('Bill content generated:', plainText)
 
-    // Try silent print (WebUSB) - no popups, only prints if printer is authorized
-    await printSilently('', plainText)
-    // Silently fail if no printer connected - no alert, no error shown
+    try {
+      // QZ Tray printing disabled due to dependency issues
+      // const printerConfig: PrinterConfig = {
+      //   name: process.env.NEXT_PUBLIC_DEFAULT_PRINTER || '',
+      //   isDefault: true
+      // }
+
+      // const printed = await printBillWithFallback(plainText, plainText, printerConfig)
+
+      // if (printed) {
+      //   playSuccessSound()
+      //   console.log('Bill printed successfully via QZ Tray')
+      // } else {
+      //   console.log('Bill printed via browser fallback')
+      // }
+
+      // Use WebUSB printer instead
+      const webusbPrinter = new WebUSBPrinter()
+      await webusbPrinter.printReceipt(plainText)
+      playSuccessSound()
+    } catch (error) {
+      console.error('Print failed:', error)
+      playErrorSound()
+      alert('Printing failed. Please check printer connection and try again.')
+    }
   }
 
   if (loading) {
     return (
       <div className="min-h-screen bg-[#F5F5DC] flex items-center justify-center">
-        <div className="text-2xl font-bold text-[#5D3A1A]">
+        <div className="text-2xl font-bold text-[#6B3E26]">
           Loading...
         </div>
       </div>
@@ -2404,16 +4083,19 @@ ${(() => {
             <div className="flex items-center gap-3">
               <img src="/logo.png" alt="Dhole Patil Hotel Logo" className="w-12 h-12 rounded-full object-cover flex-shrink-0" />
               <div className="flex flex-col">
-                <h1 className="text-lg font-bold text-[#5D3A1A] leading-tight">Dhole Patil</h1>
+                <h1 className="text-lg font-bold text-[#6B3E26] leading-tight">Dhole Patil</h1>
                 <p className="text-sm text-gray-600 leading-tight font-semibold">Khanawal</p>
               </div>
             </div>
             
             <div className="flex items-center gap-3">
+              {/* Language Selector */}
+              <GoogleTranslate variant="white" />
+
               {/* Support Button */}
               <button
                 onClick={() => { playClickSound(); alert('Support: Contact admin@hotel.com for assistance') }}
-                className="p-2 rounded-xl bg-[#F5F5DC] text-[#5D3A1A] hover:bg-[#DEB887] transition-all duration-300"
+                className="p-2 rounded-xl bg-[#F5F5DC] text-[#6B3E26] hover:bg-[#DEB887] transition-all duration-300"
                 title="Support"
               >
                 <HelpCircle className="w-5 h-5" />
@@ -2423,7 +4105,7 @@ ${(() => {
               <div className="relative">
                 <button
                   onClick={() => { playClickSound(); setShowNotifications(!showNotifications) }}
-                  className="p-2 rounded-xl bg-[#F5F5DC] text-[#5D3A1A] hover:bg-[#DEB887] transition-all duration-300 relative"
+                  className="p-2 rounded-xl bg-[#F5F5DC] text-[#6B3E26] hover:bg-[#DEB887] transition-all duration-300 relative"
                   title="Notifications"
                 >
                   <Bell className="w-5 h-5" />
@@ -2451,7 +4133,7 @@ ${(() => {
                           })
                           setNotifications(notifications.map(n => ({ ...n, is_read: true })))
                         }}
-                        className="text-xs text-[#5D3A1A] hover:text-[#8B4513] font-semibold"
+                        className="text-xs text-[#6B3E26] hover:text-[#9A572D] font-semibold"
                       >
                         Mark all read
                       </button>
@@ -2477,7 +4159,7 @@ ${(() => {
                             }}
                           >
                             <div className="flex items-start gap-3">
-                              <div className={`w-2 h-2 rounded-full mt-2 ${!notification.is_read ? 'bg-[#8B4513]' : 'bg-gray-300'}`} />
+                              <div className={`w-2 h-2 rounded-full mt-2 ${!notification.is_read ? 'bg-[#9A572D]' : 'bg-gray-300'}`} />
                               <div className="flex-1">
                                 <p className="text-sm font-semibold text-gray-900">{notification.message}</p>
                                 <p className="text-xs text-gray-500 mt-1">
@@ -2499,7 +4181,7 @@ ${(() => {
                   onClick={() => { playClickSound(); setShowProfileMenu(!showProfileMenu) }}
                   className="flex items-center gap-2 p-2 rounded-xl bg-[#F5F5DC] hover:bg-[#DEB887] transition-all duration-300"
                 >
-                  <div className="w-8 h-8 bg-[#5D3A1A] rounded-full flex items-center justify-center text-white font-bold text-sm">
+                  <div className="w-8 h-8 bg-[#6B3E26] rounded-full flex items-center justify-center text-white font-bold text-sm">
                     {user?.name?.charAt(0).toUpperCase() || 'A'}
                   </div>
                   <span className="hidden md:block text-sm font-semibold text-gray-900">{user?.name || 'Admin'}</span>
@@ -2526,13 +4208,13 @@ ${(() => {
           </div>
         </header>
 
-        <main className="p-4 lg:p-8 pt-24 lg:pt-20 pb-28">
+        <main className="p-4 lg:p-8 pt-24 lg:pt-20 pb-20 lg:pb-8">
 
         {activeTab === 'overview' && (
           <>
             <div className="mb-6 animate-fade-in flex justify-between items-center">
               <div>
-                <h1 className="text-3xl font-bold text-[#5D3A1A] pt-5">
+                <h1 className="text-3xl font-bold text-[#6B3E26] pt-5">
                   Welcome, {user?.name || 'Admin'}!
                 </h1>
                 <p className="text-gray-600 mt-2 text-sm">
@@ -2542,83 +4224,146 @@ ${(() => {
               </div>
               <button
                 onClick={() => { playClickSound(); fetchData() }}
-                className="flex items-center gap-2 bg-[#5D3A1A] text-white px-4 py-2 rounded-xl font-semibold hover:shadow-lg transition-all duration-300 transform hover:scale-105"
+                className="flex items-center gap-2 bg-[#6B3E26] text-white px-4 py-2 rounded-xl font-semibold hover:shadow-lg transition-all duration-300 transform hover:scale-105"
               >
                 <RefreshCw className="w-4 h-4" />
                 Refresh
               </button>
             </div>
-            {/* Table Layout */}
-            <div className="bg-white rounded-2xl shadow-xl overflow-hidden animate-fade-in">
-              <div className="p-6 border-b border-gray-200 bg-white">
-                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                  <h3 className="text-xl font-bold text-gray-900">Restaurant Tables</h3>
+
+            {/* Key Metrics Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+              <div className="bg-gray-50 rounded-xl shadow-lg p-6 border-l-4 border-[#6B3E26]">
+                <div>
+                  <p className="text-sm text-gray-600 font-semibold">Today's Revenue</p>
+                  <p className="text-2xl font-bold text-[#6B3E26]">₹12,450</p>
                 </div>
               </div>
-              
-              <div className="p-6">
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
-                  {tables.map((table) => {
-                    const tableOrders = orders.filter(o => o.table_id === table.id && 
-                      ['pending', 'preparing', 'ready'].includes(o.status))
-                    
-                    const hasVeg = tableOrders.some(o => 
-                      o.order_items?.some((item: any) => item.dishes?.food_type === 'veg')
-                    )
-                    const hasNonVeg = tableOrders.some(o => 
-                      o.order_items?.some((item: any) => item.dishes?.food_type === 'nonveg')
-                    )
-                    
-                    // Filter based on sub-tab
-                    if (overviewSubTab === 'veg' && !hasVeg) return null
-                    if (overviewSubTab === 'nonveg' && !hasNonVeg) return null
-                    // For 'active' tab, only show tables with active orders
-                    if (overviewSubTab === 'active' && tableOrders.length === 0) return null
-                    // For 'occupied' tab, only show occupied tables
-                    if (overviewSubTab === 'occupied' && !table.is_occupied) return null
-                    // For 'available' tab, only show available tables
-                    if (overviewSubTab === 'available' && table.is_occupied) return null
+              <div className="bg-gray-50 rounded-xl shadow-lg p-6 border-l-4 border-[#9A572D]">
+                <div>
+                  <p className="text-sm text-gray-600 font-semibold">Today's Orders</p>
+                  <p className="text-2xl font-bold text-[#9A572D]">48</p>
+                </div>
+              </div>
+              <div className="bg-gray-50 rounded-xl shadow-lg p-6 border-l-4 border-[#D4A574]">
+                <div>
+                  <p className="text-sm text-gray-600 font-semibold">Occupied Tables</p>
+                  <p className="text-2xl font-bold text-[#D4A574]">{tables.filter(t => t.is_occupied).length}/{tables.length}</p>
+                </div>
+              </div>
+              <div className="bg-gray-50 rounded-xl shadow-lg p-6 border-l-4 border-[#E8B478]">
+                <div>
+                  <p className="text-sm text-gray-600 font-semibold">Kitchen Queue</p>
+                  <p className="text-2xl font-bold text-[#E8B478]">{orders.filter(o => o.status === 'pending' || o.status === 'preparing').length}</p>
+                </div>
+              </div>
+            </div>
 
-                    return (
-                      <div
-                        key={table.id}
-                        onClick={() => {
-                          playClickSound()
-                          setSelectedTableForOverview(table)
-                          setShowTableOrderDetails(true)
-                        }}
-                        className={`cursor-pointer rounded-xl p-4 border-2 transition-all duration-300 transform hover:scale-105 hover:shadow-lg
-                          ${table.is_occupied 
-                            ? 'bg-yellow-100 border-yellow-500' 
-                            : 'bg-green-100 border-green-500'
-                          }`}
-                      >
-                        <div className="text-center">
-                          <div className="text-2xl font-bold text-gray-900 mb-1">
-                            T{table.table_number}
-                          </div>
-                          <div className="text-sm font-semibold text-gray-700 mb-2">
-                            {table.capacity} Seater
-                          </div>
-                          <div className={`text-xs font-bold px-2 py-1 rounded-full inline-block
-                            ${table.is_occupied ? 'bg-yellow-500 text-white' : 'bg-green-500 text-white'}
-                          `}>
-                            {table.is_occupied ? 'Occupied' : 'Available'}
-                          </div>
-                          {tableOrders.length > 0 && (
-                            <div className="mt-2 text-xs font-bold text-gray-700">
-                              {tableOrders.length} Active Order{tableOrders.length > 1 ? 's' : ''}
-                            </div>
-                          )}
-                          {table.is_master && (
-                            <div className="mt-1 text-xs font-bold text-[#5D3A1A]">
-                              Master Table
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    )
-                  })}
+            {/* Charts Section */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+              <div className="bg-white rounded-2xl shadow-xl p-6">
+                <h3 className="text-lg font-bold text-gray-900 mb-4">Revenue - Last 14 Days</h3>
+                <div className="h-64 bg-[#F5F5DC] rounded-xl flex items-center justify-center">
+                  <p className="text-gray-600">Chart placeholder</p>
+                </div>
+              </div>
+              <div className="bg-white rounded-2xl shadow-xl p-6">
+                <h3 className="text-lg font-bold text-gray-900 mb-4">Food Waste Cost - Last 14 Days</h3>
+                <div className="h-64 bg-[#F5F5DC] rounded-xl flex items-center justify-center">
+                  <p className="text-gray-600">Chart placeholder</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Tables Status Cards */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+              <div className="bg-[#F5F5DC] rounded-xl p-4 border-2 border-[#D4A574]">
+                <div className="text-center">
+                  <p className="text-3xl font-bold text-[#D4A574]">{tables.filter(t => !t.is_occupied).length}</p>
+                  <p className="text-sm font-semibold text-[#9A572D]">Available</p>
+                </div>
+              </div>
+              <div className="bg-[#F5F5DC] rounded-xl p-4 border-2 border-[#C97B7B]">
+                <div className="text-center">
+                  <p className="text-3xl font-bold text-[#C97B7B]">{tables.filter(t => t.is_occupied).length}</p>
+                  <p className="text-sm font-semibold text-[#9A572D]">Occupied</p>
+                </div>
+              </div>
+              <div className="bg-[#F5F5DC] rounded-xl p-4 border-2 border-[#E8B478]">
+                <div className="text-center">
+                  <p className="text-3xl font-bold text-[#E8B478]">0</p>
+                  <p className="text-sm font-semibold text-[#9A572D]">Reserved</p>
+                </div>
+              </div>
+              <div className="bg-[#F5F5DC] rounded-xl p-4 border-2 border-[#9B8BB5]">
+                <div className="text-center">
+                  <p className="text-3xl font-bold text-[#9B8BB5]">0</p>
+                  <p className="text-sm font-semibold text-[#9A572D]">Cleaning</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Kitchen Queue Status */}
+            <div className="bg-white rounded-2xl shadow-xl p-6 mb-6">
+              <h3 className="text-lg font-bold text-gray-900 mb-4">Kitchen Queue Status</h3>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="bg-[#F5F5DC] rounded-xl p-4 border-2 border-[#E8B478]">
+                  <div className="text-center">
+                    <p className="text-3xl font-bold text-[#E8B478]">{orders.filter(o => o.status === 'pending').length}</p>
+                    <p className="text-sm font-semibold text-[#9A572D]">New</p>
+                  </div>
+                </div>
+                <div className="bg-[#F5F5DC] rounded-xl p-4 border-2 border-[#9B8BB5]">
+                  <div className="text-center">
+                    <p className="text-3xl font-bold text-[#9B8BB5]">{orders.filter(o => o.status === 'preparing').length}</p>
+                    <p className="text-sm font-semibold text-[#9A572D]">Accepted</p>
+                  </div>
+                </div>
+                <div className="bg-[#F5F5DC] rounded-xl p-4 border-2 border-[#9A572D]">
+                  <div className="text-center">
+                    <p className="text-3xl font-bold text-[#9A572D]">{orders.filter(o => o.status === 'preparing').length}</p>
+                    <p className="text-sm font-semibold text-[#9A572D]">Preparing</p>
+                  </div>
+                </div>
+                <div className="bg-[#F5F5DC] rounded-xl p-4 border-2 border-[#D4A574]">
+                  <div className="text-center">
+                    <p className="text-3xl font-bold text-[#D4A574]">{orders.filter(o => o.status === 'ready').length}</p>
+                    <p className="text-sm font-semibold text-[#9A572D]">Ready</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Recent Transactions */}
+            <div className="bg-white rounded-2xl shadow-xl p-6 mb-6">
+              <h3 className="text-lg font-bold text-gray-900 mb-4">Recent Transactions</h3>
+              <div className="space-y-3">
+                {orders.slice(0, 5).map((order) => (
+                  <div key={order.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                    <div>
+                      <p className="font-semibold text-gray-900">{formatOrderId(order.id)}</p>
+                      <p className="text-sm text-gray-600">Table {order.tables?.table_number || '-'}</p>
+                    </div>
+                    <p className="font-bold text-[#6B3E26]">₹{order.total_amount.toFixed(2)}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Order Channels */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+              <div className="bg-white rounded-2xl shadow-xl p-6">
+                <h3 className="text-lg font-bold text-gray-900 mb-4">Online Orders</h3>
+                <div className="text-center py-8">
+                  <p className="text-4xl font-bold text-[#6B3E26]">0</p>
+                  <p className="text-gray-600">Today</p>
+                </div>
+              </div>
+              <div className="bg-white rounded-2xl shadow-xl p-6">
+                <h3 className="text-lg font-bold text-gray-900 mb-4">Offline Orders</h3>
+                <div className="text-center py-8">
+                  <p className="text-4xl font-bold text-[#9A572D]">{orders.length}</p>
+                  <p className="text-gray-600">Today</p>
                 </div>
               </div>
             </div>
@@ -2660,7 +4405,7 @@ ${(() => {
                             setShowAdminOrderModal(true)
                             setShowTableOrderDetails(false)
                           }}
-                          className="inline-flex items-center gap-2 bg-[#5D3A1A] text-white px-6 py-3 rounded-xl font-semibold hover:bg-[#8B4513] transition-all duration-300 transform hover:scale-105"
+                          className="inline-flex items-center gap-2 bg-[#6B3E26] text-white px-6 py-3 rounded-xl font-semibold hover:bg-[#9A572D] transition-all duration-300 transform hover:scale-105"
                         >
                           <Plus className="w-5 h-5" />
                           Take New Order
@@ -2681,10 +4426,10 @@ ${(() => {
                                 </div>
                                 <div className="flex items-center gap-2">
                                   <span className={`px-3 py-1 rounded-full text-xs font-bold ${
-                                    order.status === 'paid' ? 'bg-[#F5F5DC] text-[#8B4513]' :
-                                    order.status === 'ready' ? 'bg-[#F5F5DC] text-[#8B4513]' :
-                                    order.status === 'preparing' ? 'bg-[#F5F5DC] text-[#8B4513]' :
-                                    order.status === 'pending' ? 'bg-[#F5F5DC] text-[#8B4513]' :
+                                    order.status === 'paid' ? 'bg-[#F5F5DC] text-[#9A572D]' :
+                                    order.status === 'ready' ? 'bg-[#F5F5DC] text-[#9A572D]' :
+                                    order.status === 'preparing' ? 'bg-[#F5F5DC] text-[#9A572D]' :
+                                    order.status === 'pending' ? 'bg-[#F5F5DC] text-[#9A572D]' :
                                     'bg-gray-100 text-gray-800'
                                   }`}>
                                     {order.status}
@@ -2697,8 +4442,8 @@ ${(() => {
                                     }}
                                     className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-300 ${
                                       order.is_printed
-                                        ? 'bg-white border-2 border-[#8B4513] text-[#8B4513] hover:bg-[#F5F0E8]'
-                                        : 'bg-[#5D3A1A] text-white hover:bg-[#8B4513]'
+                                        ? 'bg-white border-2 border-[#9A572D] text-[#9A572D] hover:bg-[#F5F0E8]'
+                                        : 'bg-[#6B3E26] text-white hover:bg-[#9A572D]'
                                     }`}
                                   >
                                     {order.is_printed ? 'Printed' : 'Print Bill'}
@@ -2733,15 +4478,17 @@ ${(() => {
                 </div>
               </div>
             )}
+          </>
+        )}
 
-            {/* Admin Order Modal */}
-            {showAdminOrderModal && adminOrderTable && (
+        {/* Admin Order Modal - Global */}
+        {showAdminOrderModal && adminOrderTable && (
               <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
                 <div className="bg-white rounded-2xl shadow-2xl max-w-6xl w-full max-h-[90vh] overflow-y-auto animate-fade-in">
                   {adminOrderStep === 'dishes' && (
                     <div>
                       {/* Header */}
-                      <div className="mb-3 sm:mb-6 bg-[#F5F5DC] rounded-2xl p-3 sm:p-4 border-2 border-[#8B4513]">
+                      <div className="mb-3 sm:mb-6 bg-[#F5F5DC] rounded-2xl p-3 sm:p-4 border-2 border-[#9A572D]">
                         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
                           <div>
                             <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-1">
@@ -2759,7 +4506,7 @@ ${(() => {
                                 setAdminOrderStep('dishes')
                                 setAdminSelectedDishTypes({})
                               }}
-                              className="flex items-center gap-1 bg-white text-[#5D3A1A] px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg font-semibold hover:bg-[#FAEBD7] transition-all duration-300 border-2 border-[#8B4513] text-xs sm:text-sm"
+                              className="flex items-center gap-1 bg-white text-[#6B3E26] px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg font-semibold hover:bg-[#FAEBD7] transition-all duration-300 border-2 border-[#9A572D] text-xs sm:text-sm"
                             >
                               <X className="w-3 h-3 sm:w-4 sm:h-4" />
                               Close
@@ -2777,7 +4524,7 @@ ${(() => {
                               type="text"
                               value={adminOrderCustomerName}
                               onChange={(e) => setAdminOrderCustomerName(e.target.value)}
-                              className="w-full px-2 sm:px-4 py-1.5 sm:py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#5D3A1A] focus:border-transparent text-xs sm:text-sm"
+                              className="w-full px-2 sm:px-4 py-1.5 sm:py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#6B3E26] focus:border-transparent text-xs sm:text-sm"
                               placeholder="Enter customer name"
                             />
                           </div>
@@ -2787,7 +4534,7 @@ ${(() => {
                               type="text"
                               value={adminOrderCustomerMobile}
                               onChange={(e) => setAdminOrderCustomerMobile(e.target.value)}
-                              className="w-full px-2 sm:px-4 py-1.5 sm:py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#5D3A1A] focus:border-transparent text-xs sm:text-sm"
+                              className="w-full px-2 sm:px-4 py-1.5 sm:py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#6B3E26] focus:border-transparent text-xs sm:text-sm"
                               placeholder="Enter mobile number"
                             />
                           </div>
@@ -2802,7 +4549,7 @@ ${(() => {
                             onClick={() => { playClickSound(); setAdminOrderCategory(category) }}
                             className={`px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg text-xs font-semibold transition-all duration-300 ${
                               adminOrderCategory === category
-                                ? 'bg-[#5D3A1A] text-white shadow-lg'
+                                ? 'bg-[#6B3E26] text-white shadow-lg'
                                 : 'bg-white text-gray-900 hover:bg-[#F5F5DC] border-2 border-amber-200'
                             }`}
                           >
@@ -2817,7 +4564,7 @@ ${(() => {
                           onClick={() => { playClickSound(); setAdminOrderFoodType('all') }}
                           className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
                             adminOrderFoodType === 'all'
-                              ? 'bg-[#5D3A1A] text-white shadow-lg'
+                              ? 'bg-[#6B3E26] text-white shadow-lg'
                               : 'bg-white text-gray-900 hover:bg-[#F5F5DC] border-2 border-amber-200'
                           }`}
                         >
@@ -2875,6 +4622,11 @@ ${(() => {
                                       <div className="flex items-center gap-2">
                                         {getFoodTypeIcon(dish.food_type)}
                                         <h3 className="font-bold text-gray-900 text-sm">{dish.name}</h3>
+                                        {dish.offer && (
+                                          <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-bold bg-green-100 text-green-800">
+                                            {dish.offer}
+                                          </span>
+                                        )}
                                       </div>
                                       <span className="text-xs text-gray-900">{dish.category}</span>
                                     </div>
@@ -2885,7 +4637,7 @@ ${(() => {
                                   <td className="px-2 sm:px-3 py-2 text-center">
                                     <div className={`w-7 h-7 rounded-full flex items-center justify-center mx-auto ${
                                       dish.is_available 
-                                        ? 'bg-[#5D3A1A] text-white' 
+                                        ? 'bg-[#6B3E26] text-white' 
                                         : 'bg-amber-900 text-white'
                                     }`}>
                                       {dish.is_available ? (
@@ -2918,7 +4670,7 @@ ${(() => {
                                             ? 'bg-amber-300 text-gray-900 border-amber-300 cursor-not-allowed'
                                             : adminOrderCart.some(item => item.dish_id === dish.id && item.dish_type === (adminSelectedDishTypes[dish.id] || 'Normal'))
                                               ? 'bg-white text-gray-900 border-amber-900 hover:bg-amber-100'
-                                              : 'bg-[#5D3A1A] text-white border-[#5D3A1A] hover:bg-[#8B4513]'
+                                              : 'bg-[#6B3E26] text-white border-[#6B3E26] hover:bg-[#9A572D]'
                                         }`}
                                       >
                                         <Plus className="w-3 h-3" />
@@ -2935,7 +4687,7 @@ ${(() => {
 
                       {/* Cart Summary */}
                       {adminOrderCart.length > 0 && (
-                        <div className="hidden sm:block fixed bottom-0 left-0 right-0 bg-white shadow-2xl border-t-2 border-[#8B4513] p-2 sm:p-4 z-50">
+                        <div className="hidden sm:block fixed bottom-0 left-0 right-0 bg-white shadow-2xl border-t-2 border-[#9A572D] p-2 sm:p-4 z-50">
                           <div className="max-w-7xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-2 sm:gap-0">
                             <div className="text-center sm:text-left">
                               <p className="text-xs text-gray-900">{adminOrderCart.length} items</p>
@@ -2945,7 +4697,7 @@ ${(() => {
                             </div>
                             <button
                               onClick={() => { playClickSound(); setAdminOrderStep('cart') }}
-                              className="flex items-center gap-1 sm:gap-2 bg-[#5D3A1A] text-white px-3 sm:px-6 py-2 sm:py-3 rounded-lg sm:rounded-xl font-semibold hover:bg-[#8B4513] transition-all duration-300 w-full sm:w-auto justify-center text-xs sm:text-sm"
+                              className="flex items-center gap-1 sm:gap-2 bg-[#6B3E26] text-white px-3 sm:px-6 py-2 sm:py-3 rounded-lg sm:rounded-xl font-semibold hover:bg-[#9A572D] transition-all duration-300 w-full sm:w-auto justify-center text-xs sm:text-sm"
                             >
                               <ShoppingCart className="w-3 h-3 sm:w-5 sm:h-5" />
                               <span className="hidden sm:inline">View Cart</span>
@@ -2959,7 +4711,7 @@ ${(() => {
                       {adminOrderCart.length > 0 && (
                         <button
                           onClick={() => { playClickSound(); setAdminOrderStep('cart') }}
-                          className="sm:hidden fixed bottom-20 right-4 bg-[#5D3A1A] text-white p-4 rounded-full shadow-2xl hover:bg-[#8B4513] transition-all duration-300 z-50"
+                          className="sm:hidden fixed bottom-20 right-4 bg-[#6B3E26] text-white p-4 rounded-full shadow-2xl hover:bg-[#9A572D] transition-all duration-300 z-50"
                         >
                           <ShoppingCart className="w-6 h-6" />
                           <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs w-5 h-5 rounded-full flex items-center justify-center font-bold">
@@ -2973,7 +4725,7 @@ ${(() => {
                   {adminOrderStep === 'cart' && (
                     <div>
                       {/* Header */}
-                      <div className="mb-3 sm:mb-6 bg-[#F5F5DC] rounded-2xl p-3 sm:p-4 border-2 border-[#8B4513]">
+                      <div className="mb-3 sm:mb-6 bg-[#F5F5DC] rounded-2xl p-3 sm:p-4 border-2 border-[#9A572D]">
                         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
                           <div>
                             <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-1">
@@ -2984,7 +4736,7 @@ ${(() => {
                           <div className="flex gap-2">
                             <button
                               onClick={() => { playClickSound(); setAdminOrderStep('dishes') }}
-                              className="flex items-center gap-1 bg-white text-[#5D3A1A] px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg font-semibold hover:bg-[#FAEBD7] transition-all duration-300 border-2 border-[#8B4513] text-xs sm:text-sm"
+                              className="flex items-center gap-1 bg-white text-[#6B3E26] px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg font-semibold hover:bg-[#FAEBD7] transition-all duration-300 border-2 border-[#9A572D] text-xs sm:text-sm"
                             >
                               <ArrowLeft className="w-3 h-3 sm:w-4 sm:h-4" />
                               Back
@@ -2998,7 +4750,7 @@ ${(() => {
                                 setAdminOrderStep('dishes')
                                 setAdminSelectedDishTypes({})
                               }}
-                              className="flex items-center gap-1 bg-white text-[#5D3A1A] px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg font-semibold hover:bg-[#FAEBD7] transition-all duration-300 border-2 border-[#8B4513] text-xs sm:text-sm"
+                              className="flex items-center gap-1 bg-white text-[#6B3E26] px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg font-semibold hover:bg-[#FAEBD7] transition-all duration-300 border-2 border-[#9A572D] text-xs sm:text-sm"
                             >
                               <X className="w-3 h-3 sm:w-4 sm:h-4" />
                               Close
@@ -3035,7 +4787,7 @@ ${(() => {
                                     <span className="font-bold w-8 text-center">{item.quantity}</span>
                                     <button
                                       onClick={() => adminUpdateCartItemQuantity(index, item.quantity + 1)}
-                                      className="w-8 h-8 rounded-lg bg-[#5D3A1A] text-white hover:bg-[#8B4513] flex items-center justify-center"
+                                      className="w-8 h-8 rounded-lg bg-[#6B3E26] text-white hover:bg-[#9A572D] flex items-center justify-center"
                                     >
                                       <Plus className="w-4 h-4" />
                                     </button>
@@ -3063,7 +4815,7 @@ ${(() => {
                           <button
                             onClick={handleAdminSubmitOrder}
                             disabled={adminOrderSubmitting}
-                            className="w-full px-6 py-3 bg-[#5D3A1A] text-white rounded-xl font-semibold hover:bg-[#8B4513] transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="w-full px-6 py-3 bg-[#6B3E26] text-white rounded-xl font-semibold hover:bg-[#9A572D] transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
                           >
                             {adminOrderSubmitting ? 'Submitting...' : 'Submit Order to Kitchen'}
                           </button>
@@ -3075,59 +4827,237 @@ ${(() => {
               </div>
             )}
 
-            {/* Bottom Statistics Bar */}
-            <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-2xl z-50">
-              <div className="max-w-7xl mx-auto px-2 sm:px-4">
-                <div className="grid grid-cols-4 gap-1 sm:gap-2 py-2 sm:py-3">
+        {/* Occupied Table Order Modal */}
+        {showOccupiedTableOrderModal && selectedOccupiedTableOrder && (
+          <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto animate-fade-in">
+              {/* Header */}
+              <div className="bg-[#6B3E26] text-white p-6 rounded-t-2xl">
+                <div className="flex justify-between items-center">
+                  <div>
+                    <h2 className="text-2xl font-bold">Table {tables.find(t => t.id === selectedOccupiedTableOrder.table_id)?.table_number} - Active Order</h2>
+                    <p className="text-sm opacity-90 mt-1">Order ID: {formatOrderId(selectedOccupiedTableOrder.id)}</p>
+                  </div>
                   <button
-                    onClick={() => { playClickSound(); setOverviewSubTab('active') }}
-                    className={`flex flex-col items-center justify-center gap-0.5 px-1 sm:px-3 py-1.5 sm:py-2 rounded-lg transition-all ${
-                      overviewSubTab === 'active'
-                        ? 'bg-[#5D3A1A] text-white'
-                        : 'text-[#5D3A1A] hover:bg-[#F5F5DC]'
-                    }`}
+                    onClick={() => { playClickSound(); setShowOccupiedTableOrderModal(false); setSelectedOccupiedTableOrder(null) }}
+                    className="p-2 hover:bg-white/20 rounded-lg transition-colors"
                   >
-                    <Users className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />
-                    <span className="text-xs sm:text-sm font-semibold leading-tight">Active</span>
-                    <span className="text-xs sm:text-sm font-bold leading-tight">{tables.filter(t => t.is_occupied).length}</span>
-                  </button>
-                  <button
-                    onClick={() => { playClickSound(); setOverviewSubTab('occupied') }}
-                    className={`flex flex-col items-center justify-center gap-0.5 px-1 sm:px-3 py-1.5 sm:py-2 rounded-lg transition-all ${
-                      overviewSubTab === 'occupied'
-                        ? 'bg-[#5D3A1A] text-white'
-                        : 'text-[#5D3A1A] hover:bg-[#F5F5DC]'
-                    }`}
-                  >
-                    <Utensils className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />
-                    <span className="text-xs sm:text-sm font-semibold leading-tight">Occupied</span>
-                    <span className="text-xs sm:text-sm font-bold leading-tight">{tables.filter(t => t.is_occupied).length}</span>
-                  </button>
-                  <button
-                    onClick={() => { playClickSound(); setOverviewSubTab('all') }}
-                    className={`flex flex-col items-center justify-center gap-0.5 px-1 sm:px-3 py-1.5 sm:py-2 rounded-lg transition-all ${
-                      overviewSubTab === 'all'
-                        ? 'bg-[#5D3A1A] text-white'
-                        : 'text-[#5D3A1A] hover:bg-[#F5F5DC]'
-                    }`}
-                  >
-                    <Users className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />
-                    <span className="text-xs sm:text-sm font-semibold leading-tight">Total</span>
-                    <span className="text-xs sm:text-sm font-bold leading-tight">{tables.length}</span>
-                  </button>
-                  <button
-                    onClick={() => { playClickSound(); setOverviewSubTab('available') }}
-                    className={`flex flex-col items-center justify-center gap-0.5 px-1 sm:px-3 py-1.5 sm:py-2 rounded-lg transition-all ${
-                      overviewSubTab === 'available'
-                        ? 'bg-[#5D3A1A] text-white'
-                        : 'text-[#5D3A1A] hover:bg-[#F5F5DC]'
-                    }`}
-                  >
-                    <CheckCircle className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />
-                    <span className="text-xs sm:text-sm font-semibold leading-tight">Available</span>
-                    <span className="text-xs sm:text-sm font-bold leading-tight">{tables.filter(t => !t.is_occupied).length}</span>
+                    <X className="w-6 h-6" />
                   </button>
                 </div>
+              </div>
+
+              {/* Order Details */}
+              <div className="p-6">
+                <div className="mb-4">
+                  <p className="text-sm text-gray-600"><strong>Customer:</strong> {selectedOccupiedTableOrder.customer_name || 'Walk-in'}</p>
+                  <p className="text-sm text-gray-600"><strong>Mobile:</strong> {selectedOccupiedTableOrder.customer_mobile || 'N/A'}</p>
+                  <p className="text-sm text-gray-600"><strong>Status:</strong> <span className="font-semibold text-[#6B3E26]">{selectedOccupiedTableOrder.status}</span></p>
+                </div>
+
+                {/* Order Items */}
+                <div className="bg-[#F5F5DC] rounded-xl p-4 mb-6">
+                  <h3 className="font-bold text-[#6B3E26] mb-3">Order Items</h3>
+                  {selectedOccupiedTableOrder.order_items && selectedOccupiedTableOrder.order_items.length > 0 ? (
+                    <div className="space-y-3">
+                      {selectedOccupiedTableOrder.order_items.map((item: any, index: number) => (
+                        <div key={index} className="flex justify-between items-center bg-white p-3 rounded-lg">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2">
+                              {getFoodTypeIcon(item.dish?.food_type)}
+                              <span className="font-semibold text-gray-900">{item.dish?.name || 'Unknown'}</span>
+                            </div>
+                            <div className="text-sm text-gray-600 mt-1">
+                              {item.dish_type && <span className="mr-2">({item.dish_type})</span>}
+                              Qty: {item.quantity}
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <p className="font-bold text-[#6B3E26]">₹{(item.price * item.quantity).toFixed(2)}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-gray-600 text-center py-4">No items in this order</p>
+                  )}
+                </div>
+
+                {/* Total */}
+                <div className="bg-gray-100 rounded-xl p-4 mb-6">
+                  <div className="flex justify-between items-center text-xl font-bold">
+                    <span>Total Amount:</span>
+                    <span className="text-[#6B3E26]">₹{selectedOccupiedTableOrder.total_amount.toFixed(2)}</span>
+                  </div>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="flex gap-3">
+                  <button
+                    onClick={handleRepeatOrder}
+                    className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-[#9A572D] text-white rounded-xl font-semibold hover:bg-[#6B3E26] transition-all duration-300"
+                  >
+                    <RefreshCw className="w-5 h-5" />
+                    Repeat Order
+                  </button>
+                  <button
+                    onClick={handlePrintOrder}
+                    className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-[#6B3E26] text-white rounded-xl font-semibold hover:bg-[#9A572D] transition-all duration-300"
+                  >
+                    <Printer className="w-5 h-5" />
+                    Print Order
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'pos' && (
+          <>
+            <div className="mb-6 animate-fade-in bg-gradient-to-br from-[#F5F5DC] to-[#E8E4C9] p-6 rounded-2xl">
+              <h1 className="text-3xl font-bold text-[#6B3E26]">Point of Sale</h1>
+              <p className="text-gray-600 mt-2">Manage tables and take orders</p>
+            </div>
+
+            {/* Key Metrics */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+              <div className="bg-gray-50 rounded-xl shadow-lg p-6 border-l-4 border-[#6B3E26]">
+                <div>
+                  <p className="text-sm text-gray-600 font-semibold">Today's Revenue</p>
+                  <p className="text-2xl font-bold text-[#6B3E26]">₹12,450</p>
+                </div>
+              </div>
+              <div className="bg-gray-50 rounded-xl shadow-lg p-6 border-l-4 border-[#9A572D]">
+                <div>
+                  <p className="text-sm text-gray-600 font-semibold">Today's Orders</p>
+                  <p className="text-2xl font-bold text-[#9A572D]">48</p>
+                </div>
+              </div>
+              <div className="bg-gray-50 rounded-xl shadow-lg p-6 border-l-4 border-[#D4A574]">
+                <div>
+                  <p className="text-sm text-gray-600 font-semibold">Occupied Tables</p>
+                  <p className="text-2xl font-bold text-[#D4A574]">{tables.filter(t => t.is_occupied).length}/{tables.length}</p>
+                </div>
+              </div>
+              <div className="bg-gray-50 rounded-xl shadow-lg p-6 border-l-4 border-[#E8B478]">
+                <div>
+                  <p className="text-sm text-gray-600 font-semibold">Kitchen Queue</p>
+                  <p className="text-2xl font-bold text-[#E8B478]">{orders.filter(o => o.status === 'pending' || o.status === 'preparing').length}</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Table Status Buttons */}
+            <div className="bg-white shadow-2xl border-t-2 border-gray-200 p-2 fixed bottom-0 left-0 right-0 z-40 lg:static lg:mb-6 lg:p-4 lg:rounded-xl">
+              <div className="grid grid-cols-4 gap-1 lg:gap-2">
+                <button
+                  onClick={() => { playClickSound() }}
+                  className="flex flex-col items-center justify-center gap-0.5 px-2 py-2 rounded-lg bg-[#6B3E26] text-white hover:bg-[#5D3A1A] transition-all"
+                >
+                  <Users className="w-4 h-4 lg:w-5 lg:h-5" />
+                  <span className="text-xs font-semibold lg:text-sm">Active</span>
+                  <span className="text-xs font-bold lg:text-sm">{tables.filter(t => t.is_occupied).length}</span>
+                </button>
+                <button
+                  onClick={() => { playClickSound() }}
+                  className="flex flex-col items-center justify-center gap-0.5 px-2 py-2 rounded-lg bg-[#9A572D] text-white hover:bg-[#6B3E26] transition-all"
+                >
+                  <Utensils className="w-4 h-4 lg:w-5 lg:h-5" />
+                  <span className="text-xs font-semibold lg:text-sm">Occupied</span>
+                  <span className="text-xs font-bold lg:text-sm">{tables.filter(t => t.is_occupied).length}</span>
+                </button>
+                <button
+                  onClick={() => { playClickSound() }}
+                  className="flex flex-col items-center justify-center gap-0.5 px-2 py-2 rounded-lg bg-[#D4AA7D] text-white hover:bg-[#9A572D] transition-all"
+                >
+                  <Users className="w-4 h-4 lg:w-5 lg:h-5" />
+                  <span className="text-xs font-semibold lg:text-sm">Total</span>
+                  <span className="text-xs font-bold lg:text-sm">{tables.length}</span>
+                </button>
+                <button
+                  onClick={() => { playClickSound() }}
+                  className="flex flex-col items-center justify-center gap-0.5 px-2 py-2 rounded-lg bg-[#C9A66B] text-white hover:bg-[#B8956A] transition-all"
+                >
+                  <CheckCircle className="w-4 h-4 lg:w-5 lg:h-5" />
+                  <span className="text-xs font-semibold lg:text-sm">Available</span>
+                  <span className="text-xs font-bold lg:text-sm">{tables.filter(t => !t.is_occupied).length}</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Tables Grid */}
+            <div className="bg-white rounded-2xl shadow-xl overflow-hidden mb-6">
+              <div className="p-6 border-b border-gray-200">
+                <h3 className="text-xl font-bold text-gray-900">Tables Status</h3>
+              </div>
+              <div className="p-6">
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                  {tables.map((table) => (
+                    <div
+                      key={table.id}
+                      onClick={() => {
+                        if (table.is_occupied) {
+                          handleOccupiedTableClick(table)
+                        } else {
+                          playClickSound()
+                          setAdminOrderTable(table)
+                          setAdminOrderCart([])
+                          setAdminOrderCustomerName('')
+                          setAdminOrderCustomerMobile('')
+                          setShowAdminOrderModal(true)
+                        }
+                      }}
+                      className={`cursor-pointer rounded-xl p-4 border-2 transition-all duration-300 transform hover:scale-105 hover:shadow-lg
+                        ${table.is_occupied
+                          ? 'bg-[#E8D4C4] border-[#C97B7B]'
+                          : 'bg-[#F5F5DC] border-[#D4A574]'
+                        }`}
+                    >
+                      <div className="text-center">
+                        <div className="text-2xl font-bold text-gray-900 mb-1">
+                          T{table.table_number}
+                        </div>
+                        <div className="text-sm font-semibold text-gray-700 mb-2">
+                          {table.capacity} Seater
+                        </div>
+                        <div className={`text-xs font-bold px-2 py-1 rounded-full inline-block
+                          ${table.is_occupied ? 'bg-[#C97B7B] text-white' : 'bg-[#D4A574] text-white'}
+                        `}>
+                          {table.is_occupied ? 'Occupied' : 'Available'}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Tables Status Legend */}
+            <div className="bg-white rounded-xl shadow-lg p-4 mb-6">
+              <div className="flex flex-wrap gap-4 justify-center">
+                <div className="flex items-center gap-2">
+                  <div className="w-4 h-4 bg-[#D4A574] rounded"></div>
+                  <span className="text-sm font-semibold text-gray-700">Available</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-4 h-4 bg-[#C97B7B] rounded"></div>
+                  <span className="text-sm font-semibold text-gray-700">Occupied</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-4 h-4 bg-[#E8B478] rounded"></div>
+                  <span className="text-sm font-semibold text-gray-700">Reserved</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Waitlist Section */}
+            <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
+              <div className="p-6 border-b border-gray-200">
+                <h3 className="text-xl font-bold text-gray-900">Waitlist</h3>
+              </div>
+              <div className="p-6">
+                <p className="text-gray-500 text-center py-8">No customers in waitlist</p>
               </div>
             </div>
           </>
@@ -3141,7 +5071,7 @@ ${(() => {
                 <h3 className="text-xl font-bold text-gray-900">All Orders</h3>
               <button
                 onClick={() => { playClickSound(); fetchData() }}
-                className="flex items-center gap-2 bg-[#5D3A1A] text-white px-4 py-2 rounded-xl font-semibold hover:shadow-lg transition-all duration-300 transform hover:scale-105"
+                className="flex items-center gap-2 bg-[#6B3E26] text-white px-4 py-2 rounded-xl font-semibold hover:shadow-lg transition-all duration-300 transform hover:scale-105"
               >
                 <RefreshCw className="w-4 h-4" />
                 Refresh
@@ -3185,10 +5115,10 @@ ${(() => {
                         <td className="hidden md:table-cell px-6 py-4 whitespace-nowrap text-sm text-gray-900">{order.users?.name || 'Unknown'}</td>
                         <td className="hidden md:table-cell px-6 py-4 whitespace-nowrap">
                           <span className={`px-3 py-1 rounded-full text-xs font-bold ${
-                            order.status === 'paid' ? 'bg-[#F5F5DC] text-[#8B4513]' :
-                            order.status === 'ready' ? 'bg-[#F5F5DC] text-[#8B4513]' :
-                            order.status === 'preparing' ? 'bg-[#F5F5DC] text-[#8B4513]' :
-                            order.status === 'pending' ? 'bg-[#F5F5DC] text-[#8B4513]' :
+                            order.status === 'paid' ? 'bg-[#F5F5DC] text-[#9A572D]' :
+                            order.status === 'ready' ? 'bg-[#F5F5DC] text-[#9A572D]' :
+                            order.status === 'preparing' ? 'bg-[#F5F5DC] text-[#9A572D]' :
+                            order.status === 'pending' ? 'bg-[#F5F5DC] text-[#9A572D]' :
                             'bg-gray-100 text-gray-800'
                           }`}>
                             {order.status}
@@ -3207,8 +5137,8 @@ ${(() => {
                             }}
                             className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all duration-300 ${
                               order.is_printed
-                                ? 'bg-white border-2 border-[#8B4513] text-[#8B4513] hover:bg-[#F5F0E8]'
-                                : 'bg-[#5D3A1A] text-white hover:bg-[#8B4513]'
+                                ? 'bg-white border-2 border-[#9A572D] text-[#9A572D] hover:bg-[#F5F0E8]'
+                                : 'bg-[#6B3E26] text-white hover:bg-[#9A572D]'
                             }`}
                           >
                             {order.is_printed ? 'Printed' : 'Print Bill'}
@@ -3235,10 +5165,10 @@ ${(() => {
                               <div className="flex justify-between">
                                 <span className="text-gray-600">Status:</span>
                                 <span className={`px-3 py-1 rounded-full text-xs font-bold ${
-                                  order.status === 'paid' ? 'bg-[#F5F5DC] text-[#8B4513]' :
-                                  order.status === 'ready' ? 'bg-[#F5F5DC] text-[#8B4513]' :
-                                  order.status === 'preparing' ? 'bg-[#F5F5DC] text-[#8B4513]' :
-                                  order.status === 'pending' ? 'bg-[#F5F5DC] text-[#8B4513]' :
+                                  order.status === 'paid' ? 'bg-[#F5F5DC] text-[#9A572D]' :
+                                  order.status === 'ready' ? 'bg-[#F5F5DC] text-[#9A572D]' :
+                                  order.status === 'preparing' ? 'bg-[#F5F5DC] text-[#9A572D]' :
+                                  order.status === 'pending' ? 'bg-[#F5F5DC] text-[#9A572D]' :
                                   'bg-gray-100 text-gray-800'
                                 }`}>
                                   {order.status}
@@ -3273,7 +5203,7 @@ ${(() => {
                 <h3 className="text-xl font-bold text-gray-900">Dishes</h3>
               <button
                 onClick={() => { playClickSound(); handleAddDish() }}
-                className="flex items-center bg-[#5D3A1A] text-white px-4 py-2 rounded-xl font-semibold hover:shadow-lg transition-all duration-300 transform hover:scale-105"
+                className="flex items-center bg-[#6B3E26] text-white px-4 py-2 rounded-xl font-semibold hover:shadow-lg transition-all duration-300 transform hover:scale-105"
               >
                 <Plus className="w-4 h-4 mr-2" />
                 Add Dish
@@ -3287,6 +5217,7 @@ ${(() => {
                     <th className="hidden md:table-cell px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Description</th>
                     <th className="hidden md:table-cell px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Category</th>
                     <th className="hidden md:table-cell px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Price</th>
+                    <th className="hidden md:table-cell px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Offer</th>
                     <th className="hidden md:table-cell px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Status</th>
                     <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Actions</th>
                   </tr>
@@ -3307,6 +5238,15 @@ ${(() => {
                         <td className="hidden md:table-cell px-6 py-4 whitespace-nowrap text-sm text-gray-900">{dish.category}</td>
                         <td className="hidden md:table-cell px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-900">₹{dish.price.toFixed(2)}</td>
                         <td className="hidden md:table-cell px-6 py-4 whitespace-nowrap">
+                          {dish.offer ? (
+                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-bold bg-green-100 text-green-800">
+                              {dish.offer}
+                            </span>
+                          ) : (
+                            <span className="text-gray-400 text-sm">-</span>
+                          )}
+                        </td>
+                        <td className="hidden md:table-cell px-6 py-4 whitespace-nowrap">
                           <button
                             onClick={(e) => {
                               e.stopPropagation()
@@ -3314,7 +5254,7 @@ ${(() => {
                               handleToggleDishAvailability(dish)
                             }}
                             className={`px-3 py-1 rounded-full text-xs font-bold cursor-pointer transition-all ${
-                              dish.is_available ? 'bg-[#F5F5DC] text-[#8B4513] border-2 border-[#8B4513]' : 'bg-red-100 text-red-800'
+                              dish.is_available ? 'bg-[#F5F5DC] text-[#9A572D] border-2 border-[#9A572D]' : 'bg-red-100 text-red-800'
                             }`}
                           >
                             {dish.is_available ? 'Available' : 'Unavailable'}
@@ -3345,7 +5285,7 @@ ${(() => {
                       {/* Mobile expanded details */}
                       {expandedDishId === dish.id && (
                         <tr className="md:hidden bg-amber-50">
-                          <td colSpan={2} className="px-6 py-4">
+                          <td colSpan={3} className="px-6 py-4">
                             <div className="space-y-2 text-sm">
                               <div className="flex justify-between">
                                 <span className="text-gray-600">Description:</span>
@@ -3360,6 +5300,16 @@ ${(() => {
                                 <span className="font-bold text-gray-900">₹{dish.price.toFixed(2)}</span>
                               </div>
                               <div className="flex justify-between items-center">
+                                <span className="text-gray-600">Offer:</span>
+                                {dish.offer ? (
+                                  <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-bold bg-green-100 text-green-800">
+                                    {dish.offer}
+                                  </span>
+                                ) : (
+                                  <span className="text-gray-400 text-sm">-</span>
+                                )}
+                              </div>
+                              <div className="flex justify-between items-center">
                                 <span className="text-gray-600">Status:</span>
                                 <button
                                   onClick={(e) => {
@@ -3368,7 +5318,7 @@ ${(() => {
                                     handleToggleDishAvailability(dish)
                                   }}
                                   className={`px-3 py-1 rounded-full text-xs font-bold cursor-pointer transition-all ${
-                                    dish.is_available ? 'bg-[#F5F5DC] text-[#8B4513] border-2 border-[#8B4513]' : 'bg-red-100 text-red-800'
+                                    dish.is_available ? 'bg-[#F5F5DC] text-[#9A572D] border-2 border-[#9A572D]' : 'bg-red-100 text-red-800'
                                   }`}
                                 >
                                   {dish.is_available ? 'Available' : 'Unavailable'}
@@ -3387,6 +5337,292 @@ ${(() => {
           </>
         )}
 
+        {activeTab === 'offers' && (
+          <>
+            <h2 className="text-2xl font-bold text-gray-900 mb-6">Offers Management</h2>
+            <div className="bg-white/95 backdrop-blur-sm rounded-2xl shadow-xl overflow-hidden animate-fade-in">
+              <div className="p-6 border-b border-gray-200 bg-[#F5F5DC] flex justify-between items-center">
+                <h3 className="text-xl font-bold text-gray-900">Offers</h3>
+                <button
+                  onClick={() => { playClickSound(); handleAddOffer() }}
+                  className="flex items-center bg-[#6B3E26] text-white px-4 py-2 rounded-xl font-semibold hover:shadow-lg transition-all duration-300 transform hover:scale-105"
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  Add Offer
+                </button>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-[#F5F5DC]">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Title</th>
+                      <th className="hidden md:table-cell px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Description</th>
+                      <th className="hidden md:table-cell px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Discount</th>
+                      <th className="hidden md:table-cell px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Applicable Dishes</th>
+                      <th className="hidden md:table-cell px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Min Order</th>
+                      <th className="hidden md:table-cell px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Valid Until</th>
+                      <th className="hidden md:table-cell px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Status</th>
+                      <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200">
+                    {offers.map((offer) => (
+                      <tr key={offer.id} className="hover:bg-amber-50 transition-colors">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">{offer.title}</td>
+                        <td className="hidden md:table-cell px-6 py-4 text-sm text-gray-600 max-w-xs">{offer.description || '-'}</td>
+                        <td className="hidden md:table-cell px-6 py-4 whitespace-nowrap text-sm font-bold text-green-600">{offer.discount_percent}% OFF</td>
+                        <td className="hidden md:table-cell px-6 py-4 text-sm text-gray-600 max-w-xs">
+                          {offer.applicable_dishes && offer.applicable_dishes.length > 0 ? (
+                            <div className="flex flex-wrap gap-1">
+                              {offer.applicable_dishes.slice(0, 3).map((dishId) => {
+                                const dish = dishes.find(d => d.id === dishId)
+                                return dish ? (
+                                  <span key={dishId} className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
+                                    {dish.name}
+                                  </span>
+                                ) : null
+                              })}
+                              {offer.applicable_dishes.length > 3 && (
+                                <span className="text-xs text-gray-500">+{offer.applicable_dishes.length - 3} more</span>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-gray-400">All dishes</span>
+                          )}
+                        </td>
+                        <td className="hidden md:table-cell px-6 py-4 whitespace-nowrap text-sm text-gray-900">₹{offer.min_order_value || 0}</td>
+                        <td className="hidden md:table-cell px-6 py-4 whitespace-nowrap text-sm text-gray-900">{new Date(offer.end_date).toLocaleDateString()}</td>
+                        <td className="hidden md:table-cell px-6 py-4 whitespace-nowrap">
+                          <button
+                            onClick={() => { playClickSound(); handleToggleOfferStatus(offer) }}
+                            className={`px-3 py-1 rounded-full text-xs font-bold cursor-pointer transition-all ${
+                              offer.is_active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                            }`}
+                          >
+                            {offer.is_active ? 'Active' : 'Inactive'}
+                          </button>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => { playClickSound(); handleEditOffer(offer) }}
+                              className="text-blue-600 hover:text-blue-800 transition-colors"
+                            >
+                              <Edit className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => { playClickSound(); handleDeleteOffer(offer.id) }}
+                              className="text-red-600 hover:text-red-800 transition-colors"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Offer Modal */}
+            {showOfferModal && (
+              <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+                  <div className="p-6 border-b border-gray-200 bg-[#F5F5DC] flex justify-between items-center">
+                    <h3 className="text-xl font-bold text-gray-900">
+                      {editingOffer ? 'Edit Offer' : 'Add New Offer'}
+                    </h3>
+                    <button
+                      onClick={() => { playClickSound(); setShowOfferModal(false); setEditingOffer(null); setOfferForm({
+                        title: '',
+                        description: '',
+                        discount_percent: '',
+                        min_order_value: '',
+                        max_discount: '',
+                        start_date: '',
+                        end_date: '',
+                        is_active: true,
+                        is_promotional: false,
+                        applicable_dishes: []
+                      }) }}
+                      className="text-gray-500 hover:text-gray-700 transition-colors"
+                    >
+                      <X className="w-6 h-6" />
+                    </button>
+                  </div>
+                  <form onSubmit={handleOfferSubmit} className="p-6 space-y-4">
+                    <div>
+                      <label className="block text-sm font-bold text-gray-700 mb-2">Offer Title *</label>
+                      <input
+                        type="text"
+                        required
+                        value={offerForm.title}
+                        onChange={(e) => setOfferForm({ ...offerForm, title: e.target.value })}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FFD700] focus:border-transparent"
+                        placeholder="e.g., Weekend Special"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-bold text-gray-700 mb-2">Description</label>
+                      <textarea
+                        value={offerForm.description}
+                        onChange={(e) => setOfferForm({ ...offerForm, description: e.target.value })}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FFD700] focus:border-transparent"
+                        rows={3}
+                        placeholder="Offer description..."
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-bold text-gray-700 mb-2">Discount Percentage *</label>
+                        <input
+                          type="number"
+                          required
+                          min="1"
+                          max="100"
+                          value={offerForm.discount_percent}
+                          onChange={(e) => setOfferForm({ ...offerForm, discount_percent: e.target.value })}
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FFD700] focus:border-transparent"
+                          placeholder="e.g., 20"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-bold text-gray-700 mb-2">Min Order Value</label>
+                        <input
+                          type="number"
+                          min="0"
+                          value={offerForm.min_order_value}
+                          onChange={(e) => setOfferForm({ ...offerForm, min_order_value: e.target.value })}
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FFD700] focus:border-transparent"
+                          placeholder="e.g., 500"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-bold text-gray-700 mb-2">Max Discount</label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={offerForm.max_discount}
+                        onChange={(e) => setOfferForm({ ...offerForm, max_discount: e.target.value })}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FFD700] focus:border-transparent"
+                        placeholder="e.g., 100"
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-bold text-gray-700 mb-2">Start Date *</label>
+                        <input
+                          type="date"
+                          required
+                          value={offerForm.start_date}
+                          onChange={(e) => setOfferForm({ ...offerForm, start_date: e.target.value })}
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FFD700] focus:border-transparent"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-bold text-gray-700 mb-2">End Date *</label>
+                        <input
+                          type="date"
+                          required
+                          value={offerForm.end_date}
+                          onChange={(e) => setOfferForm({ ...offerForm, end_date: e.target.value })}
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FFD700] focus:border-transparent"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-bold text-gray-700 mb-2">Applicable Dishes</label>
+                      <div className="border border-gray-300 rounded-lg p-3 max-h-48 overflow-y-auto">
+                        {dishes.length === 0 ? (
+                          <p className="text-gray-500 text-sm">No dishes available</p>
+                        ) : (
+                          dishes.map((dish) => (
+                            <label key={dish.id} className="flex items-center gap-2 py-1 cursor-pointer hover:bg-gray-50 px-2 rounded">
+                              <input
+                                type="checkbox"
+                                checked={offerForm.applicable_dishes.includes(dish.id)}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    setOfferForm({
+                                      ...offerForm,
+                                      applicable_dishes: [...offerForm.applicable_dishes, dish.id]
+                                    })
+                                  } else {
+                                    setOfferForm({
+                                      ...offerForm,
+                                      applicable_dishes: offerForm.applicable_dishes.filter(id => id !== dish.id)
+                                    })
+                                  }
+                                }}
+                                className="w-4 h-4 text-[#FFD700] rounded focus:ring-[#FFD700]"
+                              />
+                              <span className="text-sm text-gray-700">{dish.name}</span>
+                              <span className="text-xs text-gray-500 ml-auto">₹{dish.price}</span>
+                            </label>
+                          ))
+                        )}
+                      </div>
+                      <p className="text-xs text-gray-500 mt-1">
+                        {offerForm.applicable_dishes.length > 0
+                          ? `${offerForm.applicable_dishes.length} dish(es) selected`
+                          : 'Leave empty to apply to all dishes'}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={offerForm.is_active}
+                          onChange={(e) => setOfferForm({ ...offerForm, is_active: e.target.checked })}
+                          className="w-4 h-4 text-[#FFD700] rounded focus:ring-[#FFD700]"
+                        />
+                        <span className="text-sm font-medium text-gray-700">Active</span>
+                      </label>
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={offerForm.is_promotional}
+                          onChange={(e) => setOfferForm({ ...offerForm, is_promotional: e.target.checked })}
+                          className="w-4 h-4 text-[#FFD700] rounded focus:ring-[#FFD700]"
+                        />
+                        <span className="text-sm font-medium text-gray-700">Promotional</span>
+                      </label>
+                    </div>
+                    <div className="flex gap-3 pt-4">
+                      <button
+                        type="button"
+                        onClick={() => { playClickSound(); setShowOfferModal(false); setEditingOffer(null); setOfferForm({
+                          title: '',
+                          description: '',
+                          discount_percent: '',
+                          min_order_value: '',
+                          max_discount: '',
+                          start_date: '',
+                          end_date: '',
+                          is_active: true,
+                          is_promotional: false,
+                          applicable_dishes: []
+                        }) }}
+                        className="flex-1 px-4 py-2 border border-gray-300 rounded-lg font-semibold text-gray-700 hover:bg-gray-50 transition-colors"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="submit"
+                        className="flex-1 px-4 py-2 bg-[#6B3E26] text-white rounded-lg font-semibold hover:bg-[#8B4513] transition-colors"
+                      >
+                        {editingOffer ? 'Update Offer' : 'Create Offer'}
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            )}
+          </>
+        )}
+
         {activeTab === 'tables' && (
           <>
             <h2 className="text-2xl font-bold text-gray-900 mb-6">Table Management</h2>
@@ -3396,14 +5632,14 @@ ${(() => {
                 <div className="flex gap-3">
                   <button
                     onClick={() => { playClickSound(); setShowMasterTableModal(true) }}
-                    className="flex items-center bg-[#8B4513] text-white px-4 py-2 rounded-xl font-semibold hover:shadow-lg transition-all duration-300 transform hover:scale-105"
+                    className="flex items-center bg-[#9A572D] text-white px-4 py-2 rounded-xl font-semibold hover:shadow-lg transition-all duration-300 transform hover:scale-105"
                   >
                     <Layers className="w-4 h-4 mr-2" />
                     Create Master Table
                   </button>
                   <button
                     onClick={handleAddTable}
-                    className="flex items-center bg-[#5D3A1A] text-white px-4 py-2 rounded-xl font-semibold hover:shadow-lg transition-all duration-300 transform hover:scale-105"
+                    className="flex items-center bg-[#6B3E26] text-white px-4 py-2 rounded-xl font-semibold hover:shadow-lg transition-all duration-300 transform hover:scale-105"
                   >
                     <Plus className="w-4 h-4 mr-2" />
                     Add Table
@@ -3437,7 +5673,7 @@ ${(() => {
                           <td className="hidden md:table-cell px-6 py-4 whitespace-nowrap text-sm text-gray-900">{table.capacity} seats</td>
                           <td className="hidden md:table-cell px-6 py-4 whitespace-nowrap">
                             <span className={`px-3 py-1 rounded-full text-xs font-bold ${
-                              table.is_occupied ? 'bg-red-100 text-red-800' : 'bg-[#F5F5DC] text-[#8B4513]'
+                              table.is_occupied ? 'bg-red-100 text-red-800' : 'bg-[#F5F5DC] text-[#9A572D]'
                             }`}>
                               {table.is_occupied ? 'Occupied' : 'Available'}
                             </span>
@@ -3452,8 +5688,9 @@ ${(() => {
                           <td className="hidden md:table-cell px-6 py-4 whitespace-nowrap">
                             {table.is_prebooked ? (
                               <div className="flex flex-col">
-                                <span className="px-3 py-1 rounded-full text-xs font-bold bg-orange-100 text-orange-800">
-                                  🟡 Pre-booked
+                                <span className="px-3 py-1 rounded-full text-xs font-bold bg-orange-100 text-orange-800 flex items-center gap-1">
+                                  <CalendarCheck className="w-3 h-3" />
+                                  Pre-booked
                                 </span>
                                 <span className="text-xs text-gray-600 mt-1">
                                   {table.prebooked_time && new Date(table.prebooked_time).toLocaleTimeString()}
@@ -3498,7 +5735,7 @@ ${(() => {
                                 e.stopPropagation()
                                 handleEditTable(table)
                               }}
-                              className="text-[#5D3A1A] hover:text-[#8B4513] transition-colors"
+                              className="text-[#6B3E26] hover:text-[#9A572D] transition-colors"
                               title="Edit"
                             >
                               <Edit className="w-4 h-4 inline" />
@@ -3509,7 +5746,7 @@ ${(() => {
                                   e.stopPropagation()
                                   handleReleaseTable(table.id)
                                 }}
-                                className="text-[#5D3A1A] hover:text-[#8B4513] transition-colors font-semibold"
+                                className="text-[#6B3E26] hover:text-[#9A572D] transition-colors font-semibold"
                                 title="Release Table"
                               >
                                 Release
@@ -3543,7 +5780,7 @@ ${(() => {
                                 <div className="flex justify-between items-center">
                                   <span className="text-gray-600">Status:</span>
                                   <span className={`px-3 py-1 rounded-full text-xs font-bold ${
-                                    table.is_occupied ? 'bg-red-100 text-red-800' : 'bg-[#F5F5DC] text-[#8B4513]'
+                                    table.is_occupied ? 'bg-red-100 text-red-800' : 'bg-[#F5F5DC] text-[#9A572D]'
                                   }`}>
                                     {table.is_occupied ? 'Occupied' : 'Available'}
                                   </span>
@@ -3572,7 +5809,7 @@ ${(() => {
                                         e.stopPropagation()
                                         handleReleaseTable(table.id)
                                       }}
-                                      className="flex-1 py-2 px-3 bg-[#8B4513] text-white rounded-lg text-sm font-semibold"
+                                      className="flex-1 py-2 px-3 bg-[#9A572D] text-white rounded-lg text-sm font-semibold"
                                     >
                                       Release
                                     </button>
@@ -3599,19 +5836,20 @@ ${(() => {
         )}
 
         {activeTab === 'reports' && (
-          <Reports orders={orders} payments={payments} dishes={dishes} />
+          <Reports orders={orders} payments={payments} dishes={dishes} tables={tables} />
         )}
 
         {activeTab === 'offline-billing' && (
           <>
-            <div className="mb-6 animate-fade-in">
+            <div className="mb-6 animate-fade-in bg-gradient-to-br from-[#F5F5DC] to-[#E8E4C9] p-6 rounded-2xl">
               <div className="flex items-center justify-between mb-4">
-                <h1 className="text-3xl font-bold text-[#5D3A1A]">
+                <h1 className="text-3xl font-bold text-[#6B3E26]">
                   Offline Orders
                 </h1>
                 <div className="flex items-center gap-2">
-                  <span className={`px-3 py-1 rounded-full text-sm font-semibold ${isOnline ? 'bg-[#F5F5DC] text-[#8B4513]' : 'bg-red-100 text-red-800'}`}>
-                    {isOnline ? '🟢 Online' : '🔴 Offline'}
+                  <span className={`px-3 py-1 rounded-full text-sm font-semibold flex items-center gap-1 ${isOnline ? 'bg-[#F5F5DC] text-[#9A572D]' : 'bg-red-100 text-red-800'}`}>
+                    {isOnline ? <Wifi className="w-4 h-4" /> : <WifiOff className="w-4 h-4" />}
+                    {isOnline ? 'Online' : 'Offline'}
                   </span>
                   {!isOnline && offlineOrders.length > 0 && (
                     <button
@@ -3638,7 +5876,7 @@ ${(() => {
                   <input
                     type="text"
                     placeholder="Search menu items..."
-                    className="w-full px-4 py-2 border-2 border-gray-200 rounded-xl focus:border-[#8B4513] focus:outline-none"
+                    className="w-full px-4 py-2 border-2 border-gray-200 rounded-xl focus:border-[#9A572D] focus:outline-none"
                     value={menuSearchTerm}
                     onChange={(e) => setMenuSearchTerm(e.target.value)}
                   />
@@ -3661,8 +5899,8 @@ ${(() => {
                         key={dish.id}
                         className={`flex items-center gap-4 border-2 rounded-xl p-3 transition-all duration-300 ${
                           addedDishIds.has(dish.id)
-                            ? 'bg-white border-[#8B4513] shadow-md'
-                            : 'bg-[#F5F5DC] border-[#8B4513] hover:shadow-lg hover:scale-[1.02] cursor-pointer'
+                            ? 'bg-white border-[#9A572D] shadow-md'
+                            : 'bg-[#F5F5DC] border-[#9A572D] hover:shadow-lg hover:scale-[1.02] cursor-pointer'
                         }`}
                       >
                         {/* Show image only when online */}
@@ -3679,7 +5917,7 @@ ${(() => {
                         <div className="flex-1 min-w-0">
                           <h3 className="font-semibold text-gray-900 text-sm mb-1 truncate">{dish.name}</h3>
                           <p className="text-xs text-gray-600 mb-1 truncate">{dish.category}</p>
-                          <p className="text-lg font-bold text-[#5D3A1A]">₹{dish.price.toFixed(2)}</p>
+                          <p className="text-lg font-bold text-[#6B3E26]">₹{dish.price.toFixed(2)}</p>
                         </div>
                         {!addedDishIds.has(dish.id) ? (
                           <button
@@ -3687,7 +5925,7 @@ ${(() => {
                               e.stopPropagation()
                               addToCart(dish)
                             }}
-                            className="bg-[#8B4513] text-white px-4 py-2 rounded-lg font-semibold hover:bg-[#5D3A13] transition-colors"
+                            className="bg-[#9A572D] text-white px-4 py-2 rounded-lg font-semibold hover:bg-[#5D3A13] transition-colors"
                           >
                             Add
                           </button>
@@ -3703,7 +5941,7 @@ ${(() => {
                                   removeFromCart(item?.id || dish.id)
                                 }
                               }}
-                              className="w-8 h-8 rounded-full bg-white border-2 border-[#8B4513] text-[#8B4513] hover:bg-[#F5F5DC] transition-colors text-sm font-bold"
+                              className="w-8 h-8 rounded-full bg-white border-2 border-[#9A572D] text-[#9A572D] hover:bg-[#F5F5DC] transition-colors text-sm font-bold"
                             >
                               -
                             </button>
@@ -3715,7 +5953,7 @@ ${(() => {
                                 e.stopPropagation()
                                 addToCart(dish)
                               }}
-                              className="w-8 h-8 rounded-full bg-[#8B4513] text-white hover:bg-[#5D3A13] transition-colors text-sm font-bold"
+                              className="w-8 h-8 rounded-full bg-[#9A572D] text-white hover:bg-[#5D3A13] transition-colors text-sm font-bold"
                             >
                               +
                             </button>
@@ -3750,7 +5988,7 @@ ${(() => {
                   <select
                     value={selectedTable}
                     onChange={(e) => setSelectedTable(e.target.value)}
-                    className="w-full px-4 py-2 border-2 border-gray-200 rounded-xl focus:border-[#8B4513] focus:outline-none"
+                    className="w-full px-4 py-2 border-2 border-gray-200 rounded-xl focus:border-[#9A572D] focus:outline-none"
                     disabled={tables.length === 0}
                   >
                     <option value="">
@@ -3777,7 +6015,7 @@ ${(() => {
                     value={customerName}
                     onChange={(e) => setCustomerName(e.target.value)}
                     placeholder="Enter customer name"
-                    className="w-full px-4 py-2 border-2 border-gray-200 rounded-xl focus:border-[#8B4513] focus:outline-none"
+                    className="w-full px-4 py-2 border-2 border-gray-200 rounded-xl focus:border-[#9A572D] focus:outline-none"
                   />
                 </div>
 
@@ -3789,7 +6027,7 @@ ${(() => {
                     value={customerMobile}
                     onChange={(e) => setCustomerMobile(e.target.value)}
                     placeholder="Enter mobile number"
-                    className="w-full px-4 py-2 border-2 border-gray-200 rounded-xl focus:border-[#8B4513] focus:outline-none"
+                    className="w-full px-4 py-2 border-2 border-gray-200 rounded-xl focus:border-[#9A572D] focus:outline-none"
                   />
                 </div>
 
@@ -3804,19 +6042,19 @@ ${(() => {
                         <div key={item.id} className="flex items-center justify-between bg-gray-50 rounded-lg p-2">
                           <div className="flex-1">
                             <p className="font-semibold text-gray-900 text-sm">{item.name}</p>
-                            <p className="text-sm text-[#5D3A1A]">₹{item.price.toFixed(2)} x {item.quantity}</p>
+                            <p className="text-sm text-[#6B3E26]">₹{item.price.toFixed(2)} x {item.quantity}</p>
                           </div>
                           <div className="flex items-center gap-2">
                             <button
                               onClick={() => updateCartQuantity(item.id, item.quantity - 1)}
-                              className="w-6 h-6 rounded-full bg-white border-2 border-[#8B4513] text-[#8B4513] hover:bg-[#F5F5DC] transition-colors text-sm font-bold"
+                              className="w-6 h-6 rounded-full bg-white border-2 border-[#9A572D] text-[#9A572D] hover:bg-[#F5F5DC] transition-colors text-sm font-bold"
                             >
                               -
                             </button>
                             <span className="w-6 text-center font-semibold text-sm">{item.quantity}</span>
                             <button
                               onClick={() => updateCartQuantity(item.id, item.quantity + 1)}
-                              className="w-6 h-6 rounded-full bg-white border-2 border-[#8B4513] text-[#8B4513] hover:bg-[#F5F5DC] transition-colors text-sm font-bold"
+                              className="w-6 h-6 rounded-full bg-white border-2 border-[#9A572D] text-[#9A572D] hover:bg-[#F5F5DC] transition-colors text-sm font-bold"
                             >
                               +
                             </button>
@@ -3838,7 +6076,7 @@ ${(() => {
                 <div className="mb-4 p-3 bg-[#F5F5DC] rounded-xl">
                   <div className="flex justify-between items-center">
                     <span className="font-semibold text-gray-700">Total:</span>
-                    <span className="text-xl font-bold text-[#8B4513]">₹{getCartTotal().toFixed(2)}</span>
+                    <span className="text-xl font-bold text-[#9A572D]">₹{getCartTotal().toFixed(2)}</span>
                   </div>
                 </div>
 
@@ -3846,7 +6084,7 @@ ${(() => {
                 <button
                   onClick={createOfflineOrder}
                   disabled={offlineCart.length === 0 || !selectedTable}
-                  className="w-full bg-[#8B4513] text-white py-3 rounded-xl font-semibold hover:bg-[#5D3A13] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full bg-[#9A572D] text-white py-3 rounded-xl font-semibold hover:bg-[#5D3A13] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Create Order
                 </button>
@@ -3874,14 +6112,14 @@ ${(() => {
                           </p>
                         </div>
                         <div className="text-right">
-                          <p className="text-lg font-bold text-[#5D3A1A]">₹{order.total_amount.toFixed(2)}</p>
+                          <p className="text-lg font-bold text-[#6B3E26]">₹{order.total_amount.toFixed(2)}</p>
                           <p className="text-xs text-gray-500">{order.order_items?.length} items</p>
                         </div>
                       </div>
                       <div className="flex gap-2">
                         <button
                           onClick={() => printOfflineBill(order)}
-                          className="flex-1 bg-[#5D3A1A] text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-[#8B4513] transition-all"
+                          className="flex-1 bg-[#6B3E26] text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-[#9A572D] transition-all"
                         >
                           Print Bill
                         </button>
@@ -4044,6 +6282,2980 @@ ${(() => {
                   <div className="w-1.5 h-1.5 bg-purple-500 rounded-full animate-bounce" style={{ animationDelay: '0.2s', animationDuration: '1.5s' }}></div>
                   <div className="w-1.5 h-1.5 bg-purple-500 rounded-full animate-bounce" style={{ animationDelay: '0.4s', animationDuration: '1.5s' }}></div>
                 </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'reservations' && (
+          <div className="animate-fade-in">
+            <div className="mb-6 flex justify-between items-center">
+              <div>
+                <h1 className="text-3xl font-bold text-[#6B3E26] pt-5">Reservations</h1>
+                <p className="text-gray-600 mt-2">Manage table reservations and bookings</p>
+              </div>
+              <button
+                onClick={handleAddReservation}
+                className="flex items-center gap-2 bg-[#6B3E26] text-white px-4 py-2 rounded-xl font-semibold hover:bg-[#9A572D] transition-all duration-300 transform hover:scale-105"
+              >
+                <Plus className="w-4 h-4" />
+                New Reservation
+              </button>
+            </div>
+
+            {/* Key Metrics */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+              <div className="bg-white rounded-xl shadow-lg p-6 border-l-4 border-[#6B3E26]">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-600 font-semibold">Total Reservations</p>
+                    <p className="text-2xl font-bold text-[#6B3E26]">{reservations.length}</p>
+                  </div>
+                  <Calendar className="w-8 h-8 text-[#6B3E26]" />
+                </div>
+              </div>
+              <div className="bg-white rounded-xl shadow-lg p-6 border-l-4 border-[#D4A574]">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-600 font-semibold">Today's Reservations</p>
+                    <p className="text-2xl font-bold text-[#D4A574]">{reservations.filter(r => r.date === new Date().toISOString().split('T')[0]).length}</p>
+                  </div>
+                  <Calendar className="w-8 h-8 text-[#D4A574]" />
+                </div>
+              </div>
+              <div className="bg-white rounded-xl shadow-lg p-6 border-l-4 border-[#E8B478]">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-600 font-semibold">Confirmed</p>
+                    <p className="text-2xl font-bold text-[#E8B478]">{reservations.filter(r => r.status === 'confirmed').length}</p>
+                  </div>
+                  <CheckCircle className="w-8 h-8 text-[#E8B478]" />
+                </div>
+              </div>
+            </div>
+
+            {/* Reservations List */}
+            <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
+              <div className="p-6 border-b border-gray-200 bg-[#F5F5DC]">
+                <h3 className="text-xl font-bold text-gray-900">All Reservations</h3>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-[#F5F5DC]">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Customer</th>
+                      <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Mobile</th>
+                      <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Table</th>
+                      <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Date</th>
+                      <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Time</th>
+                      <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Guests</th>
+                      <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Status</th>
+                      <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200">
+                    {reservations.length === 0 ? (
+                      <tr>
+                        <td colSpan={8} className="px-6 py-12 text-center text-gray-500">
+                          <Calendar className="w-12 h-12 mx-auto mb-4 text-[#6B3E26]" />
+                          <p className="text-lg font-semibold mb-2">No reservations yet</p>
+                          <p className="text-sm">Click "New Reservation" to create your first reservation</p>
+                        </td>
+                      </tr>
+                    ) : (
+                      reservations.map((reservation) => (
+                        <tr key={reservation.id} className="hover:bg-[#F5F5DC] transition-colors">
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-sm font-semibold text-gray-900">{reservation.customer_name}</div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-sm text-gray-700">{reservation.customer_mobile}</div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-sm text-gray-700">Table {tables.find(t => t.id === reservation.table_id)?.table_number || 'N/A'}</div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-sm text-gray-700">{new Date(reservation.date).toLocaleDateString()}</div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-sm text-gray-700">{reservation.time}</div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-sm text-gray-700">{reservation.guests}</div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <span className={`px-3 py-1 rounded-full text-xs font-bold ${
+                              reservation.status === 'confirmed' ? 'bg-[#D4A574] text-white' :
+                              reservation.status === 'pending' ? 'bg-[#E8B478] text-white' :
+                              'bg-[#C97B7B] text-white'
+                            }`}>
+                              {reservation.status}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="flex gap-2">
+                              <button
+                                onClick={() => handleEditReservation(reservation)}
+                                className="p-2 rounded-lg bg-[#F5F5DC] text-[#6B3E26] hover:bg-[#DEB887] transition-colors"
+                                title="Edit"
+                              >
+                                <Edit className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() => handleDeleteReservation(reservation.id)}
+                                className="p-2 rounded-lg bg-[#F5F5DC] text-[#C97B7B] hover:bg-[#DEB887] transition-colors"
+                                title="Delete"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Reservation Modal */}
+            {showReservationModal && (
+              <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+                <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full max-h-[90vh] overflow-y-auto animate-fade-in">
+                  <div className="p-6 border-b border-gray-200 bg-[#F5F5DC] flex justify-between items-center">
+                    <h3 className="text-xl font-bold text-gray-900">
+                      {editingReservation ? 'Edit Reservation' : 'New Reservation'}
+                    </h3>
+                    <button
+                      onClick={() => { playClickSound(); setShowReservationModal(false) }}
+                      className="p-2 rounded-xl bg-white hover:bg-gray-100 transition-all duration-300"
+                    >
+                      <X className="w-6 h-6 text-gray-700" />
+                    </button>
+                  </div>
+                  <div className="p-6 space-y-4">
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Customer Name</label>
+                      <input
+                        type="text"
+                        value={reservationForm.customer_name}
+                        onChange={(e) => setReservationForm({ ...reservationForm, customer_name: e.target.value })}
+                        className="w-full px-4 py-2 border-2 border-gray-300 rounded-xl focus:border-[#6B3E26] focus:outline-none transition-colors"
+                        placeholder="Enter customer name"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Mobile Number</label>
+                      <input
+                        type="tel"
+                        value={reservationForm.customer_mobile}
+                        onChange={(e) => setReservationForm({ ...reservationForm, customer_mobile: e.target.value })}
+                        className="w-full px-4 py-2 border-2 border-gray-300 rounded-xl focus:border-[#6B3E26] focus:outline-none transition-colors"
+                        placeholder="Enter mobile number"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Table</label>
+                      <select
+                        value={reservationForm.table_id}
+                        onChange={(e) => setReservationForm({ ...reservationForm, table_id: e.target.value })}
+                        className="w-full px-4 py-2 border-2 border-gray-300 rounded-xl focus:border-[#6B3E26] focus:outline-none transition-colors"
+                      >
+                        <option value="">Select a table</option>
+                        {tables.map((table) => (
+                          <option key={table.id} value={table.id}>
+                            Table {table.table_number} ({table.capacity} seats)
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Date</label>
+                      <input
+                        type="date"
+                        value={reservationForm.date}
+                        onChange={(e) => setReservationForm({ ...reservationForm, date: e.target.value })}
+                        className="w-full px-4 py-2 border-2 border-gray-300 rounded-xl focus:border-[#6B3E26] focus:outline-none transition-colors"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Time</label>
+                      <input
+                        type="time"
+                        value={reservationForm.time}
+                        onChange={(e) => setReservationForm({ ...reservationForm, time: e.target.value })}
+                        className="w-full px-4 py-2 border-2 border-gray-300 rounded-xl focus:border-[#6B3E26] focus:outline-none transition-colors"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Number of Guests</label>
+                      <input
+                        type="number"
+                        value={reservationForm.guests}
+                        onChange={(e) => setReservationForm({ ...reservationForm, guests: e.target.value })}
+                        className="w-full px-4 py-2 border-2 border-gray-300 rounded-xl focus:border-[#6B3E26] focus:outline-none transition-colors"
+                        placeholder="Enter number of guests"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Special Requests (Optional)</label>
+                      <textarea
+                        value={reservationForm.special_requests}
+                        onChange={(e) => setReservationForm({ ...reservationForm, special_requests: e.target.value })}
+                        className="w-full px-4 py-2 border-2 border-gray-300 rounded-xl focus:border-[#6B3E26] focus:outline-none transition-colors"
+                        rows={3}
+                        placeholder="Any special requests..."
+                      />
+                    </div>
+                    <div className="flex gap-3 pt-4">
+                      <button
+                        onClick={() => { playClickSound(); setShowReservationModal(false) }}
+                        className="flex-1 px-4 py-2 border-2 border-[#6B3E26] text-[#6B3E26] rounded-xl font-semibold hover:bg-[#F5F5DC] transition-all duration-300"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={handleSaveReservation}
+                        className="flex-1 px-4 py-2 bg-[#6B3E26] text-white rounded-xl font-semibold hover:bg-[#9A572D] transition-all duration-300"
+                      >
+                        {editingReservation ? 'Update' : 'Create'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === 'rooms' && (
+          <div className="animate-fade-in">
+            <div className="mb-6 flex justify-between items-center">
+              <div>
+                <h1 className="text-3xl font-bold text-[#6B3E26] pt-5">Rooms</h1>
+                <p className="text-gray-600 mt-2">Manage hotel rooms and their status</p>
+              </div>
+              <button
+                onClick={handleAddRoom}
+                className="flex items-center gap-2 bg-[#6B3E26] text-white px-4 py-2 rounded-xl font-semibold hover:bg-[#9A572D] transition-all duration-300 transform hover:scale-105"
+              >
+                <Plus className="w-4 h-4" />
+                Add Room
+              </button>
+            </div>
+
+            {/* Key Metrics */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+              <div className="bg-white rounded-xl shadow-lg p-6 border-l-4 border-[#6B3E26]">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-600 font-semibold">Total Rooms</p>
+                    <p className="text-2xl font-bold text-[#6B3E26]">{rooms.length}</p>
+                  </div>
+                  <LayoutDashboard className="w-8 h-8 text-[#6B3E26]" />
+                </div>
+              </div>
+              <div className="bg-white rounded-xl shadow-lg p-6 border-l-4 border-[#D4A574]">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-600 font-semibold">Available</p>
+                    <p className="text-2xl font-bold text-[#D4A574]">{rooms.filter(r => r.status === 'available').length}</p>
+                  </div>
+                  <CheckCircle className="w-8 h-8 text-[#D4A574]" />
+                </div>
+              </div>
+              <div className="bg-white rounded-xl shadow-lg p-6 border-l-4 border-[#C97B7B]">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-600 font-semibold">Occupied</p>
+                    <p className="text-2xl font-bold text-[#C97B7B]">{rooms.filter(r => r.status === 'occupied').length}</p>
+                  </div>
+                  <Users className="w-8 h-8 text-[#C97B7B]" />
+                </div>
+              </div>
+              <div className="bg-white rounded-xl shadow-lg p-6 border-l-4 border-[#E8B478]">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-600 font-semibold">Maintenance</p>
+                    <p className="text-2xl font-bold text-[#E8B478]">{rooms.filter(r => r.status === 'maintenance').length}</p>
+                  </div>
+                  <HelpCircle className="w-8 h-8 text-[#E8B478]" />
+                </div>
+              </div>
+            </div>
+
+            {/* Rooms Grid */}
+            <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
+              <div className="p-6 border-b border-gray-200 bg-[#F5F5DC]">
+                <h3 className="text-xl font-bold text-gray-900">All Rooms</h3>
+              </div>
+              <div className="p-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                  {rooms.length === 0 ? (
+                    <div className="col-span-full text-center py-12">
+                      <LayoutDashboard className="w-12 h-12 mx-auto mb-4 text-[#6B3E26]" />
+                      <p className="text-lg font-semibold text-gray-700 mb-2">No rooms yet</p>
+                      <p className="text-sm text-gray-500">Click "Add Room" to create your first room</p>
+                    </div>
+                  ) : (
+                    rooms.map((room) => (
+                      <div
+                        key={room.id}
+                        className={`rounded-xl p-4 border-2 transition-all duration-300 hover:shadow-lg
+                          ${room.status === 'available' ? 'bg-[#F5F5DC] border-[#D4A574]' :
+                            room.status === 'occupied' ? 'bg-[#F5F5DC] border-[#C97B7B]' :
+                            'bg-[#F5F5DC] border-[#E8B478]'
+                          }`}
+                      >
+                        <div className="flex justify-between items-start mb-3">
+                          <div>
+                            <h4 className="text-lg font-bold text-gray-900">Room {room.room_number}</h4>
+                            <p className="text-sm text-gray-700">{room.room_type}</p>
+                          </div>
+                          <span className={`px-2 py-1 rounded-full text-xs font-bold ${
+                            room.status === 'available' ? 'bg-[#D4A574] text-white' :
+                            room.status === 'occupied' ? 'bg-[#C97B7B] text-white' :
+                            'bg-[#E8B478] text-white'
+                          }`}>
+                            {room.status}
+                          </span>
+                        </div>
+                        <div className="space-y-1 text-sm text-gray-700 mb-3">
+                          <p>Floor: {room.floor}</p>
+                          <p>Capacity: {room.capacity} guests</p>
+                          <p>₹{room.price_per_night}/night</p>
+                        </div>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => handleEditRoom(room)}
+                            className="flex-1 px-3 py-1.5 bg-[#6B3E26] text-white rounded-lg text-sm font-semibold hover:bg-[#9A572D] transition-colors"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            onClick={() => handleDeleteRoom(room.id)}
+                            className="px-3 py-1.5 bg-[#C97B7B] text-white rounded-lg text-sm font-semibold hover:bg-[#A0522D] transition-colors"
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Room Modal */}
+            {showRoomModal && (
+              <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+                <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full max-h-[90vh] overflow-y-auto animate-fade-in">
+                  <div className="p-6 border-b border-gray-200 bg-[#F5F5DC] flex justify-between items-center">
+                    <h3 className="text-xl font-bold text-gray-900">
+                      {editingRoom ? 'Edit Room' : 'Add Room'}
+                    </h3>
+                    <button
+                      onClick={() => { playClickSound(); setShowRoomModal(false) }}
+                      className="p-2 rounded-xl bg-white hover:bg-gray-100 transition-all duration-300"
+                    >
+                      <X className="w-6 h-6 text-gray-700" />
+                    </button>
+                  </div>
+                  <div className="p-6 space-y-4">
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Room Number</label>
+                      <input
+                        type="text"
+                        value={roomForm.room_number}
+                        onChange={(e) => setRoomForm({ ...roomForm, room_number: e.target.value })}
+                        className="w-full px-4 py-2 border-2 border-gray-300 rounded-xl focus:border-[#6B3E26] focus:outline-none transition-colors"
+                        placeholder="e.g., 101"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Room Type</label>
+                      <select
+                        value={roomForm.room_type}
+                        onChange={(e) => setRoomForm({ ...roomForm, room_type: e.target.value })}
+                        className="w-full px-4 py-2 border-2 border-gray-300 rounded-xl focus:border-[#6B3E26] focus:outline-none transition-colors"
+                      >
+                        <option value="">Select type</option>
+                        <option value="Single">Single</option>
+                        <option value="Double">Double</option>
+                        <option value="Suite">Suite</option>
+                        <option value="Deluxe">Deluxe</option>
+                        <option value="Penthouse">Penthouse</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Floor</label>
+                      <input
+                        type="number"
+                        value={roomForm.floor}
+                        onChange={(e) => setRoomForm({ ...roomForm, floor: e.target.value })}
+                        className="w-full px-4 py-2 border-2 border-gray-300 rounded-xl focus:border-[#6B3E26] focus:outline-none transition-colors"
+                        placeholder="e.g., 1"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Capacity (Guests)</label>
+                      <input
+                        type="number"
+                        value={roomForm.capacity}
+                        onChange={(e) => setRoomForm({ ...roomForm, capacity: e.target.value })}
+                        className="w-full px-4 py-2 border-2 border-gray-300 rounded-xl focus:border-[#6B3E26] focus:outline-none transition-colors"
+                        placeholder="e.g., 2"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Price per Night (₹)</label>
+                      <input
+                        type="number"
+                        value={roomForm.price_per_night}
+                        onChange={(e) => setRoomForm({ ...roomForm, price_per_night: e.target.value })}
+                        className="w-full px-4 py-2 border-2 border-gray-300 rounded-xl focus:border-[#6B3E26] focus:outline-none transition-colors"
+                        placeholder="e.g., 2500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Status</label>
+                      <select
+                        value={roomForm.status}
+                        onChange={(e) => setRoomForm({ ...roomForm, status: e.target.value })}
+                        className="w-full px-4 py-2 border-2 border-gray-300 rounded-xl focus:border-[#6B3E26] focus:outline-none transition-colors"
+                      >
+                        <option value="available">Available</option>
+                        <option value="occupied">Occupied</option>
+                        <option value="maintenance">Maintenance</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Amenities (Optional)</label>
+                      <textarea
+                        value={roomForm.amenities}
+                        onChange={(e) => setRoomForm({ ...roomForm, amenities: e.target.value })}
+                        className="w-full px-4 py-2 border-2 border-gray-300 rounded-xl focus:border-[#6B3E26] focus:outline-none transition-colors"
+                        rows={3}
+                        placeholder="e.g., AC, WiFi, TV, Mini Bar"
+                      />
+                    </div>
+                    <div className="flex gap-3 pt-4">
+                      <button
+                        onClick={() => { playClickSound(); setShowRoomModal(false) }}
+                        className="flex-1 px-4 py-2 border-2 border-[#6B3E26] text-[#6B3E26] rounded-xl font-semibold hover:bg-[#F5F5DC] transition-all duration-300"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={handleSaveRoom}
+                        className="flex-1 px-4 py-2 bg-[#6B3E26] text-white rounded-xl font-semibold hover:bg-[#9A572D] transition-all duration-300"
+                      >
+                        {editingRoom ? 'Update' : 'Create'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === 'bookings' && (
+          <div className="animate-fade-in">
+            <div className="mb-6 flex justify-between items-center">
+              <div>
+                <h1 className="text-3xl font-bold text-[#6B3E26] pt-5">Bookings</h1>
+                <p className="text-gray-600 mt-2">Manage room bookings and check-ins</p>
+              </div>
+              <button
+                onClick={handleAddBooking}
+                className="flex items-center gap-2 bg-[#6B3E26] text-white px-4 py-2 rounded-xl font-semibold hover:bg-[#9A572D] transition-all duration-300 transform hover:scale-105"
+              >
+                <Plus className="w-4 h-4" />
+                New Booking
+              </button>
+            </div>
+
+            {/* Key Metrics */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+              <div className="bg-white rounded-xl shadow-lg p-6 border-l-4 border-[#6B3E26]">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-600 font-semibold">Total Bookings</p>
+                    <p className="text-2xl font-bold text-[#6B3E26]">{bookings.length}</p>
+                  </div>
+                  <Calendar className="w-8 h-8 text-[#6B3E26]" />
+                </div>
+              </div>
+              <div className="bg-white rounded-xl shadow-lg p-6 border-l-4 border-[#D4A574]">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-600 font-semibold">Active</p>
+                    <p className="text-2xl font-bold text-[#D4A574]">{bookings.filter(b => b.status === 'active').length}</p>
+                  </div>
+                  <CheckCircle className="w-8 h-8 text-[#D4A574]" />
+                </div>
+              </div>
+              <div className="bg-white rounded-xl shadow-lg p-6 border-l-4 border-[#C97B7B]">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-600 font-semibold">Checked Out</p>
+                    <p className="text-2xl font-bold text-[#C97B7B]">{bookings.filter(b => b.status === 'checked_out').length}</p>
+                  </div>
+                  <LogOut className="w-8 h-8 text-[#C97B7B]" />
+                </div>
+              </div>
+              <div className="bg-white rounded-xl shadow-lg p-6 border-l-4 border-[#E8B478]">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-600 font-semibold">Revenue</p>
+                    <p className="text-2xl font-bold text-[#E8B478]">₹{bookings.reduce((sum, b) => sum + (b.total_amount || 0), 0).toLocaleString()}</p>
+                  </div>
+                  <DollarSign className="w-8 h-8 text-[#E8B478]" />
+                </div>
+              </div>
+            </div>
+
+            {/* Bookings Table */}
+            <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
+              <div className="p-6 border-b border-gray-200 bg-[#F5F5DC]">
+                <h3 className="text-xl font-bold text-gray-900">All Bookings</h3>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-[#F5F5DC]">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Customer</th>
+                      <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Room</th>
+                      <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Check In</th>
+                      <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Check Out</th>
+                      <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Guests</th>
+                      <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Amount</th>
+                      <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Status</th>
+                      <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200">
+                    {bookings.length === 0 ? (
+                      <tr>
+                        <td colSpan={8} className="px-6 py-12 text-center text-gray-500">
+                          <Calendar className="w-12 h-12 mx-auto mb-4 text-[#6B3E26]" />
+                          <p className="text-lg font-semibold mb-2">No bookings yet</p>
+                          <p className="text-sm">Click "New Booking" to create your first booking</p>
+                        </td>
+                      </tr>
+                    ) : (
+                      bookings.map((booking) => (
+                        <tr key={booking.id} className="hover:bg-[#F5F5DC] transition-colors">
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-sm font-semibold text-gray-900">{booking.customer_name}</div>
+                            <div className="text-xs text-gray-600">{booking.customer_mobile}</div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-sm text-gray-700">Room {rooms.find(r => r.id === booking.room_id)?.room_number || 'N/A'}</div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-sm text-gray-700">{new Date(booking.check_in).toLocaleDateString()}</div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-sm text-gray-700">{new Date(booking.check_out).toLocaleDateString()}</div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-sm text-gray-700">{booking.guests}</div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-sm font-bold text-[#6B3E26]">₹{booking.total_amount?.toLocaleString() || '0'}</div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <span className={`px-3 py-1 rounded-full text-xs font-bold ${
+                              booking.status === 'active' ? 'bg-[#D4A574] text-white' :
+                              booking.status === 'checked_out' ? 'bg-[#C97B7B] text-white' :
+                              'bg-[#E8B478] text-white'
+                            }`}>
+                              {booking.status}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="flex gap-2">
+                              <button
+                                onClick={() => handleEditBooking(booking)}
+                                className="p-2 rounded-lg bg-[#F5F5DC] text-[#6B3E26] hover:bg-[#DEB887] transition-colors"
+                                title="Edit"
+                              >
+                                <Edit className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() => handleDeleteBooking(booking.id)}
+                                className="p-2 rounded-lg bg-[#F5F5DC] text-[#C97B7B] hover:bg-[#DEB887] transition-colors"
+                                title="Delete"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Booking Modal */}
+            {showBookingModal && (
+              <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+                <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full max-h-[90vh] overflow-y-auto animate-fade-in">
+                  <div className="p-6 border-b border-gray-200 bg-[#F5F5DC] flex justify-between items-center">
+                    <h3 className="text-xl font-bold text-gray-900">
+                      {editingBooking ? 'Edit Booking' : 'New Booking'}
+                    </h3>
+                    <button
+                      onClick={() => { playClickSound(); setShowBookingModal(false) }}
+                      className="p-2 rounded-xl bg-white hover:bg-gray-100 transition-all duration-300"
+                    >
+                      <X className="w-6 h-6 text-gray-700" />
+                    </button>
+                  </div>
+                  <div className="p-6 space-y-4">
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Customer Name</label>
+                      <input
+                        type="text"
+                        value={bookingForm.customer_name}
+                        onChange={(e) => setBookingForm({ ...bookingForm, customer_name: e.target.value })}
+                        className="w-full px-4 py-2 border-2 border-gray-300 rounded-xl focus:border-[#6B3E26] focus:outline-none transition-colors"
+                        placeholder="Enter customer name"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Mobile Number</label>
+                      <input
+                        type="tel"
+                        value={bookingForm.customer_mobile}
+                        onChange={(e) => setBookingForm({ ...bookingForm, customer_mobile: e.target.value })}
+                        className="w-full px-4 py-2 border-2 border-gray-300 rounded-xl focus:border-[#6B3E26] focus:outline-none transition-colors"
+                        placeholder="Enter mobile number"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Room</label>
+                      <select
+                        value={bookingForm.room_id}
+                        onChange={(e) => setBookingForm({ ...bookingForm, room_id: e.target.value })}
+                        className="w-full px-4 py-2 border-2 border-gray-300 rounded-xl focus:border-[#6B3E26] focus:outline-none transition-colors"
+                      >
+                        <option value="">Select a room</option>
+                        {rooms.filter(r => r.status === 'available').map((room) => (
+                          <option key={room.id} value={room.id}>
+                            Room {room.room_number} ({room.room_type})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">Check In</label>
+                        <input
+                          type="date"
+                          value={bookingForm.check_in}
+                          onChange={(e) => setBookingForm({ ...bookingForm, check_in: e.target.value })}
+                          className="w-full px-4 py-2 border-2 border-gray-300 rounded-xl focus:border-[#6B3E26] focus:outline-none transition-colors"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">Check Out</label>
+                        <input
+                          type="date"
+                          value={bookingForm.check_out}
+                          onChange={(e) => setBookingForm({ ...bookingForm, check_out: e.target.value })}
+                          className="w-full px-4 py-2 border-2 border-gray-300 rounded-xl focus:border-[#6B3E26] focus:outline-none transition-colors"
+                        />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">Guests</label>
+                        <input
+                          type="number"
+                          value={bookingForm.guests}
+                          onChange={(e) => setBookingForm({ ...bookingForm, guests: e.target.value })}
+                          className="w-full px-4 py-2 border-2 border-gray-300 rounded-xl focus:border-[#6B3E26] focus:outline-none transition-colors"
+                          placeholder="Number of guests"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">Total Amount (₹)</label>
+                        <input
+                          type="number"
+                          value={bookingForm.total_amount}
+                          onChange={(e) => setBookingForm({ ...bookingForm, total_amount: e.target.value })}
+                          className="w-full px-4 py-2 border-2 border-gray-300 rounded-xl focus:border-[#6B3E26] focus:outline-none transition-colors"
+                          placeholder="Total amount"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Status</label>
+                      <select
+                        value={bookingForm.status}
+                        onChange={(e) => setBookingForm({ ...bookingForm, status: e.target.value })}
+                        className="w-full px-4 py-2 border-2 border-gray-300 rounded-xl focus:border-[#6B3E26] focus:outline-none transition-colors"
+                      >
+                        <option value="confirmed">Confirmed</option>
+                        <option value="active">Active</option>
+                        <option value="checked_out">Checked Out</option>
+                        <option value="cancelled">Cancelled</option>
+                      </select>
+                    </div>
+                    <div className="flex gap-3 pt-4">
+                      <button
+                        onClick={() => { playClickSound(); setShowBookingModal(false) }}
+                        className="flex-1 px-4 py-2 border-2 border-[#6B3E26] text-[#6B3E26] rounded-xl font-semibold hover:bg-[#F5F5DC] transition-all duration-300"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={handleSaveBooking}
+                        className="flex-1 px-4 py-2 bg-[#6B3E26] text-white rounded-xl font-semibold hover:bg-[#9A572D] transition-all duration-300"
+                      >
+                        {editingBooking ? 'Update' : 'Create'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === 'kitchen' && (
+          <div className="animate-fade-in">
+            <div className="mb-6">
+              <h1 className="text-3xl font-bold text-[#6B3E26] pt-5">Kitchen Display</h1>
+              <p className="text-gray-600 mt-2">View and manage kitchen orders in real-time</p>
+            </div>
+
+            {/* Kitchen Queue */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+              {/* Pending Orders */}
+              <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
+                <div className="p-4 border-b border-gray-200 bg-[#E8B478]">
+                  <h3 className="text-lg font-bold text-white">Pending Orders ({orders.filter(o => o.status === 'pending').length})</h3>
+                </div>
+                <div className="p-4 space-y-4 max-h-[600px] overflow-y-auto">
+                  {orders.filter(o => o.status === 'pending').length === 0 ? (
+                    <div className="text-center py-8 text-gray-500">
+                      <p className="text-lg font-semibold">No pending orders</p>
+                    </div>
+                  ) : (
+                    orders.filter(o => o.status === 'pending').map((order) => (
+                      <div key={order.id} className="border-2 border-[#E8B478] rounded-xl p-4 bg-[#F5F5DC]">
+                        <div className="flex justify-between items-start mb-3">
+                          <div>
+                            <h4 className="font-bold text-gray-900">Table {order.tables?.table_number || 'N/A'}</h4>
+                            <p className="text-sm text-gray-600">{formatOrderId(order.id)}</p>
+                          </div>
+                          <span className="text-xs text-gray-500">{new Date(order.created_at).toLocaleTimeString()}</span>
+                        </div>
+                        <div className="space-y-2">
+                          {order.order_items?.map((item: any) => (
+                            <div key={item.id} className="flex items-center justify-between text-sm">
+                              <span className="font-semibold">{item.dishes?.name} x{item.quantity}</span>
+                              {getFoodTypeIcon(item.dishes?.food_type)}
+                            </div>
+                          ))}
+                        </div>
+                        <div className="mt-3 flex gap-2">
+                          <button
+                            onClick={() => {
+                              playClickSound()
+                              fetch(`/api/orders/${order.id}`, {
+                                method: 'PATCH',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ status: 'preparing' })
+                              }).then(() => fetchData())
+                            }}
+                            className="flex-1 px-3 py-2 bg-[#6B3E26] text-white rounded-lg text-sm font-semibold hover:bg-[#9A572D] transition-colors"
+                          >
+                            Accept
+                          </button>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              {/* Preparing Orders */}
+              <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
+                <div className="p-4 border-b border-gray-200 bg-[#9A572D]">
+                  <h3 className="text-lg font-bold text-white">Preparing ({orders.filter(o => o.status === 'preparing').length})</h3>
+                </div>
+                <div className="p-4 space-y-4 max-h-[600px] overflow-y-auto">
+                  {orders.filter(o => o.status === 'preparing').length === 0 ? (
+                    <div className="text-center py-8 text-gray-500">
+                      <p className="text-lg font-semibold">No orders being prepared</p>
+                    </div>
+                  ) : (
+                    orders.filter(o => o.status === 'preparing').map((order) => (
+                      <div key={order.id} className="border-2 border-[#9A572D] rounded-xl p-4 bg-[#F5F5DC]">
+                        <div className="flex justify-between items-start mb-3">
+                          <div>
+                            <h4 className="font-bold text-gray-900">Table {order.tables?.table_number || 'N/A'}</h4>
+                            <p className="text-sm text-gray-600">{formatOrderId(order.id)}</p>
+                          </div>
+                          <span className="text-xs text-gray-500">{new Date(order.created_at).toLocaleTimeString()}</span>
+                        </div>
+                        <div className="space-y-2">
+                          {order.order_items?.map((item: any) => (
+                            <div key={item.id} className="flex items-center justify-between text-sm">
+                              <span className="font-semibold">{item.dishes?.name} x{item.quantity}</span>
+                              {getFoodTypeIcon(item.dishes?.food_type)}
+                            </div>
+                          ))}
+                        </div>
+                        <div className="mt-3 flex gap-2">
+                          <button
+                            onClick={() => {
+                              playClickSound()
+                              fetch(`/api/orders/${order.id}`, {
+                                method: 'PATCH',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ status: 'ready' })
+                              }).then(() => fetchData())
+                            }}
+                            className="flex-1 px-3 py-2 bg-[#D4A574] text-white rounded-lg text-sm font-semibold hover:bg-[#9A572D] transition-colors"
+                          >
+                            Mark Ready
+                          </button>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Ready Orders */}
+            <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
+              <div className="p-4 border-b border-gray-200 bg-[#D4A574]">
+                <h3 className="text-lg font-bold text-white">Ready for Serving ({orders.filter(o => o.status === 'ready').length})</h3>
+              </div>
+              <div className="p-4">
+                {orders.filter(o => o.status === 'ready').length === 0 ? (
+                  <div className="text-center py-8 text-gray-500">
+                    <p className="text-lg font-semibold">No orders ready</p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {orders.filter(o => o.status === 'ready').map((order) => (
+                      <div key={order.id} className="border-2 border-[#D4A574] rounded-xl p-4 bg-[#F5F5DC]">
+                        <div className="flex justify-between items-start mb-3">
+                          <div>
+                            <h4 className="font-bold text-gray-900">Table {order.tables?.table_number || 'N/A'}</h4>
+                            <p className="text-sm text-gray-600">{formatOrderId(order.id)}</p>
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          {order.order_items?.map((item: any) => (
+                            <div key={item.id} className="flex items-center justify-between text-sm">
+                              <span className="font-semibold">{item.dishes?.name} x{item.quantity}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'customers' && (
+          <div className="animate-fade-in">
+            <div className="mb-6 flex justify-between items-center">
+              <div>
+                <h1 className="text-3xl font-bold text-[#6B3E26] pt-5">Customers</h1>
+                <p className="text-gray-600 mt-2">Manage customer profiles and preferences</p>
+              </div>
+              <button
+                onClick={handleAddCustomer}
+                className="flex items-center gap-2 bg-[#6B3E26] text-white px-4 py-2 rounded-xl font-semibold hover:bg-[#9A572D] transition-all duration-300 transform hover:scale-105"
+              >
+                <Plus className="w-4 h-4" />
+                Add Customer
+              </button>
+            </div>
+
+            {/* Customers Table */}
+            <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
+              <div className="p-6 border-b border-gray-200 bg-[#F5F5DC]">
+                <h3 className="text-xl font-bold text-gray-900">All Customers ({customers.length})</h3>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-[#F5F5DC]">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Name</th>
+                      <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Mobile</th>
+                      <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Email</th>
+                      <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Address</th>
+                      <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200">
+                    {customers.length === 0 ? (
+                      <tr>
+                        <td colSpan={5} className="px-6 py-12 text-center text-gray-500">
+                          <Users className="w-12 h-12 mx-auto mb-4 text-[#6B3E26]" />
+                          <p className="text-lg font-semibold mb-2">No customers yet</p>
+                          <p className="text-sm">Click "Add Customer" to create your first customer</p>
+                        </td>
+                      </tr>
+                    ) : (
+                      customers.map((customer) => (
+                        <tr key={customer.id} className="hover:bg-[#F5F5DC] transition-colors">
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-sm font-semibold text-gray-900">{customer.name}</div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-sm text-gray-700">{customer.mobile}</div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-sm text-gray-700">{customer.email || '-'}</div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-sm text-gray-700">{customer.address || '-'}</div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="flex gap-2">
+                              <button
+                                onClick={() => handleEditCustomer(customer)}
+                                className="p-2 rounded-lg bg-[#F5F5DC] text-[#6B3E26] hover:bg-[#DEB887] transition-colors"
+                                title="Edit"
+                              >
+                                <Edit className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() => handleDeleteCustomer(customer.id)}
+                                className="p-2 rounded-lg bg-[#F5F5DC] text-[#C97B7B] hover:bg-[#DEB887] transition-colors"
+                                title="Delete"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Customer Modal */}
+            {showCustomerModal && (
+              <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+                <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full max-h-[90vh] overflow-y-auto animate-fade-in">
+                  <div className="p-6 border-b border-gray-200 bg-[#F5F5DC] flex justify-between items-center">
+                    <h3 className="text-xl font-bold text-gray-900">
+                      {editingCustomer ? 'Edit Customer' : 'Add Customer'}
+                    </h3>
+                    <button
+                      onClick={() => { playClickSound(); setShowCustomerModal(false) }}
+                      className="p-2 rounded-xl bg-white hover:bg-gray-100 transition-all duration-300"
+                    >
+                      <X className="w-6 h-6 text-gray-700" />
+                    </button>
+                  </div>
+                  <div className="p-6 space-y-4">
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Name</label>
+                      <input
+                        type="text"
+                        value={customerForm.name}
+                        onChange={(e) => setCustomerForm({ ...customerForm, name: e.target.value })}
+                        className="w-full px-4 py-2 border-2 border-gray-300 rounded-xl focus:border-[#6B3E26] focus:outline-none transition-colors"
+                        placeholder="Enter customer name"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Mobile</label>
+                      <input
+                        type="tel"
+                        value={customerForm.mobile}
+                        onChange={(e) => setCustomerForm({ ...customerForm, mobile: e.target.value })}
+                        className="w-full px-4 py-2 border-2 border-gray-300 rounded-xl focus:border-[#6B3E26] focus:outline-none transition-colors"
+                        placeholder="Enter mobile number"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Email (Optional)</label>
+                      <input
+                        type="email"
+                        value={customerForm.email}
+                        onChange={(e) => setCustomerForm({ ...customerForm, email: e.target.value })}
+                        className="w-full px-4 py-2 border-2 border-gray-300 rounded-xl focus:border-[#6B3E26] focus:outline-none transition-colors"
+                        placeholder="Enter email"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Address (Optional)</label>
+                      <textarea
+                        value={customerForm.address}
+                        onChange={(e) => setCustomerForm({ ...customerForm, address: e.target.value })}
+                        className="w-full px-4 py-2 border-2 border-gray-300 rounded-xl focus:border-[#6B3E26] focus:outline-none transition-colors"
+                        rows={2}
+                        placeholder="Enter address"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Preferences (Optional)</label>
+                      <textarea
+                        value={customerForm.preferences}
+                        onChange={(e) => setCustomerForm({ ...customerForm, preferences: e.target.value })}
+                        className="w-full px-4 py-2 border-2 border-gray-300 rounded-xl focus:border-[#6B3E26] focus:outline-none transition-colors"
+                        rows={2}
+                        placeholder="Any preferences..."
+                      />
+                    </div>
+                    <div className="flex gap-3 pt-4">
+                      <button
+                        onClick={() => { playClickSound(); setShowCustomerModal(false) }}
+                        className="flex-1 px-4 py-2 border-2 border-[#6B3E26] text-[#6B3E26] rounded-xl font-semibold hover:bg-[#F5F5DC] transition-all duration-300"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={handleSaveCustomer}
+                        className="flex-1 px-4 py-2 bg-[#6B3E26] text-white rounded-xl font-semibold hover:bg-[#9A572D] transition-all duration-300"
+                      >
+                        {editingCustomer ? 'Update' : 'Create'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === 'inventory' && (
+          <div className="animate-fade-in">
+            <div className="mb-6 flex justify-between items-center">
+              <div>
+                <h1 className="text-3xl font-bold text-[#6B3E26] pt-5">Inventory</h1>
+                <p className="text-gray-600 mt-2">Ingredients, recipe costing, purchase orders, and waste tracking</p>
+              </div>
+              <button
+                onClick={handleAddInventory}
+                className="flex items-center gap-2 bg-[#6B3E26] text-white px-4 py-2 rounded-xl font-semibold hover:bg-[#9A572D] transition-all duration-300 transform hover:scale-105"
+              >
+                <Plus className="w-4 h-4" />
+                Add Item
+              </button>
+            </div>
+
+            {/* Inventory Table */}
+            <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
+              <div className="p-6 border-b border-gray-200 bg-[#F5F5DC]">
+                <h3 className="text-xl font-bold text-gray-900">All Items ({inventory.length})</h3>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-[#F5F5DC]">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Item Name</th>
+                      <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Category</th>
+                      <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Quantity</th>
+                      <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Unit Price</th>
+                      <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Status</th>
+                      <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200">
+                    {inventory.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="px-6 py-12 text-center text-gray-500">
+                          <BarChart3 className="w-12 h-12 mx-auto mb-4 text-[#6B3E26]" />
+                          <p className="text-lg font-semibold mb-2">No inventory items yet</p>
+                          <p className="text-sm">Click "Add Item" to create your first inventory item</p>
+                        </td>
+                      </tr>
+                    ) : (
+                      inventory.map((item) => (
+                        <tr key={item.id} className="hover:bg-[#F5F5DC] transition-colors">
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-sm font-semibold text-gray-900">{item.item_name}</div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-sm text-gray-700">{item.category}</div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-sm text-gray-700">{item.quantity} {item.unit}</div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-sm text-gray-700">₹{item.unit_price}</div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <span className={`px-3 py-1 rounded-full text-xs font-bold ${
+                              item.quantity <= item.minimum_stock ? 'bg-[#C97B7B] text-white' : 'bg-[#D4A574] text-white'
+                            }`}>
+                              {item.quantity <= item.minimum_stock ? 'Low Stock' : 'In Stock'}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="flex gap-2">
+                              <button
+                                onClick={() => handleEditInventory(item)}
+                                className="p-2 rounded-lg bg-[#F5F5DC] text-[#6B3E26] hover:bg-[#DEB887] transition-colors"
+                                title="Edit"
+                              >
+                                <Edit className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() => handleDeleteInventory(item.id)}
+                                className="p-2 rounded-lg bg-[#F5F5DC] text-[#C97B7B] hover:bg-[#DEB887] transition-colors"
+                                title="Delete"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Inventory Modal */}
+            {showInventoryModal && (
+              <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+                <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full max-h-[90vh] overflow-y-auto animate-fade-in">
+                  <div className="p-6 border-b border-gray-200 bg-[#F5F5DC] flex justify-between items-center">
+                    <h3 className="text-xl font-bold text-gray-900">
+                      {editingInventory ? 'Edit Item' : 'Add Item'}
+                    </h3>
+                    <button
+                      onClick={() => { playClickSound(); setShowInventoryModal(false) }}
+                      className="p-2 rounded-xl bg-white hover:bg-gray-100 transition-all duration-300"
+                    >
+                      <X className="w-6 h-6 text-gray-700" />
+                    </button>
+                  </div>
+                  <div className="p-6 space-y-4">
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Item Name</label>
+                      <input
+                        type="text"
+                        value={inventoryForm.item_name}
+                        onChange={(e) => setInventoryForm({ ...inventoryForm, item_name: e.target.value })}
+                        className="w-full px-4 py-2 border-2 border-gray-300 rounded-xl focus:border-[#6B3E26] focus:outline-none transition-colors"
+                        placeholder="Enter item name"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Category</label>
+                      <input
+                        type="text"
+                        value={inventoryForm.category}
+                        onChange={(e) => setInventoryForm({ ...inventoryForm, category: e.target.value })}
+                        className="w-full px-4 py-2 border-2 border-gray-300 rounded-xl focus:border-[#6B3E26] focus:outline-none transition-colors"
+                        placeholder="e.g., Vegetables, Spices"
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">Quantity</label>
+                        <input
+                          type="number"
+                          value={inventoryForm.quantity}
+                          onChange={(e) => setInventoryForm({ ...inventoryForm, quantity: e.target.value })}
+                          className="w-full px-4 py-2 border-2 border-gray-300 rounded-xl focus:border-[#6B3E26] focus:outline-none transition-colors"
+                          placeholder="Quantity"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">Unit</label>
+                        <input
+                          type="text"
+                          value={inventoryForm.unit}
+                          onChange={(e) => setInventoryForm({ ...inventoryForm, unit: e.target.value })}
+                          className="w-full px-4 py-2 border-2 border-gray-300 rounded-xl focus:border-[#6B3E26] focus:outline-none transition-colors"
+                          placeholder="e.g., kg, L, pcs"
+                        />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">Unit Price (₹)</label>
+                        <input
+                          type="number"
+                          value={inventoryForm.unit_price}
+                          onChange={(e) => setInventoryForm({ ...inventoryForm, unit_price: e.target.value })}
+                          className="w-full px-4 py-2 border-2 border-gray-300 rounded-xl focus:border-[#6B3E26] focus:outline-none transition-colors"
+                          placeholder="Price per unit"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">Min Stock</label>
+                        <input
+                          type="number"
+                          value={inventoryForm.minimum_stock}
+                          onChange={(e) => setInventoryForm({ ...inventoryForm, minimum_stock: e.target.value })}
+                          className="w-full px-4 py-2 border-2 border-gray-300 rounded-xl focus:border-[#6B3E26] focus:outline-none transition-colors"
+                          placeholder="Minimum stock level"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Supplier (Optional)</label>
+                      <input
+                        type="text"
+                        value={inventoryForm.supplier}
+                        onChange={(e) => setInventoryForm({ ...inventoryForm, supplier: e.target.value })}
+                        className="w-full px-4 py-2 border-2 border-gray-300 rounded-xl focus:border-[#6B3E26] focus:outline-none transition-colors"
+                        placeholder="Supplier name"
+                      />
+                    </div>
+                    <div className="flex gap-3 pt-4">
+                      <button
+                        onClick={() => { playClickSound(); setShowInventoryModal(false) }}
+                        className="flex-1 px-4 py-2 border-2 border-[#6B3E26] text-[#6B3E26] rounded-xl font-semibold hover:bg-[#F5F5DC] transition-all duration-300"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={handleSaveInventory}
+                        className="flex-1 px-4 py-2 bg-[#6B3E26] text-white rounded-xl font-semibold hover:bg-[#9A572D] transition-all duration-300"
+                      >
+                        {editingInventory ? 'Update' : 'Create'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === 'delivery' && (
+          <div className="animate-fade-in">
+            <div className="mb-6 flex justify-between items-center">
+              <div>
+                <h1 className="text-3xl font-bold text-[#6B3E26] pt-5">Delivery</h1>
+                <p className="text-gray-600 mt-2">Assign drivers, track deliveries, and manage zones</p>
+              </div>
+              <button
+                onClick={handleAddDelivery}
+                className="flex items-center gap-2 bg-[#6B3E26] text-white px-4 py-2 rounded-xl font-semibold hover:bg-[#9A572D] transition-all duration-300 transform hover:scale-105"
+              >
+                <Plus className="w-4 h-4" />
+                New Delivery
+              </button>
+            </div>
+
+            {/* Delivery Tabs */}
+            <div className="bg-white rounded-2xl shadow-xl p-6 mb-6">
+              <div className="flex gap-4 border-b border-gray-200">
+                <button
+                  onClick={() => setDeliverySubTab('active')}
+                  className={`px-4 py-2 font-semibold transition-colors ${deliverySubTab === 'active' ? 'text-[#6B3E26] border-b-2 border-[#6B3E26]' : 'text-gray-600 hover:text-[#6B3E26]'}`}
+                >
+                  Active
+                </button>
+                <button
+                  onClick={() => setDeliverySubTab('history')}
+                  className={`px-4 py-2 font-semibold transition-colors ${deliverySubTab === 'history' ? 'text-[#6B3E26] border-b-2 border-[#6B3E26]' : 'text-gray-600 hover:text-[#6B3E26]'}`}
+                >
+                  History
+                </button>
+                <button
+                  onClick={() => setDeliverySubTab('zones')}
+                  className={`px-4 py-2 font-semibold transition-colors ${deliverySubTab === 'zones' ? 'text-[#6B3E26] border-b-2 border-[#6B3E26]' : 'text-gray-600 hover:text-[#6B3E26]'}`}
+                >
+                  Zones
+                </button>
+              </div>
+            </div>
+
+            {/* Delivery Table */}
+            <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
+              <div className="p-6 border-b border-gray-200 bg-[#F5F5DC]">
+                <h3 className="text-lg font-bold text-[#6B3E26]">
+                  {deliverySubTab === 'active' ? 'Active Deliveries' : deliverySubTab === 'history' ? 'Delivery History' : 'Delivery Zones'}
+                </h3>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-[#F5F5DC]">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-bold text-[#6B3E26] uppercase tracking-wider">Order ID</th>
+                      <th className="px-6 py-3 text-left text-xs font-bold text-[#6B3E26] uppercase tracking-wider">Customer</th>
+                      <th className="px-6 py-3 text-left text-xs font-bold text-[#6B3E26] uppercase tracking-wider">Mobile</th>
+                      <th className="px-6 py-3 text-left text-xs font-bold text-[#6B3E26] uppercase tracking-wider">Address</th>
+                      <th className="px-6 py-3 text-left text-xs font-bold text-[#6B3E26] uppercase tracking-wider">Driver</th>
+                      <th className="px-6 py-3 text-left text-xs font-bold text-[#6B3E26] uppercase tracking-wider">Status</th>
+                      <th className="px-6 py-3 text-left text-xs font-bold text-[#6B3E26] uppercase tracking-wider">Fee</th>
+                      <th className="px-6 py-3 text-left text-xs font-bold text-[#6B3E26] uppercase tracking-wider">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200">
+                    {deliveries.length === 0 ? (
+                      <tr>
+                        <td colSpan={8} className="px-6 py-12 text-center text-gray-500">
+                          No deliveries found
+                        </td>
+                      </tr>
+                    ) : (
+                      deliveries.map((delivery) => (
+                        <tr key={delivery.id} className="hover:bg-[#F5F5DC] transition-colors">
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-sm font-semibold text-gray-900">{delivery.order_id || 'N/A'}</div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-sm text-gray-700">{delivery.customer_name}</div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-sm text-gray-700">{delivery.mobile}</div>
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="text-sm text-gray-700 max-w-xs truncate">{delivery.address}</div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-sm text-gray-700">{delivery.driver_id || 'Unassigned'}</div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                              delivery.status === 'delivered' ? 'bg-[#D4A574] text-white' :
+                              delivery.status === 'in_transit' ? 'bg-[#9B8BB5] text-white' :
+                              delivery.status === 'assigned' ? 'bg-[#E8B478] text-white' :
+                              delivery.status === 'cancelled' ? 'bg-[#C97B7B] text-white' :
+                              'bg-gray-200 text-gray-700'
+                            }`}>
+                              {delivery.status || 'Pending'}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-sm text-gray-700">₹{delivery.delivery_fee || '0'}</div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="flex gap-2">
+                              <button
+                                onClick={() => handleEditDelivery(delivery)}
+                                className="p-2 rounded-lg bg-[#F5F5DC] text-[#6B3E26] hover:bg-[#DEB887] transition-colors"
+                                title="Edit"
+                              >
+                                <Edit className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() => handleDeleteDelivery(delivery.id)}
+                                className="p-2 rounded-lg bg-[#F5F5DC] text-[#C97B7B] hover:bg-[#DEB887] transition-colors"
+                                title="Delete"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Delivery Modal */}
+            {showDeliveryModal && (
+              <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+                  <div className="p-6 border-b border-gray-200 bg-[#F5F5DC]">
+                    <h3 className="text-xl font-bold text-[#6B3E26]">
+                      {editingDelivery ? 'Edit Delivery' : 'New Delivery'}
+                    </h3>
+                  </div>
+                  <div className="p-6 space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">Customer Name *</label>
+                        <input
+                          type="text"
+                          value={deliveryForm.customer_name}
+                          onChange={(e) => setDeliveryForm({ ...deliveryForm, customer_name: e.target.value })}
+                          className="w-full px-4 py-2 border-2 border-gray-300 rounded-xl focus:border-[#6B3E26] focus:outline-none transition-colors"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">Mobile *</label>
+                        <input
+                          type="tel"
+                          value={deliveryForm.mobile}
+                          onChange={(e) => setDeliveryForm({ ...deliveryForm, mobile: e.target.value })}
+                          className="w-full px-4 py-2 border-2 border-gray-300 rounded-xl focus:border-[#6B3E26] focus:outline-none transition-colors"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Address *</label>
+                      <textarea
+                        value={deliveryForm.address}
+                        onChange={(e) => setDeliveryForm({ ...deliveryForm, address: e.target.value })}
+                        rows={2}
+                        className="w-full px-4 py-2 border-2 border-gray-300 rounded-xl focus:border-[#6B3E26] focus:outline-none transition-colors"
+                      />
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">Order ID</label>
+                        <input
+                          type="text"
+                          value={deliveryForm.order_id}
+                          onChange={(e) => setDeliveryForm({ ...deliveryForm, order_id: e.target.value })}
+                          className="w-full px-4 py-2 border-2 border-gray-300 rounded-xl focus:border-[#6B3E26] focus:outline-none transition-colors"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">Driver ID</label>
+                        <input
+                          type="text"
+                          value={deliveryForm.driver_id}
+                          onChange={(e) => setDeliveryForm({ ...deliveryForm, driver_id: e.target.value })}
+                          className="w-full px-4 py-2 border-2 border-gray-300 rounded-xl focus:border-[#6B3E26] focus:outline-none transition-colors"
+                        />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">Status</label>
+                        <select
+                          value={deliveryForm.status}
+                          onChange={(e) => setDeliveryForm({ ...deliveryForm, status: e.target.value })}
+                          className="w-full px-4 py-2 border-2 border-gray-300 rounded-xl focus:border-[#6B3E26] focus:outline-none transition-colors"
+                        >
+                          <option value="pending">Pending</option>
+                          <option value="assigned">Assigned</option>
+                          <option value="in_transit">In Transit</option>
+                          <option value="delivered">Delivered</option>
+                          <option value="cancelled">Cancelled</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">Delivery Fee</label>
+                        <input
+                          type="number"
+                          value={deliveryForm.delivery_fee}
+                          onChange={(e) => setDeliveryForm({ ...deliveryForm, delivery_fee: e.target.value })}
+                          className="w-full px-4 py-2 border-2 border-gray-300 rounded-xl focus:border-[#6B3E26] focus:outline-none transition-colors"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Notes</label>
+                      <textarea
+                        value={deliveryForm.notes}
+                        onChange={(e) => setDeliveryForm({ ...deliveryForm, notes: e.target.value })}
+                        rows={2}
+                        className="w-full px-4 py-2 border-2 border-gray-300 rounded-xl focus:border-[#6B3E26] focus:outline-none transition-colors"
+                      />
+                    </div>
+                    <div className="flex gap-3 pt-4">
+                      <button
+                        onClick={() => { playClickSound(); setShowDeliveryModal(false) }}
+                        className="flex-1 px-4 py-2 border-2 border-[#6B3E26] text-[#6B3E26] rounded-xl font-semibold hover:bg-[#F5F5DC] transition-all duration-300"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={handleSaveDelivery}
+                        className="flex-1 px-4 py-2 bg-[#6B3E26] text-white rounded-xl font-semibold hover:bg-[#9A572D] transition-all duration-300"
+                      >
+                        {editingDelivery ? 'Update' : 'Create'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === 'team' && (
+          <div className="animate-fade-in">
+            <div className="mb-6 flex justify-between items-center">
+              <div>
+                <h1 className="text-3xl font-bold text-[#6B3E26] pt-5">Team</h1>
+                <p className="text-gray-600 mt-2">Manage staff members and their roles</p>
+              </div>
+              <button
+                onClick={handleAddTeam}
+                className="flex items-center gap-2 bg-[#6B3E26] text-white px-4 py-2 rounded-xl font-semibold hover:bg-[#9A572D] transition-all duration-300 transform hover:scale-105"
+              >
+                <Plus className="w-4 h-4" />
+                Add Member
+              </button>
+            </div>
+
+            {/* Team Table */}
+            <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
+              <div className="p-6 border-b border-gray-200 bg-[#F5F5DC]">
+                <h3 className="text-xl font-bold text-gray-900">Team Members ({team.length})</h3>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-[#F5F5DC]">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Name</th>
+                      <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Role</th>
+                      <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Mobile</th>
+                      <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Department</th>
+                      <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Salary</th>
+                      <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200">
+                    {team.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="px-6 py-12 text-center text-gray-500">
+                          <Users className="w-12 h-12 mx-auto mb-4 text-[#6B3E26]" />
+                          <p className="text-lg font-semibold mb-2">No team members yet</p>
+                          <p className="text-sm">Click "Add Member" to add your first team member</p>
+                        </td>
+                      </tr>
+                    ) : (
+                      team.map((member) => (
+                        <tr key={member.id} className="hover:bg-[#F5F5DC] transition-colors">
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-sm font-semibold text-gray-900">{member.name}</div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-sm text-gray-700">{member.role}</div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-sm text-gray-700">{member.mobile}</div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-sm text-gray-700">{member.department}</div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-sm text-gray-700">₹{member.salary?.toLocaleString() || '0'}</div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="flex gap-2">
+                              <button
+                                onClick={() => handleEditTeam(member)}
+                                className="p-2 rounded-lg bg-[#F5F5DC] text-[#6B3E26] hover:bg-[#DEB887] transition-colors"
+                                title="Edit"
+                              >
+                                <Edit className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() => handleDeleteTeam(member.id)}
+                                className="p-2 rounded-lg bg-[#F5F5DC] text-[#C97B7B] hover:bg-[#DEB887] transition-colors"
+                                title="Delete"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Team Modal */}
+            {showTeamModal && (
+              <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+                <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full max-h-[90vh] overflow-y-auto animate-fade-in">
+                  <div className="p-6 border-b border-gray-200 bg-[#F5F5DC] flex justify-between items-center">
+                    <h3 className="text-xl font-bold text-gray-900">
+                      {editingTeam ? 'Edit Member' : 'Add Member'}
+                    </h3>
+                    <button
+                      onClick={() => { playClickSound(); setShowTeamModal(false) }}
+                      className="p-2 rounded-xl bg-white hover:bg-gray-100 transition-all duration-300"
+                    >
+                      <X className="w-6 h-6 text-gray-700" />
+                    </button>
+                  </div>
+                  <div className="p-6 space-y-4">
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Name</label>
+                      <input
+                        type="text"
+                        value={teamForm.name}
+                        onChange={(e) => setTeamForm({ ...teamForm, name: e.target.value })}
+                        className="w-full px-4 py-2 border-2 border-gray-300 rounded-xl focus:border-[#6B3E26] focus:outline-none transition-colors"
+                        placeholder="Enter name"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Role</label>
+                      <input
+                        type="text"
+                        value={teamForm.role}
+                        onChange={(e) => setTeamForm({ ...teamForm, role: e.target.value })}
+                        className="w-full px-4 py-2 border-2 border-gray-300 rounded-xl focus:border-[#6B3E26] focus:outline-none transition-colors"
+                        placeholder="e.g., Waiter, Chef"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Mobile</label>
+                      <input
+                        type="tel"
+                        value={teamForm.mobile}
+                        onChange={(e) => setTeamForm({ ...teamForm, mobile: e.target.value })}
+                        className="w-full px-4 py-2 border-2 border-gray-300 rounded-xl focus:border-[#6B3E26] focus:outline-none transition-colors"
+                        placeholder="Enter mobile number"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Email (Optional)</label>
+                      <input
+                        type="email"
+                        value={teamForm.email}
+                        onChange={(e) => setTeamForm({ ...teamForm, email: e.target.value })}
+                        className="w-full px-4 py-2 border-2 border-gray-300 rounded-xl focus:border-[#6B3E26] focus:outline-none transition-colors"
+                        placeholder="Enter email"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Department</label>
+                      <input
+                        type="text"
+                        value={teamForm.department}
+                        onChange={(e) => setTeamForm({ ...teamForm, department: e.target.value })}
+                        className="w-full px-4 py-2 border-2 border-gray-300 rounded-xl focus:border-[#6B3E26] focus:outline-none transition-colors"
+                        placeholder="e.g., Kitchen, Front Desk"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Salary (₹)</label>
+                      <input
+                        type="number"
+                        value={teamForm.salary}
+                        onChange={(e) => setTeamForm({ ...teamForm, salary: e.target.value })}
+                        className="w-full px-4 py-2 border-2 border-gray-300 rounded-xl focus:border-[#6B3E26] focus:outline-none transition-colors"
+                        placeholder="Enter salary"
+                      />
+                    </div>
+                    <div className="flex gap-3 pt-4">
+                      <button
+                        onClick={() => { playClickSound(); setShowTeamModal(false) }}
+                        className="flex-1 px-4 py-2 border-2 border-[#6B3E26] text-[#6B3E26] rounded-xl font-semibold hover:bg-[#F5F5DC] transition-all duration-300"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={handleSaveTeam}
+                        className="flex-1 px-4 py-2 bg-[#6B3E26] text-white rounded-xl font-semibold hover:bg-[#9A572D] transition-all duration-300"
+                      >
+                        {editingTeam ? 'Update' : 'Create'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === 'accounting' && (
+          <div className="animate-fade-in">
+            <div className="mb-6 flex justify-between items-center">
+              <div>
+                <h1 className="text-3xl font-bold text-[#6B3E26] pt-5">Accounting</h1>
+                <p className="text-gray-600 mt-2">Financial reports, expenses, and tax management</p>
+              </div>
+              <button
+                onClick={handleAddTransaction}
+                className="flex items-center gap-2 bg-[#6B3E26] text-white px-4 py-2 rounded-xl font-semibold hover:bg-[#9A572D] transition-all duration-300 transform hover:scale-105"
+              >
+                <Plus className="w-4 h-4" />
+                New Transaction
+              </button>
+            </div>
+
+            {/* Balance Summary */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+              <div className="bg-white rounded-2xl shadow-xl p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-semibold text-gray-600">Total Income</p>
+                    <p className="text-2xl font-bold text-[#D4A574]">
+                      ₹{transactions.filter(t => t.type === 'income').reduce((sum, t) => sum + (t.amount || 0), 0).toLocaleString()}
+                    </p>
+                  </div>
+                  <div className="w-12 h-12 bg-[#D4A574] bg-opacity-20 rounded-full flex items-center justify-center">
+                    <DollarSign className="w-6 h-6 text-[#D4A574]" />
+                  </div>
+                </div>
+              </div>
+              <div className="bg-white rounded-2xl shadow-xl p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-semibold text-gray-600">Total Expenses</p>
+                    <p className="text-2xl font-bold text-[#C97B7B]">
+                      ₹{transactions.filter(t => t.type === 'expense').reduce((sum, t) => sum + (t.amount || 0), 0).toLocaleString()}
+                    </p>
+                  </div>
+                  <div className="w-12 h-12 bg-[#C97B7B] bg-opacity-20 rounded-full flex items-center justify-center">
+                    <CreditCard className="w-6 h-6 text-[#C97B7B]" />
+                  </div>
+                </div>
+              </div>
+              <div className="bg-white rounded-2xl shadow-xl p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-semibold text-gray-600">Net Balance</p>
+                    <p className="text-2xl font-bold text-[#6B3E26]">
+                      ₹{(transactions.filter(t => t.type === 'income').reduce((sum, t) => sum + (t.amount || 0), 0) - 
+                          transactions.filter(t => t.type === 'expense').reduce((sum, t) => sum + (t.amount || 0), 0)).toLocaleString()}
+                    </p>
+                  </div>
+                  <div className="w-12 h-12 bg-[#6B3E26] bg-opacity-20 rounded-full flex items-center justify-center">
+                    <BarChart3 className="w-6 h-6 text-[#6B3E26]" />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Filter Tabs */}
+            <div className="bg-white rounded-2xl shadow-xl p-6 mb-6">
+              <div className="flex gap-4 border-b border-gray-200">
+                <button
+                  onClick={() => setAccountingFilter('all')}
+                  className={`px-4 py-2 font-semibold transition-colors ${accountingFilter === 'all' ? 'text-[#6B3E26] border-b-2 border-[#6B3E26]' : 'text-gray-600 hover:text-[#6B3E26]'}`}
+                >
+                  All
+                </button>
+                <button
+                  onClick={() => setAccountingFilter('income')}
+                  className={`px-4 py-2 font-semibold transition-colors ${accountingFilter === 'income' ? 'text-[#6B3E26] border-b-2 border-[#6B3E26]' : 'text-gray-600 hover:text-[#6B3E26]'}`}
+                >
+                  Income
+                </button>
+                <button
+                  onClick={() => setAccountingFilter('expense')}
+                  className={`px-4 py-2 font-semibold transition-colors ${accountingFilter === 'expense' ? 'text-[#6B3E26] border-b-2 border-[#6B3E26]' : 'text-gray-600 hover:text-[#6B3E26]'}`}
+                >
+                  Expenses
+                </button>
+              </div>
+            </div>
+
+            {/* Transactions Table */}
+            <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
+              <div className="p-6 border-b border-gray-200 bg-[#F5F5DC]">
+                <h3 className="text-lg font-bold text-[#6B3E26]">Transactions</h3>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-[#F5F5DC]">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-bold text-[#6B3E26] uppercase tracking-wider">Date</th>
+                      <th className="px-6 py-3 text-left text-xs font-bold text-[#6B3E26] uppercase tracking-wider">Type</th>
+                      <th className="px-6 py-3 text-left text-xs font-bold text-[#6B3E26] uppercase tracking-wider">Category</th>
+                      <th className="px-6 py-3 text-left text-xs font-bold text-[#6B3E26] uppercase tracking-wider">Description</th>
+                      <th className="px-6 py-3 text-left text-xs font-bold text-[#6B3E26] uppercase tracking-wider">Amount</th>
+                      <th className="px-6 py-3 text-left text-xs font-bold text-[#6B3E26] uppercase tracking-wider">Reference</th>
+                      <th className="px-6 py-3 text-left text-xs font-bold text-[#6B3E26] uppercase tracking-wider">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200">
+                    {transactions.filter(t => accountingFilter === 'all' || t.type === accountingFilter).length === 0 ? (
+                      <tr>
+                        <td colSpan={7} className="px-6 py-12 text-center text-gray-500">
+                          No transactions found
+                        </td>
+                      </tr>
+                    ) : (
+                      transactions.filter(t => accountingFilter === 'all' || t.type === accountingFilter).map((transaction) => (
+                        <tr key={transaction.id} className="hover:bg-[#F5F5DC] transition-colors">
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-sm text-gray-700">{transaction.date?.split('T')[0] || 'N/A'}</div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                              transaction.type === 'income' ? 'bg-[#D4A574] text-white' : 'bg-[#C97B7B] text-white'
+                            }`}>
+                              {transaction.type}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-sm text-gray-700">{transaction.category}</div>
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="text-sm text-gray-700 max-w-xs truncate">{transaction.description}</div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className={`text-sm font-semibold ${transaction.type === 'income' ? 'text-[#D4A574]' : 'text-[#C97B7B]'}`}>
+                              {transaction.type === 'income' ? '+' : '-'}₹{transaction.amount?.toLocaleString() || '0'}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-sm text-gray-700">{transaction.reference || 'N/A'}</div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="flex gap-2">
+                              <button
+                                onClick={() => handleEditTransaction(transaction)}
+                                className="p-2 rounded-lg bg-[#F5F5DC] text-[#6B3E26] hover:bg-[#DEB887] transition-colors"
+                                title="Edit"
+                              >
+                                <Edit className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() => handleDeleteTransaction(transaction.id)}
+                                className="p-2 rounded-lg bg-[#F5F5DC] text-[#C97B7B] hover:bg-[#DEB887] transition-colors"
+                                title="Delete"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Transaction Modal */}
+            {showTransactionModal && (
+              <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+                  <div className="p-6 border-b border-gray-200 bg-[#F5F5DC]">
+                    <h3 className="text-xl font-bold text-[#6B3E26]">
+                      {editingTransaction ? 'Edit Transaction' : 'New Transaction'}
+                    </h3>
+                  </div>
+                  <div className="p-6 space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">Date *</label>
+                        <input
+                          type="date"
+                          value={transactionForm.date}
+                          onChange={(e) => setTransactionForm({ ...transactionForm, date: e.target.value })}
+                          className="w-full px-4 py-2 border-2 border-gray-300 rounded-xl focus:border-[#6B3E26] focus:outline-none transition-colors"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">Type *</label>
+                        <select
+                          value={transactionForm.type}
+                          onChange={(e) => setTransactionForm({ ...transactionForm, type: e.target.value })}
+                          className="w-full px-4 py-2 border-2 border-gray-300 rounded-xl focus:border-[#6B3E26] focus:outline-none transition-colors"
+                        >
+                          <option value="income">Income</option>
+                          <option value="expense">Expense</option>
+                        </select>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">Category *</label>
+                        <input
+                          type="text"
+                          value={transactionForm.category}
+                          onChange={(e) => setTransactionForm({ ...transactionForm, category: e.target.value })}
+                          className="w-full px-4 py-2 border-2 border-gray-300 rounded-xl focus:border-[#6B3E26] focus:outline-none transition-colors"
+                          placeholder="e.g., Sales, Rent, Supplies"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">Amount *</label>
+                        <input
+                          type="number"
+                          value={transactionForm.amount}
+                          onChange={(e) => setTransactionForm({ ...transactionForm, amount: e.target.value })}
+                          className="w-full px-4 py-2 border-2 border-gray-300 rounded-xl focus:border-[#6B3E26] focus:outline-none transition-colors"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Description</label>
+                      <textarea
+                        value={transactionForm.description}
+                        onChange={(e) => setTransactionForm({ ...transactionForm, description: e.target.value })}
+                        rows={2}
+                        className="w-full px-4 py-2 border-2 border-gray-300 rounded-xl focus:border-[#6B3E26] focus:outline-none transition-colors"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Reference</label>
+                      <input
+                        type="text"
+                        value={transactionForm.reference}
+                        onChange={(e) => setTransactionForm({ ...transactionForm, reference: e.target.value })}
+                        className="w-full px-4 py-2 border-2 border-gray-300 rounded-xl focus:border-[#6B3E26] focus:outline-none transition-colors"
+                        placeholder="Invoice number, receipt, etc."
+                      />
+                    </div>
+                    <div className="flex gap-3 pt-4">
+                      <button
+                        onClick={() => { playClickSound(); setShowTransactionModal(false) }}
+                        className="flex-1 px-4 py-2 border-2 border-[#6B3E26] text-[#6B3E26] rounded-xl font-semibold hover:bg-[#F5F5DC] transition-all duration-300"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={handleSaveTransaction}
+                        className="flex-1 px-4 py-2 bg-[#6B3E26] text-white rounded-xl font-semibold hover:bg-[#9A572D] transition-all duration-300"
+                      >
+                        {editingTransaction ? 'Update' : 'Create'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === 'marketing' && (
+          <div className="animate-fade-in">
+            <div className="mb-6 flex justify-between items-center">
+              <div>
+                <h1 className="text-3xl font-bold text-[#6B3E26] pt-5">Marketing</h1>
+                <p className="text-gray-600 mt-2">Promotions, campaigns, and loyalty programs</p>
+              </div>
+              <button
+                onClick={handleAddCampaign}
+                className="flex items-center gap-2 bg-[#6B3E26] text-white px-4 py-2 rounded-xl font-semibold hover:bg-[#9A572D] transition-all duration-300 transform hover:scale-105"
+              >
+                <Plus className="w-4 h-4" />
+                New Campaign
+              </button>
+            </div>
+
+            {/* Campaign Summary */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+              <div className="bg-white rounded-2xl shadow-xl p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-semibold text-gray-600">Active Campaigns</p>
+                    <p className="text-2xl font-bold text-[#D4A574]">
+                      {campaigns.filter(c => c.status === 'active').length}
+                    </p>
+                  </div>
+                  <div className="w-12 h-12 bg-[#D4A574] bg-opacity-20 rounded-full flex items-center justify-center">
+                    <BarChart3 className="w-6 h-6 text-[#D4A574]" />
+                  </div>
+                </div>
+              </div>
+              <div className="bg-white rounded-2xl shadow-xl p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-semibold text-gray-600">Total Budget</p>
+                    <p className="text-2xl font-bold text-[#6B3E26]">
+                      ₹{campaigns.reduce((sum, c) => sum + (c.budget || 0), 0).toLocaleString()}
+                    </p>
+                  </div>
+                  <div className="w-12 h-12 bg-[#6B3E26] bg-opacity-20 rounded-full flex items-center justify-center">
+                    <DollarSign className="w-6 h-6 text-[#6B3E26]" />
+                  </div>
+                </div>
+              </div>
+              <div className="bg-white rounded-2xl shadow-xl p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-semibold text-gray-600">Completed</p>
+                    <p className="text-2xl font-bold text-[#9B8BB5]">
+                      {campaigns.filter(c => c.status === 'completed').length}
+                    </p>
+                  </div>
+                  <div className="w-12 h-12 bg-[#9B8BB5] bg-opacity-20 rounded-full flex items-center justify-center">
+                    <CheckCircle className="w-6 h-6 text-[#9B8BB5]" />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Campaigns Table */}
+            <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
+              <div className="p-6 border-b border-gray-200 bg-[#F5F5DC]">
+                <h3 className="text-lg font-bold text-[#6B3E26]">Campaigns</h3>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-[#F5F5DC]">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-bold text-[#6B3E26] uppercase tracking-wider">Name</th>
+                      <th className="px-6 py-3 text-left text-xs font-bold text-[#6B3E26] uppercase tracking-wider">Type</th>
+                      <th className="px-6 py-3 text-left text-xs font-bold text-[#6B3E26] uppercase tracking-wider">Start Date</th>
+                      <th className="px-6 py-3 text-left text-xs font-bold text-[#6B3E26] uppercase tracking-wider">End Date</th>
+                      <th className="px-6 py-3 text-left text-xs font-bold text-[#6B3E26] uppercase tracking-wider">Budget</th>
+                      <th className="px-6 py-3 text-left text-xs font-bold text-[#6B3E26] uppercase tracking-wider">Status</th>
+                      <th className="px-6 py-3 text-left text-xs font-bold text-[#6B3E26] uppercase tracking-wider">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200">
+                    {campaigns.length === 0 ? (
+                      <tr>
+                        <td colSpan={7} className="px-6 py-12 text-center text-gray-500">
+                          No campaigns found
+                        </td>
+                      </tr>
+                    ) : (
+                      campaigns.map((campaign) => (
+                        <tr key={campaign.id} className="hover:bg-[#F5F5DC] transition-colors">
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-sm font-semibold text-gray-900">{campaign.name}</div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                              campaign.type === 'promotion' ? 'bg-[#D4A574] text-white' :
+                              campaign.type === 'loyalty' ? 'bg-[#9B8BB5] text-white' :
+                              'bg-[#E8B478] text-white'
+                            }`}>
+                              {campaign.type}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-sm text-gray-700">{campaign.start_date?.split('T')[0] || 'N/A'}</div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-sm text-gray-700">{campaign.end_date?.split('T')[0] || 'N/A'}</div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-sm text-gray-700">₹{campaign.budget?.toLocaleString() || '0'}</div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                              campaign.status === 'active' ? 'bg-[#D4A574] text-white' :
+                              campaign.status === 'paused' ? 'bg-[#E8B478] text-white' :
+                              campaign.status === 'completed' ? 'bg-[#9B8BB5] text-white' :
+                              'bg-gray-200 text-gray-700'
+                            }`}>
+                              {campaign.status}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="flex gap-2">
+                              <button
+                                onClick={() => handleEditCampaign(campaign)}
+                                className="p-2 rounded-lg bg-[#F5F5DC] text-[#6B3E26] hover:bg-[#DEB887] transition-colors"
+                                title="Edit"
+                              >
+                                <Edit className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() => handleDeleteCampaign(campaign.id)}
+                                className="p-2 rounded-lg bg-[#F5F5DC] text-[#C97B7B] hover:bg-[#DEB887] transition-colors"
+                                title="Delete"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Campaign Modal */}
+            {showCampaignModal && (
+              <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+                  <div className="p-6 border-b border-gray-200 bg-[#F5F5DC]">
+                    <h3 className="text-xl font-bold text-[#6B3E26]">
+                      {editingCampaign ? 'Edit Campaign' : 'New Campaign'}
+                    </h3>
+                  </div>
+                  <div className="p-6 space-y-4">
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Campaign Name *</label>
+                      <input
+                        type="text"
+                        value={campaignForm.name}
+                        onChange={(e) => setCampaignForm({ ...campaignForm, name: e.target.value })}
+                        className="w-full px-4 py-2 border-2 border-gray-300 rounded-xl focus:border-[#6B3E26] focus:outline-none transition-colors"
+                      />
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">Type *</label>
+                        <select
+                          value={campaignForm.type}
+                          onChange={(e) => setCampaignForm({ ...campaignForm, type: e.target.value })}
+                          className="w-full px-4 py-2 border-2 border-gray-300 rounded-xl focus:border-[#6B3E26] focus:outline-none transition-colors"
+                        >
+                          <option value="promotion">Promotion</option>
+                          <option value="loyalty">Loyalty</option>
+                          <option value="referral">Referral</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">Status</label>
+                        <select
+                          value={campaignForm.status}
+                          onChange={(e) => setCampaignForm({ ...campaignForm, status: e.target.value })}
+                          className="w-full px-4 py-2 border-2 border-gray-300 rounded-xl focus:border-[#6B3E26] focus:outline-none transition-colors"
+                        >
+                          <option value="active">Active</option>
+                          <option value="paused">Paused</option>
+                          <option value="completed">Completed</option>
+                        </select>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">Start Date</label>
+                        <input
+                          type="date"
+                          value={campaignForm.start_date}
+                          onChange={(e) => setCampaignForm({ ...campaignForm, start_date: e.target.value })}
+                          className="w-full px-4 py-2 border-2 border-gray-300 rounded-xl focus:border-[#6B3E26] focus:outline-none transition-colors"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">End Date</label>
+                        <input
+                          type="date"
+                          value={campaignForm.end_date}
+                          onChange={(e) => setCampaignForm({ ...campaignForm, end_date: e.target.value })}
+                          className="w-full px-4 py-2 border-2 border-gray-300 rounded-xl focus:border-[#6B3E26] focus:outline-none transition-colors"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Budget</label>
+                      <input
+                        type="number"
+                        value={campaignForm.budget}
+                        onChange={(e) => setCampaignForm({ ...campaignForm, budget: e.target.value })}
+                        className="w-full px-4 py-2 border-2 border-gray-300 rounded-xl focus:border-[#6B3E26] focus:outline-none transition-colors"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Description</label>
+                      <textarea
+                        value={campaignForm.description}
+                        onChange={(e) => setCampaignForm({ ...campaignForm, description: e.target.value })}
+                        rows={3}
+                        className="w-full px-4 py-2 border-2 border-gray-300 rounded-xl focus:border-[#6B3E26] focus:outline-none transition-colors"
+                      />
+                    </div>
+                    <div className="flex gap-3 pt-4">
+                      <button
+                        onClick={() => { playClickSound(); setShowCampaignModal(false) }}
+                        className="flex-1 px-4 py-2 border-2 border-[#6B3E26] text-[#6B3E26] rounded-xl font-semibold hover:bg-[#F5F5DC] transition-all duration-300"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={handleSaveCampaign}
+                        className="flex-1 px-4 py-2 bg-[#6B3E26] text-white rounded-xl font-semibold hover:bg-[#9A572D] transition-all duration-300"
+                      >
+                        {editingCampaign ? 'Update' : 'Create'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === 'operations' && (
+          <div className="animate-fade-in">
+            <div className="mb-6 flex justify-between items-center">
+              <div>
+                <h1 className="text-3xl font-bold text-[#6B3E26] pt-5">Operations</h1>
+                <p className="text-gray-600 mt-2">Shift management, tasks, and performance monitoring</p>
+              </div>
+              <button
+                onClick={handleAddShift}
+                className="flex items-center gap-2 bg-[#6B3E26] text-white px-4 py-2 rounded-xl font-semibold hover:bg-[#9A572D] transition-all duration-300 transform hover:scale-105"
+              >
+                <Plus className="w-4 h-4" />
+                New Shift
+              </button>
+            </div>
+
+            {/* Shift Summary */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+              <div className="bg-white rounded-2xl shadow-xl p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-semibold text-gray-600">Scheduled</p>
+                    <p className="text-2xl font-bold text-[#9B8BB5]">
+                      {shifts.filter(s => s.status === 'scheduled').length}
+                    </p>
+                  </div>
+                  <div className="w-12 h-12 bg-[#9B8BB5] bg-opacity-20 rounded-full flex items-center justify-center">
+                    <Calendar className="w-6 h-6 text-[#9B8BB5]" />
+                  </div>
+                </div>
+              </div>
+              <div className="bg-white rounded-2xl shadow-xl p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-semibold text-gray-600">In Progress</p>
+                    <p className="text-2xl font-bold text-[#E8B478]">
+                      {shifts.filter(s => s.status === 'in_progress').length}
+                    </p>
+                  </div>
+                  <div className="w-12 h-12 bg-[#E8B478] bg-opacity-20 rounded-full flex items-center justify-center">
+                    <RefreshCw className="w-6 h-6 text-[#E8B478]" />
+                  </div>
+                </div>
+              </div>
+              <div className="bg-white rounded-2xl shadow-xl p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-semibold text-gray-600">Completed</p>
+                    <p className="text-2xl font-bold text-[#D4A574]">
+                      {shifts.filter(s => s.status === 'completed').length}
+                    </p>
+                  </div>
+                  <div className="w-12 h-12 bg-[#D4A574] bg-opacity-20 rounded-full flex items-center justify-center">
+                    <CheckCircle className="w-6 h-6 text-[#D4A574]" />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Shifts Table */}
+            <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
+              <div className="p-6 border-b border-gray-200 bg-[#F5F5DC]">
+                <h3 className="text-lg font-bold text-[#6B3E26]">Shifts</h3>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-[#F5F5DC]">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-bold text-[#6B3E26] uppercase tracking-wider">Date</th>
+                      <th className="px-6 py-3 text-left text-xs font-bold text-[#6B3E26] uppercase tracking-wider">Staff</th>
+                      <th className="px-6 py-3 text-left text-xs font-bold text-[#6B3E26] uppercase tracking-wider">Start Time</th>
+                      <th className="px-6 py-3 text-left text-xs font-bold text-[#6B3E26] uppercase tracking-wider">End Time</th>
+                      <th className="px-6 py-3 text-left text-xs font-bold text-[#6B3E26] uppercase tracking-wider">Duration</th>
+                      <th className="px-6 py-3 text-left text-xs font-bold text-[#6B3E26] uppercase tracking-wider">Status</th>
+                      <th className="px-6 py-3 text-left text-xs font-bold text-[#6B3E26] uppercase tracking-wider">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200">
+                    {shifts.length === 0 ? (
+                      <tr>
+                        <td colSpan={7} className="px-6 py-12 text-center text-gray-500">
+                          No shifts found
+                        </td>
+                      </tr>
+                    ) : (
+                      shifts.map((shift) => {
+                        const staffMember = team.find(t => t.id === shift.staff_id)
+                        const duration = shift.start_time && shift.end_time 
+                          ? `${Math.round((new Date(`2000-01-01 ${shift.end_time}`).getTime() - new Date(`2000-01-01 ${shift.start_time}`).getTime()) / 3600000)}h`
+                          : 'N/A'
+                        return (
+                          <tr key={shift.id} className="hover:bg-[#F5F5DC] transition-colors">
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <div className="text-sm text-gray-700">{shift.date?.split('T')[0] || 'N/A'}</div>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <div className="text-sm text-gray-700">{staffMember?.name || shift.staff_id || 'N/A'}</div>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <div className="text-sm text-gray-700">{shift.start_time || 'N/A'}</div>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <div className="text-sm text-gray-700">{shift.end_time || 'N/A'}</div>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <div className="text-sm text-gray-700">{duration}</div>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                                shift.status === 'completed' ? 'bg-[#D4A574] text-white' :
+                                shift.status === 'in_progress' ? 'bg-[#E8B478] text-white' :
+                                shift.status === 'scheduled' ? 'bg-[#9B8BB5] text-white' :
+                                'bg-gray-200 text-gray-700'
+                              }`}>
+                                {shift.status?.replace('_', ' ') || 'Scheduled'}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <div className="flex gap-2">
+                                <button
+                                  onClick={() => handleEditShift(shift)}
+                                  className="p-2 rounded-lg bg-[#F5F5DC] text-[#6B3E26] hover:bg-[#DEB887] transition-colors"
+                                  title="Edit"
+                                >
+                                  <Edit className="w-4 h-4" />
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteShift(shift.id)}
+                                  className="p-2 rounded-lg bg-[#F5F5DC] text-[#C97B7B] hover:bg-[#DEB887] transition-colors"
+                                  title="Delete"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        )
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Shift Modal */}
+            {showShiftModal && (
+              <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+                  <div className="p-6 border-b border-gray-200 bg-[#F5F5DC]">
+                    <h3 className="text-xl font-bold text-[#6B3E26]">
+                      {editingShift ? 'Edit Shift' : 'New Shift'}
+                    </h3>
+                  </div>
+                  <div className="p-6 space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">Date *</label>
+                        <input
+                          type="date"
+                          value={shiftForm.date}
+                          onChange={(e) => setShiftForm({ ...shiftForm, date: e.target.value })}
+                          className="w-full px-4 py-2 border-2 border-gray-300 rounded-xl focus:border-[#6B3E26] focus:outline-none transition-colors"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">Staff Member *</label>
+                        <select
+                          value={shiftForm.staff_id}
+                          onChange={(e) => setShiftForm({ ...shiftForm, staff_id: e.target.value })}
+                          className="w-full px-4 py-2 border-2 border-gray-300 rounded-xl focus:border-[#6B3E26] focus:outline-none transition-colors"
+                        >
+                          <option value="">Select Staff</option>
+                          {team.map((member) => (
+                            <option key={member.id} value={member.id}>{member.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">Start Time *</label>
+                        <input
+                          type="time"
+                          value={shiftForm.start_time}
+                          onChange={(e) => setShiftForm({ ...shiftForm, start_time: e.target.value })}
+                          className="w-full px-4 py-2 border-2 border-gray-300 rounded-xl focus:border-[#6B3E26] focus:outline-none transition-colors"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">End Time</label>
+                        <input
+                          type="time"
+                          value={shiftForm.end_time}
+                          onChange={(e) => setShiftForm({ ...shiftForm, end_time: e.target.value })}
+                          className="w-full px-4 py-2 border-2 border-gray-300 rounded-xl focus:border-[#6B3E26] focus:outline-none transition-colors"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Status</label>
+                      <select
+                        value={shiftForm.status}
+                        onChange={(e) => setShiftForm({ ...shiftForm, status: e.target.value })}
+                        className="w-full px-4 py-2 border-2 border-gray-300 rounded-xl focus:border-[#6B3E26] focus:outline-none transition-colors"
+                      >
+                        <option value="scheduled">Scheduled</option>
+                        <option value="in_progress">In Progress</option>
+                        <option value="completed">Completed</option>
+                        <option value="cancelled">Cancelled</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Notes</label>
+                      <textarea
+                        value={shiftForm.notes}
+                        onChange={(e) => setShiftForm({ ...shiftForm, notes: e.target.value })}
+                        rows={2}
+                        className="w-full px-4 py-2 border-2 border-gray-300 rounded-xl focus:border-[#6B3E26] focus:outline-none transition-colors"
+                      />
+                    </div>
+                    <div className="flex gap-3 pt-4">
+                      <button
+                        onClick={() => { playClickSound(); setShowShiftModal(false) }}
+                        className="flex-1 px-4 py-2 border-2 border-[#6B3E26] text-[#6B3E26] rounded-xl font-semibold hover:bg-[#F5F5DC] transition-all duration-300"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={handleSaveShift}
+                        className="flex-1 px-4 py-2 bg-[#6B3E26] text-white rounded-xl font-semibold hover:bg-[#9A572D] transition-all duration-300"
+                      >
+                        {editingShift ? 'Update' : 'Create'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === 'attendance' && (
+          <div className="animate-fade-in">
+            <div className="mb-6 flex justify-between items-center">
+              <div>
+                <h1 className="text-3xl font-bold text-[#6B3E26] pt-5">Attendance</h1>
+                <p className="text-gray-600 mt-2">Track staff attendance and working hours</p>
+              </div>
+              <button
+                onClick={handleAddAttendance}
+                className="flex items-center gap-2 bg-[#6B3E26] text-white px-4 py-2 rounded-xl font-semibold hover:bg-[#9A572D] transition-all duration-300 transform hover:scale-105"
+              >
+                <Plus className="w-4 h-4" />
+                New Record
+              </button>
+            </div>
+
+            {/* Attendance Summary */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
+              <div className="bg-white rounded-2xl shadow-xl p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-semibold text-gray-600">Present</p>
+                    <p className="text-2xl font-bold text-[#D4A574]">
+                      {attendanceRecords.filter(a => a.status === 'present').length}
+                    </p>
+                  </div>
+                  <div className="w-12 h-12 bg-[#D4A574] bg-opacity-20 rounded-full flex items-center justify-center">
+                    <CheckCircle className="w-6 h-6 text-[#D4A574]" />
+                  </div>
+                </div>
+              </div>
+              <div className="bg-white rounded-2xl shadow-xl p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-semibold text-gray-600">Absent</p>
+                    <p className="text-2xl font-bold text-[#C97B7B]">
+                      {attendanceRecords.filter(a => a.status === 'absent').length}
+                    </p>
+                  </div>
+                  <div className="w-12 h-12 bg-[#C97B7B] bg-opacity-20 rounded-full flex items-center justify-center">
+                    <X className="w-6 h-6 text-[#C97B7B]" />
+                  </div>
+                </div>
+              </div>
+              <div className="bg-white rounded-2xl shadow-xl p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-semibold text-gray-600">Late</p>
+                    <p className="text-2xl font-bold text-[#E8B478]">
+                      {attendanceRecords.filter(a => a.status === 'late').length}
+                    </p>
+                  </div>
+                  <div className="w-12 h-12 bg-[#E8B478] bg-opacity-20 rounded-full flex items-center justify-center">
+                    <RefreshCw className="w-6 h-6 text-[#E8B478]" />
+                  </div>
+                </div>
+              </div>
+              <div className="bg-white rounded-2xl shadow-xl p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-semibold text-gray-600">Half-day</p>
+                    <p className="text-2xl font-bold text-[#9B8BB5]">
+                      {attendanceRecords.filter(a => a.status === 'half_day').length}
+                    </p>
+                  </div>
+                  <div className="w-12 h-12 bg-[#9B8BB5] bg-opacity-20 rounded-full flex items-center justify-center">
+                    <Calendar className="w-6 h-6 text-[#9B8BB5]" />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Attendance Table */}
+            <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
+              <div className="p-6 border-b border-gray-200 bg-[#F5F5DC]">
+                <h3 className="text-lg font-bold text-[#6B3E26]">Attendance Records</h3>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-[#F5F5DC]">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-bold text-[#6B3E26] uppercase tracking-wider">Date</th>
+                      <th className="px-6 py-3 text-left text-xs font-bold text-[#6B3E26] uppercase tracking-wider">Staff</th>
+                      <th className="px-6 py-3 text-left text-xs font-bold text-[#6B3E26] uppercase tracking-wider">Check In</th>
+                      <th className="px-6 py-3 text-left text-xs font-bold text-[#6B3E26] uppercase tracking-wider">Check Out</th>
+                      <th className="px-6 py-3 text-left text-xs font-bold text-[#6B3E26] uppercase tracking-wider">Working Hours</th>
+                      <th className="px-6 py-3 text-left text-xs font-bold text-[#6B3E26] uppercase tracking-wider">Status</th>
+                      <th className="px-6 py-3 text-left text-xs font-bold text-[#6B3E26] uppercase tracking-wider">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200">
+                    {attendanceRecords.length === 0 ? (
+                      <tr>
+                        <td colSpan={7} className="px-6 py-12 text-center text-gray-500">
+                          No attendance records found
+                        </td>
+                      </tr>
+                    ) : (
+                      attendanceRecords.map((attendance) => {
+                        const staffMember = team.find(t => t.id === attendance.staff_id)
+                        const workingHours = attendance.check_in && attendance.check_out
+                          ? `${Math.round((new Date(`2000-01-01 ${attendance.check_out}`).getTime() - new Date(`2000-01-01 ${attendance.check_in}`).getTime()) / 3600000)}h`
+                          : 'N/A'
+                        return (
+                          <tr key={attendance.id} className="hover:bg-[#F5F5DC] transition-colors">
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <div className="text-sm text-gray-700">{attendance.date?.split('T')[0] || 'N/A'}</div>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <div className="text-sm text-gray-700">{staffMember?.name || attendance.staff_id || 'N/A'}</div>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <div className="text-sm text-gray-700">{attendance.check_in || 'N/A'}</div>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <div className="text-sm text-gray-700">{attendance.check_out || 'N/A'}</div>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <div className="text-sm text-gray-700">{workingHours}</div>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                                attendance.status === 'present' ? 'bg-[#D4A574] text-white' :
+                                attendance.status === 'absent' ? 'bg-[#C97B7B] text-white' :
+                                attendance.status === 'late' ? 'bg-[#E8B478] text-white' :
+                                attendance.status === 'half_day' ? 'bg-[#9B8BB5] text-white' :
+                                'bg-gray-200 text-gray-700'
+                              }`}>
+                                {attendance.status?.replace('_', '-') || 'Present'}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <div className="flex gap-2">
+                                <button
+                                  onClick={() => handleEditAttendance(attendance)}
+                                  className="p-2 rounded-lg bg-[#F5F5DC] text-[#6B3E26] hover:bg-[#DEB887] transition-colors"
+                                  title="Edit"
+                                >
+                                  <Edit className="w-4 h-4" />
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteAttendance(attendance.id)}
+                                  className="p-2 rounded-lg bg-[#F5F5DC] text-[#C97B7B] hover:bg-[#DEB887] transition-colors"
+                                  title="Delete"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        )
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Attendance Modal */}
+            {showAttendanceModal && (
+              <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+                  <div className="p-6 border-b border-gray-200 bg-[#F5F5DC]">
+                    <h3 className="text-xl font-bold text-[#6B3E26]">
+                      {editingAttendance ? 'Edit Attendance' : 'New Attendance Record'}
+                    </h3>
+                  </div>
+                  <div className="p-6 space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">Date *</label>
+                        <input
+                          type="date"
+                          value={attendanceForm.date}
+                          onChange={(e) => setAttendanceForm({ ...attendanceForm, date: e.target.value })}
+                          className="w-full px-4 py-2 border-2 border-gray-300 rounded-xl focus:border-[#6B3E26] focus:outline-none transition-colors"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">Staff Member *</label>
+                        <select
+                          value={attendanceForm.staff_id}
+                          onChange={(e) => setAttendanceForm({ ...attendanceForm, staff_id: e.target.value })}
+                          className="w-full px-4 py-2 border-2 border-gray-300 rounded-xl focus:border-[#6B3E26] focus:outline-none transition-colors"
+                        >
+                          <option value="">Select Staff</option>
+                          {team.map((member) => (
+                            <option key={member.id} value={member.id}>{member.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">Check In Time</label>
+                        <input
+                          type="time"
+                          value={attendanceForm.check_in}
+                          onChange={(e) => setAttendanceForm({ ...attendanceForm, check_in: e.target.value })}
+                          className="w-full px-4 py-2 border-2 border-gray-300 rounded-xl focus:border-[#6B3E26] focus:outline-none transition-colors"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">Check Out Time</label>
+                        <input
+                          type="time"
+                          value={attendanceForm.check_out}
+                          onChange={(e) => setAttendanceForm({ ...attendanceForm, check_out: e.target.value })}
+                          className="w-full px-4 py-2 border-2 border-gray-300 rounded-xl focus:border-[#6B3E26] focus:outline-none transition-colors"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Status</label>
+                      <select
+                        value={attendanceForm.status}
+                        onChange={(e) => setAttendanceForm({ ...attendanceForm, status: e.target.value })}
+                        className="w-full px-4 py-2 border-2 border-gray-300 rounded-xl focus:border-[#6B3E26] focus:outline-none transition-colors"
+                      >
+                        <option value="present">Present</option>
+                        <option value="absent">Absent</option>
+                        <option value="late">Late</option>
+                        <option value="half_day">Half-day</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Notes</label>
+                      <textarea
+                        value={attendanceForm.notes}
+                        onChange={(e) => setAttendanceForm({ ...attendanceForm, notes: e.target.value })}
+                        rows={2}
+                        className="w-full px-4 py-2 border-2 border-gray-300 rounded-xl focus:border-[#6B3E26] focus:outline-none transition-colors"
+                      />
+                    </div>
+                    <div className="flex gap-3 pt-4">
+                      <button
+                        onClick={() => { playClickSound(); setShowAttendanceModal(false) }}
+                        className="flex-1 px-4 py-2 border-2 border-[#6B3E26] text-[#6B3E26] rounded-xl font-semibold hover:bg-[#F5F5DC] transition-all duration-300"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={handleSaveAttendance}
+                        className="flex-1 px-4 py-2 bg-[#6B3E26] text-white rounded-xl font-semibold hover:bg-[#9A572D] transition-all duration-300"
+                      >
+                        {editingAttendance ? 'Update' : 'Create'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === 'settings' && (
+          <div className="animate-fade-in">
+            <div className="mb-6">
+              <h1 className="text-3xl font-bold text-[#6B3E26] pt-5">Settings</h1>
+              <p className="text-gray-600 mt-2">Configure hotel settings, taxes, and printer preferences</p>
+            </div>
+
+            <div className="space-y-6">
+              {/* Logo Upload */}
+              <div className="bg-white rounded-2xl shadow-xl p-6">
+                <h3 className="text-xl font-bold text-gray-900 mb-4">Hotel Logo</h3>
+                <div className="flex items-start gap-6">
+                  <div className="w-32 h-32 bg-[#F5F5DC] rounded-xl flex items-center justify-center overflow-hidden border-2 border-dashed border-gray-300">
+                    {logoPreview ? (
+                      <img src={logoPreview} alt="Hotel Logo" className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="text-center">
+                        <Layers className="w-8 h-8 text-gray-400 mx-auto mb-2" />
+                        <p className="text-xs text-gray-500">No logo</p>
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex-1">
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Upload Logo</label>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleLogoUpload}
+                      className="w-full px-4 py-2 border-2 border-gray-300 rounded-xl focus:border-[#6B3E26] focus:outline-none transition-colors"
+                    />
+                    <p className="text-xs text-gray-500 mt-2">Recommended: Square image, max 2MB</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Hotel Information */}
+              <div className="bg-white rounded-2xl shadow-xl p-6">
+                <h3 className="text-xl font-bold text-gray-900 mb-4">Hotel Information</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Hotel Name *</label>
+                    <input
+                      type="text"
+                      value={hotelSettings.hotel_name}
+                      onChange={(e) => setHotelSettings({ ...hotelSettings, hotel_name: e.target.value })}
+                      className="w-full px-4 py-2 border-2 border-gray-300 rounded-xl focus:border-[#6B3E26] focus:outline-none transition-colors"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Phone *</label>
+                    <input
+                      type="tel"
+                      value={hotelSettings.phone}
+                      onChange={(e) => setHotelSettings({ ...hotelSettings, phone: e.target.value })}
+                      className="w-full px-4 py-2 border-2 border-gray-300 rounded-xl focus:border-[#6B3E26] focus:outline-none transition-colors"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Email</label>
+                    <input
+                      type="email"
+                      value={hotelSettings.email}
+                      onChange={(e) => setHotelSettings({ ...hotelSettings, email: e.target.value })}
+                      className="w-full px-4 py-2 border-2 border-gray-300 rounded-xl focus:border-[#6B3E26] focus:outline-none transition-colors"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">GSTIN</label>
+                    <input
+                      type="text"
+                      value={hotelSettings.gstin}
+                      onChange={(e) => setHotelSettings({ ...hotelSettings, gstin: e.target.value })}
+                      className="w-full px-4 py-2 border-2 border-gray-300 rounded-xl focus:border-[#6B3E26] focus:outline-none transition-colors"
+                      placeholder="GST Identification Number"
+                    />
+                  </div>
+                </div>
+                <div className="mt-4">
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Address *</label>
+                  <textarea
+                    value={hotelSettings.address}
+                    onChange={(e) => setHotelSettings({ ...hotelSettings, address: e.target.value })}
+                    rows={2}
+                    className="w-full px-4 py-2 border-2 border-gray-300 rounded-xl focus:border-[#6B3E26] focus:outline-none transition-colors"
+                  />
+                </div>
+              </div>
+
+              {/* Tax Configuration */}
+              <div className="bg-white rounded-2xl shadow-xl p-6">
+                <h3 className="text-xl font-bold text-gray-900 mb-4">Tax Configuration</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">CGST Rate (%)</label>
+                    <input
+                      type="number"
+                      value={hotelSettings.tax_rates.cgst}
+                      onChange={(e) => setHotelSettings({
+                        ...hotelSettings,
+                        tax_rates: { ...hotelSettings.tax_rates, cgst: parseFloat(e.target.value) }
+                      })}
+                      className="w-full px-4 py-2 border-2 border-gray-300 rounded-xl focus:border-[#6B3E26] focus:outline-none transition-colors"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">SGST Rate (%)</label>
+                    <input
+                      type="number"
+                      value={hotelSettings.tax_rates.sgst}
+                      onChange={(e) => setHotelSettings({
+                        ...hotelSettings,
+                        tax_rates: { ...hotelSettings.tax_rates, sgst: parseFloat(e.target.value) }
+                      })}
+                      className="w-full px-4 py-2 border-2 border-gray-300 rounded-xl focus:border-[#6B3E26] focus:outline-none transition-colors"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Printer Settings */}
+              <div className="bg-white rounded-2xl shadow-xl p-6">
+                <h3 className="text-xl font-bold text-gray-900 mb-4">Printer Settings</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Printer Type</label>
+                    <select
+                      value={hotelSettings.printer_settings.printer_type}
+                      onChange={(e) => setHotelSettings({
+                        ...hotelSettings,
+                        printer_settings: { ...hotelSettings.printer_settings, printer_type: e.target.value }
+                      })}
+                      className="w-full px-4 py-2 border-2 border-gray-300 rounded-xl focus:border-[#6B3E26] focus:outline-none transition-colors"
+                    >
+                      <option value="thermal_58mm">Thermal Printer (58mm)</option>
+                      <option value="thermal_80mm">Thermal Printer (80mm)</option>
+                      <option value="standard">Standard Printer</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Paper Size</label>
+                    <select
+                      value={hotelSettings.printer_settings.paper_size}
+                      onChange={(e) => setHotelSettings({
+                        ...hotelSettings,
+                        printer_settings: { ...hotelSettings.printer_settings, paper_size: e.target.value }
+                      })}
+                      className="w-full px-4 py-2 border-2 border-gray-300 rounded-xl focus:border-[#6B3E26] focus:outline-none transition-colors"
+                    >
+                      <option value="58mm">58mm</option>
+                      <option value="80mm">80mm</option>
+                      <option value="a4">A4</option>
+                    </select>
+                  </div>
+                </div>
+                <div className="mt-4">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={hotelSettings.printer_settings.auto_print}
+                      onChange={(e) => setHotelSettings({
+                        ...hotelSettings,
+                        printer_settings: { ...hotelSettings.printer_settings, auto_print: e.target.checked }
+                      })}
+                      className="w-5 h-5 accent-[#6B3E26]"
+                    />
+                    <span className="text-sm text-gray-700">Enable automatic bill printing</span>
+                  </label>
+                </div>
+              </div>
+
+              {/* Notification Settings */}
+              <div className="bg-white rounded-2xl shadow-xl p-6">
+                <h3 className="text-xl font-bold text-gray-900 mb-4">Notification Settings</h3>
+                <div className="space-y-3">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={hotelSettings.notification_settings.new_orders}
+                      onChange={(e) => setHotelSettings({
+                        ...hotelSettings,
+                        notification_settings: { ...hotelSettings.notification_settings, new_orders: e.target.checked }
+                      })}
+                      className="w-5 h-5 accent-[#6B3E26]"
+                    />
+                    <span className="text-sm text-gray-700">New order notifications</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={hotelSettings.notification_settings.low_inventory}
+                      onChange={(e) => setHotelSettings({
+                        ...hotelSettings,
+                        notification_settings: { ...hotelSettings.notification_settings, low_inventory: e.target.checked }
+                      })}
+                      className="w-5 h-5 accent-[#6B3E26]"
+                    />
+                    <span className="text-sm text-gray-700">Low inventory alerts</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={hotelSettings.notification_settings.staff_changes}
+                      onChange={(e) => setHotelSettings({
+                        ...hotelSettings,
+                        notification_settings: { ...hotelSettings.notification_settings, staff_changes: e.target.checked }
+                      })}
+                      className="w-5 h-5 accent-[#6B3E26]"
+                    />
+                    <span className="text-sm text-gray-700">Staff change notifications</span>
+                  </label>
+                </div>
+              </div>
+
+              {/* Theme Settings */}
+              <div className="bg-white rounded-2xl shadow-xl p-6">
+                <h3 className="text-xl font-bold text-gray-900 mb-4">Theme Settings</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Primary Color</label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="color"
+                        value={hotelSettings.theme_settings.primary_color}
+                        onChange={(e) => setHotelSettings({
+                          ...hotelSettings,
+                          theme_settings: { ...hotelSettings.theme_settings, primary_color: e.target.value }
+                        })}
+                        className="w-12 h-12 rounded-lg border-2 border-gray-300 cursor-pointer"
+                      />
+                      <input
+                        type="text"
+                        value={hotelSettings.theme_settings.primary_color}
+                        onChange={(e) => setHotelSettings({
+                          ...hotelSettings,
+                          theme_settings: { ...hotelSettings.theme_settings, primary_color: e.target.value }
+                        })}
+                        className="flex-1 px-4 py-2 border-2 border-gray-300 rounded-xl focus:border-[#6B3E26] focus:outline-none transition-colors"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Secondary Color</label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="color"
+                        value={hotelSettings.theme_settings.secondary_color}
+                        onChange={(e) => setHotelSettings({
+                          ...hotelSettings,
+                          theme_settings: { ...hotelSettings.theme_settings, secondary_color: e.target.value }
+                        })}
+                        className="w-12 h-12 rounded-lg border-2 border-gray-300 cursor-pointer"
+                      />
+                      <input
+                        type="text"
+                        value={hotelSettings.theme_settings.secondary_color}
+                        onChange={(e) => setHotelSettings({
+                          ...hotelSettings,
+                          theme_settings: { ...hotelSettings.theme_settings, secondary_color: e.target.value }
+                        })}
+                        className="flex-1 px-4 py-2 border-2 border-gray-300 rounded-xl focus:border-[#6B3E26] focus:outline-none transition-colors"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Currency Settings */}
+              <div className="bg-white rounded-2xl shadow-xl p-6">
+                <h3 className="text-xl font-bold text-gray-900 mb-4">Currency Settings</h3>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Currency</label>
+                  <select
+                    value={hotelSettings.currency}
+                    onChange={(e) => setHotelSettings({ ...hotelSettings, currency: e.target.value })}
+                    className="w-full px-4 py-2 border-2 border-gray-300 rounded-xl focus:border-[#6B3E26] focus:outline-none transition-colors"
+                  >
+                    <option value="INR">Indian Rupee (₹)</option>
+                    <option value="USD">US Dollar ($)</option>
+                    <option value="EUR">Euro (€)</option>
+                    <option value="GBP">British Pound (£)</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Save Button */}
+              <div className="flex justify-end">
+                <button
+                  onClick={handleSaveSettings}
+                  className="px-8 py-3 bg-[#6B3E26] text-white rounded-xl font-semibold hover:bg-[#9A572D] transition-all duration-300 transform hover:scale-105"
+                >
+                  Save All Settings
+                </button>
               </div>
             </div>
           </div>
@@ -4231,19 +9443,19 @@ ${(() => {
                   <div key={item.id} className={`flex items-center justify-between bg-gray-50 rounded-lg p-3 transition-all duration-300 ${cartAnimation ? 'animate-bounce' : ''}`}>
                     <div className="flex-1">
                       <p className="font-semibold text-gray-900 text-sm">{item.name}</p>
-                      <p className="text-sm text-[#5D3A1A]">₹{item.price.toFixed(2)}</p>
+                      <p className="text-sm text-[#6B3E26]">₹{item.price.toFixed(2)}</p>
                     </div>
                     <div className="flex items-center gap-2">
                       <button
                         onClick={() => updateCartQuantity(item.id, item.quantity - 1)}
-                        className="w-8 h-8 rounded-full bg-white border-2 border-[#8B4513] text-[#8B4513] hover:bg-[#F5F5DC] transition-colors"
+                        className="w-8 h-8 rounded-full bg-white border-2 border-[#9A572D] text-[#9A572D] hover:bg-[#F5F5DC] transition-colors"
                       >
                         -
                       </button>
                       <span className="w-8 text-center font-semibold">{item.quantity}</span>
                       <button
                         onClick={() => updateCartQuantity(item.id, item.quantity + 1)}
-                        className="w-8 h-8 rounded-full bg-[#F5F5DC] text-[#8B4513] hover:bg-[#8B4513] hover:text-white transition-colors"
+                        className="w-8 h-8 rounded-full bg-[#F5F5DC] text-[#9A572D] hover:bg-[#9A572D] hover:text-white transition-colors"
                       >
                         +
                       </button>
@@ -4267,7 +9479,7 @@ ${(() => {
                 <select
                   value={selectedTable}
                   onChange={(e) => setSelectedTable(e.target.value)}
-                  className="w-full px-4 py-2 border-2 border-gray-200 rounded-xl focus:border-[#8B4513] focus:outline-none"
+                  className="w-full px-4 py-2 border-2 border-gray-200 rounded-xl focus:border-[#9A572D] focus:outline-none"
                 >
                   <option value="">Select Table</option>
                   {tables.map((table) => (
@@ -4284,7 +9496,7 @@ ${(() => {
                   value={customerName}
                   onChange={(e) => setCustomerName(e.target.value)}
                   placeholder="Enter customer name"
-                  className="w-full px-4 py-2 border-2 border-gray-200 rounded-xl focus:border-[#8B4513] focus:outline-none"
+                  className="w-full px-4 py-2 border-2 border-gray-200 rounded-xl focus:border-[#9A572D] focus:outline-none"
                 />
               </div>
               <div>
@@ -4294,7 +9506,7 @@ ${(() => {
                   value={customerMobile}
                   onChange={(e) => setCustomerMobile(e.target.value)}
                   placeholder="Enter mobile number"
-                  className="w-full px-4 py-2 border-2 border-gray-200 rounded-xl focus:border-[#8B4513] focus:outline-none"
+                  className="w-full px-4 py-2 border-2 border-gray-200 rounded-xl focus:border-[#9A572D] focus:outline-none"
                 />
               </div>
             </div>
@@ -4303,7 +9515,7 @@ ${(() => {
             <div className="border-t border-gray-200 pt-4">
               <div className="flex justify-between items-center mb-4">
                 <span className="text-lg font-semibold text-gray-900">Total:</span>
-                <span className="text-2xl font-bold text-[#5D3A1A]">₹{getCartTotal().toFixed(2)}</span>
+                <span className="text-2xl font-bold text-[#6B3E26]">₹{getCartTotal().toFixed(2)}</span>
               </div>
               <button
                 onClick={() => {
@@ -4311,7 +9523,7 @@ ${(() => {
                   handleCreateBill()
                 }}
                 disabled={offlineCart.length === 0 || !selectedTable}
-                className="w-full bg-[#8B4513] text-white px-6 py-3 rounded-xl font-semibold hover:bg-green-800 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full bg-[#9A572D] text-white px-6 py-3 rounded-xl font-semibold hover:bg-green-800 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Create Bill
               </button>
@@ -4324,7 +9536,7 @@ ${(() => {
       {showBillPreview && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 animate-slide-in">
           <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
-            <h2 className="text-2xl font-bold mb-6 text-[#5D3A1A]">
+            <h2 className="text-2xl font-bold mb-6 text-[#6B3E26]">
               Bill Preview
             </h2>
             
@@ -4368,7 +9580,7 @@ ${(() => {
                       <p className="font-semibold text-gray-900">{item.name}</p>
                       <p className="text-sm text-gray-600">Qty: {item.quantity} × ₹{item.price.toFixed(2)}</p>
                     </div>
-                    <span className="font-bold text-[#5D3A1A]">₹{(item.price * item.quantity).toFixed(2)}</span>
+                    <span className="font-bold text-[#6B3E26]">₹{(item.price * item.quantity).toFixed(2)}</span>
                   </div>
                 ))
               )}
@@ -4382,8 +9594,8 @@ ${(() => {
                   onClick={() => setBillDiscountType('amount')}
                   className={`flex-1 px-4 py-2 rounded-lg font-semibold transition-colors ${
                     billDiscountType === 'amount'
-                      ? 'bg-[#8B4513] text-white'
-                      : 'bg-white text-gray-700 border-2 border-[#8B4513]'
+                      ? 'bg-[#9A572D] text-white'
+                      : 'bg-white text-gray-700 border-2 border-[#9A572D]'
                   }`}
                 >
                   Amount
@@ -4392,8 +9604,8 @@ ${(() => {
                   onClick={() => setBillDiscountType('percentage')}
                   className={`flex-1 px-4 py-2 rounded-lg font-semibold transition-colors ${
                     billDiscountType === 'percentage'
-                      ? 'bg-[#8B4513] text-white'
-                      : 'bg-white text-gray-700 border-2 border-[#8B4513]'
+                      ? 'bg-[#9A572D] text-white'
+                      : 'bg-white text-gray-700 border-2 border-[#9A572D]'
                   }`}
                 >
                   Percentage
@@ -4405,7 +9617,7 @@ ${(() => {
                   placeholder="Enter discount amount (₹)"
                   value={billDiscountAmount}
                   onChange={(e) => setBillDiscountAmount(e.target.value)}
-                  className="w-full px-4 py-2 border-2 border-[#8B4513] rounded-xl focus:border-[#8B4513] focus:outline-none"
+                  className="w-full px-4 py-2 border-2 border-[#9A572D] rounded-xl focus:border-[#9A572D] focus:outline-none"
                 />
               ) : (
                 <input
@@ -4413,7 +9625,7 @@ ${(() => {
                   placeholder="Enter discount percentage (%)"
                   value={billDiscountPercentage}
                   onChange={(e) => setBillDiscountPercentage(e.target.value)}
-                  className="w-full px-4 py-2 border-2 border-[#8B4513] rounded-xl focus:border-[#8B4513] focus:outline-none"
+                  className="w-full px-4 py-2 border-2 border-[#9A572D] rounded-xl focus:border-[#9A572D] focus:outline-none"
                 />
               )}
             </div>
@@ -4426,8 +9638,8 @@ ${(() => {
                   onClick={() => { playClickSound(); setBillPaymentType('cash') }}
                   className={`flex-1 px-4 py-2 rounded-lg font-semibold transition-colors ${
                     billPaymentType === 'cash'
-                      ? 'bg-[#8B4513] text-white'
-                      : 'bg-white text-gray-700 border-2 border-[#8B4513]'
+                      ? 'bg-[#9A572D] text-white'
+                      : 'bg-white text-gray-700 border-2 border-[#9A572D]'
                   }`}
                 >
                   Cash
@@ -4436,8 +9648,8 @@ ${(() => {
                   onClick={() => { playClickSound(); setBillPaymentType('upi') }}
                   className={`flex-1 px-4 py-2 rounded-lg font-semibold transition-colors ${
                     billPaymentType === 'upi'
-                      ? 'bg-[#8B4513] text-white'
-                      : 'bg-white text-gray-700 border-2 border-[#8B4513]'
+                      ? 'bg-[#9A572D] text-white'
+                      : 'bg-white text-gray-700 border-2 border-[#9A572D]'
                   }`}
                 >
                   UPI
@@ -4446,8 +9658,8 @@ ${(() => {
                   onClick={() => { playClickSound(); setBillPaymentType('card') }}
                   className={`flex-1 px-4 py-2 rounded-lg font-semibold transition-colors ${
                     billPaymentType === 'card'
-                      ? 'bg-[#8B4513] text-white'
-                      : 'bg-white text-gray-700 border-2 border-[#8B4513]'
+                      ? 'bg-[#9A572D] text-white'
+                      : 'bg-white text-gray-700 border-2 border-[#9A572D]'
                   }`}
                 >
                   Card
@@ -4486,7 +9698,7 @@ ${(() => {
             <div className="space-y-2 mb-6">
               <div className="flex justify-between items-center">
                 <span className="text-lg font-semibold text-gray-900">Subtotal:</span>
-                <span className="font-bold text-[#5D3A1A]">₹{getCartTotal().toFixed(2)}</span>
+                <span className="font-bold text-[#6B3E26]">₹{getCartTotal().toFixed(2)}</span>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-lg font-semibold text-gray-900">Discount:</span>
@@ -4496,15 +9708,15 @@ ${(() => {
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-lg font-semibold text-gray-900">CGST ({cgstRate}%):</span>
-                <span className="font-bold text-[#5D3A1A]">₹{calculateTaxes().cgst.toFixed(2)}</span>
+                <span className="font-bold text-[#6B3E26]">₹{calculateTaxes().cgst.toFixed(2)}</span>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-lg font-semibold text-gray-900">SGST ({sgstRate}%):</span>
-                <span className="font-bold text-[#5D3A1A]">₹{calculateTaxes().sgst.toFixed(2)}</span>
+                <span className="font-bold text-[#6B3E26]">₹{calculateTaxes().sgst.toFixed(2)}</span>
               </div>
               <div className="flex justify-between items-center text-xl font-bold border-t border-gray-200 pt-2">
                 <span>Grand Total:</span>
-                <span className="text-[#5D3A1A]">₹{calculateBillTotal().toFixed(2)}</span>
+                <span className="text-[#6B3E26]">₹{calculateBillTotal().toFixed(2)}</span>
               </div>
             </div>
 
@@ -4522,7 +9734,7 @@ ${(() => {
               </button>
               <button
                 onClick={handlePrintBill}
-                className="flex-1 bg-[#5D3A1A] text-white px-6 py-3 rounded-xl font-semibold hover:bg-[#8B4513] transition-all"
+                className="flex-1 bg-[#6B3E26] text-white px-6 py-3 rounded-xl font-semibold hover:bg-[#9A572D] transition-all"
               >
                 Print Bill
               </button>
@@ -4536,7 +9748,7 @@ ${(() => {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-hidden">
             {/* Header */}
-            <div className="bg-gradient-to-r from-[#5D3A1A] to-[#8B5A2B] p-6 rounded-t-2xl">
+            <div className="bg-gradient-to-r from-[#6B3E26] to-[#8B5A2B] p-6 rounded-t-2xl">
               <div className="text-center">
                 <h2 className="text-3xl font-bold text-white mb-1">DHOLE PATIL KHANAWAL</h2>
                 <p className="text-[#F5F5DC] text-sm font-semibold">VEG & NON-VEG</p>
@@ -4578,9 +9790,9 @@ ${(() => {
                   </div>
                   <div className="text-right">
                     <span className={`px-3 py-1 rounded-full text-xs font-bold ${
-                      viewingBill.status === 'paid' ? 'bg-[#F5F5DC] text-[#8B4513]' :
-                      viewingBill.status === 'ready' ? 'bg-[#F5F5DC] text-[#8B4513]' :
-                      viewingBill.status === 'preparing' ? 'bg-[#F5F5DC] text-[#8B4513]' :
+                      viewingBill.status === 'paid' ? 'bg-[#F5F5DC] text-[#9A572D]' :
+                      viewingBill.status === 'ready' ? 'bg-[#F5F5DC] text-[#9A572D]' :
+                      viewingBill.status === 'preparing' ? 'bg-[#F5F5DC] text-[#9A572D]' :
                       'bg-gray-100 text-gray-800'
                     }`}>
                       {viewingBill.status}
@@ -4637,7 +9849,7 @@ ${(() => {
                               <span className="w-8 text-center font-bold text-gray-900">{item.quantity}</span>
                               <button
                                 onClick={() => handleUpdateBillItem(item.id, item.quantity + 1)}
-                                className="w-7 h-7 rounded-full bg-[#5D3A1A] hover:bg-[#8B4513] flex items-center justify-center transition-colors"
+                                className="w-7 h-7 rounded-full bg-[#6B3E26] hover:bg-[#9A572D] flex items-center justify-center transition-colors"
                               >
                                 <Plus className="w-4 h-4 text-white" />
                               </button>
@@ -4684,7 +9896,7 @@ ${(() => {
                           onClick={() => setBillDiscountType('amount')}
                           className={`px-3 py-1 rounded-lg text-xs font-semibold ${
                             billDiscountType === 'amount'
-                              ? 'bg-[#8B4513] text-white'
+                              ? 'bg-[#9A572D] text-white'
                               : 'bg-white text-gray-700 border border-gray-300'
                           }`}
                         >
@@ -4694,7 +9906,7 @@ ${(() => {
                           onClick={() => setBillDiscountType('percentage')}
                           className={`px-3 py-1 rounded-lg text-xs font-semibold ${
                             billDiscountType === 'percentage'
-                              ? 'bg-[#8B4513] text-white'
+                              ? 'bg-[#9A572D] text-white'
                               : 'bg-white text-gray-700 border border-gray-300'
                           }`}
                         >
@@ -4707,7 +9919,7 @@ ${(() => {
                       placeholder={billDiscountType === 'amount' ? 'Enter discount amount' : 'Enter discount percentage'}
                       value={billDiscountType === 'amount' ? billDiscountAmount : billDiscountPercentage}
                       onChange={(e) => billDiscountType === 'amount' ? setBillDiscountAmount(e.target.value) : setBillDiscountPercentage(e.target.value)}
-                      className="w-full px-4 py-2 border-2 border-gray-300 rounded-xl focus:border-[#8B4513] focus:outline-none"
+                      className="w-full px-4 py-2 border-2 border-gray-300 rounded-xl focus:border-[#9A572D] focus:outline-none"
                     />
                     {calculateBillDiscount() > 0 && (
                       <div className="mt-2 flex justify-between items-center">
@@ -4725,7 +9937,7 @@ ${(() => {
                         onClick={() => { playClickSound(); setBillPaymentType('cash') }}
                         className={`flex-1 px-4 py-2 rounded-lg font-semibold transition-colors ${
                           billPaymentType === 'cash'
-                            ? 'bg-[#8B4513] text-white'
+                            ? 'bg-[#9A572D] text-white'
                             : 'bg-white text-gray-700 border-2 border-gray-300'
                         }`}
                       >
@@ -4735,7 +9947,7 @@ ${(() => {
                         onClick={() => { playClickSound(); setBillPaymentType('upi') }}
                         className={`flex-1 px-4 py-2 rounded-lg font-semibold transition-colors ${
                           billPaymentType === 'upi'
-                            ? 'bg-[#8B4513] text-white'
+                            ? 'bg-[#9A572D] text-white'
                             : 'bg-white text-gray-700 border-2 border-gray-300'
                         }`}
                       >
@@ -4745,7 +9957,7 @@ ${(() => {
                         onClick={() => { playClickSound(); setBillPaymentType('card') }}
                         className={`flex-1 px-4 py-2 rounded-lg font-semibold transition-colors ${
                           billPaymentType === 'card'
-                            ? 'bg-[#8B4513] text-white'
+                            ? 'bg-[#9A572D] text-white'
                             : 'bg-white text-gray-700 border-2 border-gray-300'
                         }`}
                       >
@@ -4764,7 +9976,7 @@ ${(() => {
                           type="number"
                           value={billCGST}
                           onChange={(e) => setBillCGST(e.target.value)}
-                          className="w-20 px-3 py-1 border-2 border-gray-300 rounded-lg focus:border-[#8B4513] focus:outline-none text-center"
+                          className="w-20 px-3 py-1 border-2 border-gray-300 rounded-lg focus:border-[#9A572D] focus:outline-none text-center"
                         />
                       </div>
                       <div className="flex items-center justify-between">
@@ -4773,7 +9985,7 @@ ${(() => {
                           type="number"
                           value={billSGST}
                           onChange={(e) => setBillSGST(e.target.value)}
-                          className="w-20 px-3 py-1 border-2 border-gray-300 rounded-lg focus:border-[#8B4513] focus:outline-none text-center"
+                          className="w-20 px-3 py-1 border-2 border-gray-300 rounded-lg focus:border-[#9A572D] focus:outline-none text-center"
                         />
                       </div>
                       <div className="border-t border-gray-200 pt-2 mt-2 space-y-1">
@@ -4792,7 +10004,7 @@ ${(() => {
                   {/* Grand Total */}
                   <div className="flex justify-between items-center pt-3 border-t-2 border-gray-300">
                     <span className="text-xl font-bold text-gray-700">GRAND TOTAL</span>
-                    <span className="text-3xl font-bold text-[#5D3A1A]">
+                    <span className="text-3xl font-bold text-[#6B3E26]">
                       ₹{calculateBillGrandTotal().toFixed(2)}
                     </span>
                   </div>
@@ -4821,8 +10033,8 @@ ${(() => {
                       onClick={handlePrintPreviewBill}
                       className={`w-full flex items-center justify-center gap-2 px-6 py-3 rounded-xl font-semibold transition-all duration-300 ${
                         viewingBill.is_printed
-                          ? 'bg-white border-2 border-[#8B4513] text-[#8B4513] hover:bg-[#F5F0E8]'
-                          : 'bg-[#5D3A1A] text-white hover:bg-[#8B4513]'
+                          ? 'bg-white border-2 border-[#9A572D] text-[#9A572D] hover:bg-[#F5F0E8]'
+                          : 'bg-[#6B3E26] text-white hover:bg-[#9A572D]'
                       }`}
                     >
                       <Printer className="w-5 h-5" />
@@ -4833,7 +10045,7 @@ ${(() => {
                   <>
                     <button
                       onClick={() => { playClickSound(); handleSaveBillEdits() }}
-                      className="w-full flex items-center justify-center gap-2 bg-[#5D3A1A] text-white px-6 py-3 rounded-xl font-semibold hover:bg-[#8B4513] transition-all duration-300"
+                      className="w-full flex items-center justify-center gap-2 bg-[#6B3E26] text-white px-6 py-3 rounded-xl font-semibold hover:bg-[#9A572D] transition-all duration-300"
                     >
                       Save Changes
                     </button>
@@ -4861,7 +10073,7 @@ ${(() => {
       {showPrebookModal && selectedTableForPrebook && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 animate-slide-in">
           <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md mx-4">
-            <h2 className="text-2xl font-bold mb-6 text-[#5D3A1A]">
+            <h2 className="text-2xl font-bold mb-6 text-[#6B3E26]">
               Pre-book Table {selectedTableForPrebook.table_number}
             </h2>
             <div className="space-y-4">
@@ -4899,7 +10111,7 @@ ${(() => {
               </button>
               <button
                 onClick={handleSavePrebook}
-                className="flex-1 px-6 py-3 bg-[#5D3A1A] text-white rounded-xl font-semibold hover:shadow-lg transition-all duration-300 transform hover:scale-105"
+                className="flex-1 px-6 py-3 bg-[#6B3E26] text-white rounded-xl font-semibold hover:shadow-lg transition-all duration-300 transform hover:scale-105"
               >
                 Confirm Pre-book
               </button>
@@ -4911,8 +10123,8 @@ ${(() => {
       {/* Dish Modal */}
       {showDishModal && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 animate-slide-in">
-          <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md mx-4">
-            <h2 className="text-2xl font-bold mb-6 text-[#5D3A1A]">
+          <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
+            <h2 className="text-2xl font-bold mb-6 text-[#6B3E26]">
               {editingDish ? 'Edit Dish' : 'Add New Dish'}
             </h2>
             <div className="space-y-4">
@@ -4922,7 +10134,7 @@ ${(() => {
                   type="text"
                   value={dishForm.name}
                   onChange={(e) => setDishForm({ ...dishForm, name: e.target.value })}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-[#8B4513] focus:outline-none transition-colors placeholder-gray-400"
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-[#9A572D] focus:outline-none transition-colors placeholder-gray-400"
                   placeholder="Enter dish name"
                 />
               </div>
@@ -4932,7 +10144,7 @@ ${(() => {
                   type="text"
                   value={dishForm.marathi_name}
                   onChange={(e) => setDishForm({ ...dishForm, marathi_name: e.target.value })}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-[#8B4513] focus:outline-none transition-colors placeholder-gray-400"
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-[#9A572D] focus:outline-none transition-colors placeholder-gray-400"
                   placeholder="Enter dish name in Marathi (e.g., बटर चिकन)"
                 />
               </div>
@@ -4941,7 +10153,7 @@ ${(() => {
                 <textarea
                   value={dishForm.description}
                   onChange={(e) => setDishForm({ ...dishForm, description: e.target.value })}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-[#8B4513] focus:outline-none transition-colors placeholder-gray-400"
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-[#9A572D] focus:outline-none transition-colors placeholder-gray-400"
                   placeholder="Enter dish description"
                   rows={3}
                 />
@@ -4952,7 +10164,7 @@ ${(() => {
                   type="number"
                   value={dishForm.price}
                   onChange={(e) => setDishForm({ ...dishForm, price: e.target.value })}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-[#8B4513] focus:outline-none transition-colors placeholder-gray-400"
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-[#9A572D] focus:outline-none transition-colors placeholder-gray-400"
                   placeholder="Enter price"
                 />
               </div>
@@ -4961,7 +10173,7 @@ ${(() => {
                 <select
                   value={dishForm.category}
                   onChange={(e) => setDishForm({ ...dishForm, category: e.target.value })}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-[#8B4513] focus:outline-none transition-colors bg-white"
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-[#9A572D] focus:outline-none transition-colors bg-white"
                 >
                   <option value="">Select category</option>
                   <option value="Starters">Starters</option>
@@ -4975,7 +10187,7 @@ ${(() => {
                 <select
                   value={dishForm.food_type}
                   onChange={(e) => setDishForm({ ...dishForm, food_type: e.target.value as 'veg' | 'nonveg' | 'custom' | 'parcel' })}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-[#8B4513] focus:outline-none transition-colors bg-white"
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-[#9A572D] focus:outline-none transition-colors bg-white"
                 >
                   <option value="veg">Veg</option>
                   <option value="nonveg">Non-Veg</option>
@@ -5003,7 +10215,7 @@ ${(() => {
                       reader.readAsDataURL(file)
                     }
                   }}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-[#8B4513] focus:outline-none transition-colors placeholder-gray-400"
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-[#9A572D] focus:outline-none transition-colors placeholder-gray-400"
                 />
                 {dishForm.image_url && (
                   <div className="mt-2">
@@ -5017,21 +10229,89 @@ ${(() => {
                   id="isAvailable"
                   checked={dishForm.is_available}
                   onChange={(e) => setDishForm({ ...dishForm, is_available: e.target.checked })}
-                  className="w-5 h-5 text-[#5D3A1A] rounded focus:ring-green-500"
+                  className="w-5 h-5 text-[#6B3E26] rounded focus:ring-green-500"
                 />
                 <label htmlFor="isAvailable" className="text-sm font-semibold text-gray-700">Available</label>
               </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Select Offer (Optional)</label>
+                <select
+                  value={dishForm.offer}
+                  onChange={(e) => {
+                    const selectedOffer = offers.find(o => `${o.discount_percent}% OFF` === e.target.value)
+                    setDishForm({
+                      ...dishForm,
+                      offer: e.target.value,
+                      offer_discount: selectedOffer ? selectedOffer.discount_percent.toString() : ''
+                    })
+                  }}
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-[#9A572D] focus:outline-none transition-colors bg-white"
+                >
+                  <option value="">No offer</option>
+                  {offers.filter(o => o.is_active).map(offer => (
+                    <option key={offer.id} value={`${offer.discount_percent}% OFF`}>
+                      {offer.title} - {offer.discount_percent}% OFF
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Or Custom Offer Text</label>
+                <input
+                  type="text"
+                  value={dishForm.offer}
+                  onChange={(e) => setDishForm({ ...dishForm, offer: e.target.value })}
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-[#9A572D] focus:outline-none transition-colors placeholder-gray-400"
+                  placeholder="e.g., 20% OFF"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Offer Discount (%)</label>
+                <input
+                  type="number"
+                  value={dishForm.offer_discount}
+                  onChange={(e) => setDishForm({ ...dishForm, offer_discount: e.target.value })}
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-[#9A572D] focus:outline-none transition-colors placeholder-gray-400"
+                  placeholder="e.g., 20"
+                  min="0"
+                  max="100"
+                />
+              </div>
+              {dishForm.offer && (
+                <button
+                  type="button"
+                  onClick={() => setDishForm({ ...dishForm, offer: '', offer_discount: '' })}
+                  className="w-full px-4 py-2 bg-red-100 text-red-700 rounded-xl font-semibold hover:bg-red-200 transition-colors"
+                >
+                  Remove Offer
+                </button>
+              )}
             </div>
             <div className="flex gap-3 mt-8">
               <button
-                onClick={() => setShowDishModal(false)}
+                onClick={() => {
+                  setShowDishModal(false)
+                  setEditingDish(null)
+                  setDishForm({
+                    name: '',
+                    marathi_name: '',
+                    description: '',
+                    price: '',
+                    category: '',
+                    image_url: '',
+                    food_type: 'veg',
+                    is_available: true,
+                    offer: '',
+                    offer_discount: ''
+                  })
+                }}
                 className="flex-1 px-6 py-3 border-2 border-gray-300 text-gray-700 rounded-xl font-semibold hover:bg-gray-50 transition-all duration-300"
               >
                 Cancel
               </button>
               <button
                 onClick={handleSaveDish}
-                className="flex-1 px-6 py-3 bg-[#5D3A1A] text-white rounded-xl font-semibold hover:shadow-lg transition-all duration-300 transform hover:scale-105"
+                className="flex-1 px-6 py-3 bg-[#6B3E26] text-white rounded-xl font-semibold hover:shadow-lg transition-all duration-300 transform hover:scale-105"
               >
                 {editingDish ? 'Update' : 'Add'}
               </button>
@@ -5044,7 +10324,7 @@ ${(() => {
       {showTableModal && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 animate-slide-in">
           <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md mx-4">
-            <h2 className="text-2xl font-bold mb-6 text-[#5D3A1A]">
+            <h2 className="text-2xl font-bold mb-6 text-[#6B3E26]">
               {editingTable ? 'Edit Table' : 'Add New Table'}
             </h2>
             <div className="space-y-4">
@@ -5054,7 +10334,7 @@ ${(() => {
                   type="number"
                   value={tableForm.table_number}
                   onChange={(e) => setTableForm({ ...tableForm, table_number: e.target.value })}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-[#8B4513] focus:outline-none transition-colors placeholder-gray-400"
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-[#9A572D] focus:outline-none transition-colors placeholder-gray-400"
                   placeholder="Enter table number"
                 />
               </div>
@@ -5064,7 +10344,7 @@ ${(() => {
                   type="number"
                   value={tableForm.capacity}
                   onChange={(e) => setTableForm({ ...tableForm, capacity: e.target.value })}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-[#8B4513] focus:outline-none transition-colors placeholder-gray-400"
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-[#9A572D] focus:outline-none transition-colors placeholder-gray-400"
                   placeholder="Enter capacity"
                 />
               </div>
@@ -5078,7 +10358,7 @@ ${(() => {
               </button>
               <button
                 onClick={handleSaveTable}
-                className="flex-1 px-6 py-3 bg-[#5D3A1A] text-white rounded-xl font-semibold hover:shadow-lg transition-all duration-300 transform hover:scale-105"
+                className="flex-1 px-6 py-3 bg-[#6B3E26] text-white rounded-xl font-semibold hover:shadow-lg transition-all duration-300 transform hover:scale-105"
               >
                 {editingTable ? 'Update' : 'Add'}
               </button>
@@ -5091,11 +10371,11 @@ ${(() => {
       {showMasterTableModal && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 animate-slide-in">
           <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-2xl mx-4 max-h[80vh] overflow-y-auto">
-            <h2 className="text-2xl font-bold mb-6 text-[#5D3A1A]">Create Master Table</h2>
+            <h2 className="text-2xl font-bold mb-6 text-[#6B3E26]">Create Master Table</h2>
             <p className="text-gray-600 mb-4">Select 2 or more tables to combine into a master table. The first selected table will become the master.</p>
             {selectedTablesForMaster.length > 0 && (
               <div className="mb-4 p-3 bg-[#F5F5DC] rounded-lg">
-                <p className="font-semibold text-[#5D3A1A]">
+                <p className="font-semibold text-[#6B3E26]">
                   Master Table: Table {tables.find(t => t.id === selectedTablesForMaster[0])?.table_number}
                 </p>
               </div>
@@ -5107,7 +10387,7 @@ ${(() => {
                   className={`flex items-center p-3 border-2 rounded-xl transition-colors ${
                     table.is_occupied
                       ? 'border-red-300 bg-red-50 cursor-not-allowed opacity-60'
-                      : 'border-gray-200 hover:border-[#8B4513] cursor-pointer'
+                      : 'border-gray-200 hover:border-[#9A572D] cursor-pointer'
                   }`}
                 >
                   <input
@@ -5121,7 +10401,7 @@ ${(() => {
                       }
                     }}
                     disabled={table.is_occupied}
-                    className="w-5 h-5 text-[#8B4513] rounded focus:ring-[#8B4513]"
+                    className="w-5 h-5 text-[#9A572D] rounded focus:ring-[#9A572D]"
                   />
                   <span className={`ml-3 font-semibold ${table.is_occupied ? 'text-red-600' : 'text-gray-900'}`}>
                     Table {table.table_number}
@@ -5131,7 +10411,7 @@ ${(() => {
                     <span className="ml-3 px-2 py-1 bg-red-600 text-white text-xs rounded-full font-bold">Occupied</span>
                   )}
                   {!table.is_occupied && selectedTablesForMaster.length > 0 && selectedTablesForMaster[0] === table.id && (
-                    <span className="ml-3 px-2 py-1 bg-[#8B4513] text-white text-xs rounded-full">Master</span>
+                    <span className="ml-3 px-2 py-1 bg-[#9A572D] text-white text-xs rounded-full">Master</span>
                   )}
                 </label>
               ))}
@@ -5148,7 +10428,7 @@ ${(() => {
               </button>
               <button
                 onClick={handleCreateMasterTable}
-                className="flex-1 px-6 py-3 bg-[#8B4513] text-white rounded-xl font-semibold hover:shadow-lg transition-all duration-300 transform hover:scale-105"
+                className="flex-1 px-6 py-3 bg-[#9A572D] text-white rounded-xl font-semibold hover:shadow-lg transition-all duration-300 transform hover:scale-105"
               >
                 Create Master Table
               </button>
@@ -5162,7 +10442,7 @@ ${(() => {
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 animate-slide-in">
           <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-4xl mx-4 max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center mb-6">
-              <h2 className="text-2xl font-bold text-[#5D3A1A]">
+              <h2 className="text-2xl font-bold text-[#6B3E26]">
                 Table Orders
               </h2>
               <button
@@ -5187,9 +10467,9 @@ ${(() => {
                         <p className="text-sm text-gray-600">Waiter: {order.users?.name}</p>
                       </div>
                       <span className={`px-3 py-1 rounded-full text-xs font-bold ${
-                        order.status === 'paid' ? 'bg-[#F5F5DC] text-[#8B4513]' :
-                        order.status === 'ready' ? 'bg-[#F5F5DC] text-[#8B4513]' :
-                        order.status === 'preparing' ? 'bg-[#F5F5DC] text-[#8B4513]' :
+                        order.status === 'paid' ? 'bg-[#F5F5DC] text-[#9A572D]' :
+                        order.status === 'ready' ? 'bg-[#F5F5DC] text-[#9A572D]' :
+                        order.status === 'preparing' ? 'bg-[#F5F5DC] text-[#9A572D]' :
                         'bg-gray-100 text-gray-800'
                       }`}>
                         {order.status}
@@ -5247,7 +10527,7 @@ ${(() => {
                       </table>
                       <div className="mt-4 pt-4 border-t border-gray-200 flex justify-between items-center">
                         <span className="font-bold text-gray-700">Total Amount:</span>
-                        <span className="text-2xl font-bold text-[#5D3A1A]">
+                        <span className="text-2xl font-bold text-[#6B3E26]">
                           ₹{order.total_amount.toFixed(2)}
                         </span>
                       </div>
@@ -5276,10 +10556,10 @@ ${(() => {
               </button>
             </div>
 
-            <div className="border-2 border-[#8B4513] rounded-xl p-6 bg-white shadow-lg">
+            <div className="border-2 border-[#9A572D] rounded-xl p-6 bg-white shadow-lg">
               {/* Header */}
-              <div className="text-center mb-6 pb-4 border-b-2 border-dashed border-[#8B4513]">
-                <h1 className="text-3xl font-bold text-[#8B4513] mb-1 uppercase">
+              <div className="text-center mb-6 pb-4 border-b-2 border-dashed border-[#9A572D]">
+                <h1 className="text-3xl font-bold text-[#9A572D] mb-1 uppercase">
                   DHOLE PATIL KHANAWAL
                 </h1>
                 <p className="text-sm font-semibold text-gray-700 mb-1 uppercase">VEG & NON-VEG</p>
@@ -5288,7 +10568,7 @@ ${(() => {
                   <p>PHONE: +91 98765 43210</p>
                   <p>GSTIN: 29ABCDE1234F1Z5</p>
                 </div>
-                <p className="text-sm font-bold text-green-700 mt-3 border-t border-dashed border-[#8B4513] pt-2 uppercase">BILL / INVOICE</p>
+                <p className="text-sm font-bold text-green-700 mt-3 border-t border-dashed border-[#9A572D] pt-2 uppercase">BILL / INVOICE</p>
               </div>
 
               {/* Print-only header with hotel details */}
@@ -5321,7 +10601,7 @@ ${(() => {
               </div>
 
               {/* Order Info */}
-              <div className="grid grid-cols-2 gap-4 mb-6 p-4 bg-[#F5F5DC] rounded-xl no-print border border-[#8B4513]">
+              <div className="grid grid-cols-2 gap-4 mb-6 p-4 bg-[#F5F5DC] rounded-xl no-print border border-[#9A572D]">
                 <div>
                   <p className="text-sm font-semibold text-green-800">Bill No</p>
                   <p className="text-lg font-bold text-green-900">{formatOrderId(selectedOrderForBilling.id)}</p>
@@ -5343,7 +10623,7 @@ ${(() => {
               {/* Items */}
               <div className="mb-6">
                 <table className="w-full">
-                  <thead className="bg-[#5D3A1A]">
+                  <thead className="bg-[#6B3E26]">
                     <tr>
                       <th className="px-3 py-2 text-left text-xs font-bold text-white uppercase w-1/2">Item</th>
                       <th className="px-3 py-2 text-center text-xs font-bold text-white uppercase w-16">Qty</th>
@@ -5424,7 +10704,7 @@ ${(() => {
               </div>
 
               {/* Discount Section (no-print) */}
-              <div className="mb-6 p-4 bg-[#F5F5DC] rounded-xl no-print border border-[#8B4513]">
+              <div className="mb-6 p-4 bg-[#F5F5DC] rounded-xl no-print border border-[#9A572D]">
                 <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-3">
                   <label className="text-sm font-semibold text-green-800">Discount Type:</label>
                   <div className="flex gap-2 flex-wrap">
@@ -5432,8 +10712,8 @@ ${(() => {
                       onClick={() => setDiscountType('amount')}
                       className={`px-3 py-1.5 rounded-lg text-xs sm:text-sm font-semibold transition-all ${
                         discountType === 'amount'
-                          ? 'bg-[#5D3A1A] text-white shadow-md'
-                          : 'bg-white text-green-700 border-2 border-[#8B4513] hover:border-green-500'
+                          ? 'bg-[#6B3E26] text-white shadow-md'
+                          : 'bg-white text-green-700 border-2 border-[#9A572D] hover:border-green-500'
                       }`}
                     >
                       Amount (₹)
@@ -5442,8 +10722,8 @@ ${(() => {
                       onClick={() => setDiscountType('percentage')}
                       className={`px-3 py-1.5 rounded-lg text-xs sm:text-sm font-semibold transition-all ${
                         discountType === 'percentage'
-                          ? 'bg-[#5D3A1A] text-white shadow-md'
-                          : 'bg-white text-green-700 border-2 border-[#8B4513] hover:border-green-500'
+                          ? 'bg-[#6B3E26] text-white shadow-md'
+                          : 'bg-white text-green-700 border-2 border-[#9A572D] hover:border-green-500'
                       }`}
                     >
                       Percentage (%)
@@ -5459,7 +10739,7 @@ ${(() => {
                         setDiscountAmount(e.target.value)
                         setDiscountPercentage('')
                       }}
-                      className="flex-1 px-3 py-2 border-2 border-[#8B4513] rounded-xl focus:border-[#8B4513] focus:outline-none transition-colors placeholder-green-400 text-sm"
+                      className="flex-1 px-3 py-2 border-2 border-[#9A572D] rounded-xl focus:border-[#9A572D] focus:outline-none transition-colors placeholder-green-400 text-sm"
                       placeholder="Enter discount amount in ₹"
                     />
                   ) : (
@@ -5470,7 +10750,7 @@ ${(() => {
                         setDiscountPercentage(e.target.value)
                         setDiscountAmount('')
                       }}
-                      className="flex-1 px-3 py-2 border-2 border-[#8B4513] rounded-xl focus:border-[#8B4513] focus:outline-none transition-colors placeholder-green-400 text-sm"
+                      className="flex-1 px-3 py-2 border-2 border-[#9A572D] rounded-xl focus:border-[#9A572D] focus:outline-none transition-colors placeholder-green-400 text-sm"
                       placeholder="Enter discount percentage"
                     />
                   )}
@@ -5478,7 +10758,7 @@ ${(() => {
               </div>
 
               {/* Order Details (for screen view) */}
-              <div className="grid grid-cols-2 gap-4 p-4 bg-[#F5F5DC] rounded-xl no-print border border-[#8B4513]">
+              <div className="grid grid-cols-2 gap-4 p-4 bg-[#F5F5DC] rounded-xl no-print border border-[#9A572D]">
                 <div>
                   <p className="text-sm font-semibold text-green-800">Table</p>
                   <p className="text-lg font-bold text-green-900">Table {selectedOrderForBilling.tables?.table_number}</p>
@@ -5498,7 +10778,7 @@ ${(() => {
               </div>
 
               {/* Totals */}
-              <div className="mt-6 pt-4 border-t-2 border-[#8B4513] space-y-3">
+              <div className="mt-6 pt-4 border-t-2 border-[#9A572D] space-y-3">
                 <div className="flex justify-between items-center">
                   <span className="text-lg font-bold text-green-700">Subtotal</span>
                   <span className="text-xl font-bold text-green-900">₹{selectedOrderForBilling.total_amount.toFixed(2)}</span>
@@ -5513,7 +10793,7 @@ ${(() => {
                     </span>
                   </div>
                 )}
-                <div className="flex justify-between items-center border-t-2 border-[#8B4513] pt-3">
+                <div className="flex justify-between items-center border-t-2 border-[#9A572D] pt-3">
                   <span className="text-xl font-bold text-green-900">GRAND TOTAL</span>
                   <span className="text-3xl font-bold text-green-700">
                     ₹{calculateFinalAmount(selectedOrderForBilling.total_amount).toFixed(2)}
@@ -5555,14 +10835,14 @@ ${(() => {
             </div>
 
             {/* Payment Type Selection */}
-            <div className="mt-6 p-4 bg-white border-2 border-[#8B4513] rounded-xl no-print">
-              <label className="block text-sm font-bold text-[#5D3A1A] mb-3 uppercase">Payment Type</label>
+            <div className="mt-6 p-4 bg-white border-2 border-[#9A572D] rounded-xl no-print">
+              <label className="block text-sm font-bold text-[#6B3E26] mb-3 uppercase">Payment Type</label>
               <div className="flex gap-3">
                 <button
                   onClick={() => setBillPaymentType('cash')}
                   className={`flex-1 px-4 py-3 rounded-xl font-bold transition-all duration-300 ${
                     billPaymentType === 'cash'
-                      ? 'bg-[#5D3A1A] text-white'
+                      ? 'bg-[#6B3E26] text-white'
                       : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                   }`}
                 >
@@ -5584,7 +10864,7 @@ ${(() => {
             <div className="flex gap-3 no-print mt-6">
               <button
                 onClick={() => setSelectedOrderForBilling(null)}
-                className="flex-1 px-6 py-3 border-2 border-[#8B4513] text-green-700 rounded-xl font-semibold hover:bg-amber-50 transition-all duration-300"
+                className="flex-1 px-6 py-3 border-2 border-[#9A572D] text-green-700 rounded-xl font-semibold hover:bg-amber-50 transition-all duration-300"
               >
                 Close
               </button>
@@ -5592,23 +10872,4 @@ ${(() => {
                 onClick={handleThermalPrint}
                 className={`flex-1 px-6 py-3 rounded-xl font-semibold transition-all duration-300 ${
                   selectedOrderForBilling.is_printed
-                    ? 'bg-white border-2 border-[#8B4513] text-[#8B4513] hover:bg-[#F5F0E8]'
-                    : 'bg-[#5D3A1A] text-white hover:bg-[#8B4513]'
-                }`}
-              >
-                {selectedOrderForBilling.is_printed ? 'Printed' : 'Print Bill'}
-              </button>
-              <button
-                onClick={() => selectedOrderForBilling && handleMarkAsPaid(selectedOrderForBilling)}
-                className="flex-1 px-6 py-3 bg-[#5D3A1A] text-white rounded-xl font-semibold hover:shadow-lg transition-all duration-300"
-              >
-                Mark as Paid
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-      </div>
-    </div>
-  )
-}
+                    ? 'bg-white border-2 border-[#

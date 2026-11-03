@@ -17,43 +17,50 @@ import {
   BarChart3,
   PieChart,
   CreditCard,
-  Receipt,
-  ChevronDown,
-  ChevronRight
+  Receipt
 } from 'lucide-react'
 import { playClickSound } from '@/lib/sound-effects'
 import GoogleTranslate from '@/components/GoogleTranslate'
 
 interface SidebarProps {
-  activeTab: string
+  activeTab: 'overview' | 'pos' | 'orders' | 'dishes' | 'tables' | 'waiters' | 'reports' | 'offline-billing' | 'online-orders' | 'reservations' | 'rooms' | 'bookings' | 'kitchen' | 'customers' | 'inventory' | 'delivery' | 'team' | 'accounting' | 'marketing' | 'operations' | 'attendance' | 'offers' | 'settings'
   setActiveTab: (tab: any) => void
   user: any
   overviewSubTab?: string
-  setOverviewSubTab?: React.Dispatch<React.SetStateAction<'all' | 'veg' | 'nonveg' | 'active'>>
+  setOverviewSubTab?: React.Dispatch<React.SetStateAction<string>>
 }
 
 export default function Sidebar({ activeTab, setActiveTab, user, overviewSubTab = 'all', setOverviewSubTab }: SidebarProps) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
-  const [isOverviewExpanded, setIsOverviewExpanded] = useState(false)
   const router = useRouter()
 
-  const menuItems: { id: 'overview' | 'orders' | 'dishes' | 'tables' | 'waiters' | 'reports' | 'offline-billing' | 'online-orders', label: string, icon: any, hasChildren?: boolean }[] = [
-    { id: 'overview', label: 'Overview', icon: LayoutDashboard, hasChildren: true },
+  const menuItems: { id: 'overview' | 'pos' | 'orders' | 'dishes' | 'tables' | 'waiters' | 'reports' | 'offline-billing' | 'online-orders' | 'reservations' | 'rooms' | 'bookings' | 'kitchen' | 'customers' | 'inventory' | 'delivery' | 'team' | 'accounting' | 'marketing' | 'operations' | 'attendance' | 'offers' | 'settings', label: string, icon: any, hasChildren?: boolean }[] = [
+    { id: 'overview', label: 'Dashboard', icon: LayoutDashboard },
+    { id: 'pos', label: 'Point of Sale', icon: ShoppingCart },
     { id: 'orders', label: 'Orders', icon: ShoppingCart },
-    { id: 'dishes', label: 'Menu Management', icon: UtensilsCrossed },
-    { id: 'tables', label: 'Table Management', icon: TableIcon },
-    { id: 'waiters', label: 'Waiter Status', icon: Users },
+    { id: 'dishes', label: 'Menu', icon: UtensilsCrossed },
+    { id: 'offers', label: 'Offers Management', icon: TrendingUp },
+    { id: 'tables', label: 'Tables', icon: TableIcon },
+    { id: 'waiters', label: 'Waiter Portal', icon: Users },
     { id: 'reports', label: 'Reports', icon: BarChart3 },
     { id: 'offline-billing', label: 'Offline Billing', icon: Receipt },
-    { id: 'online-orders', label: 'Online Orders', icon: CreditCard },
+    { id: 'online-orders', label: 'Online Orders', icon: Receipt },
+    { id: 'reservations', label: 'Reservations', icon: Calendar },
+    { id: 'rooms', label: 'Rooms', icon: LayoutDashboard },
+    { id: 'bookings', label: 'Bookings', icon: Calendar },
+    { id: 'kitchen', label: 'Kitchen Display', icon: UtensilsCrossed },
+    { id: 'customers', label: 'Customers', icon: Users },
+    { id: 'inventory', label: 'Inventory', icon: BarChart3 },
+    { id: 'delivery', label: 'Delivery', icon: CreditCard },
+    { id: 'team', label: 'Team', icon: Users },
+    { id: 'accounting', label: 'Accounting', icon: Receipt },
+    { id: 'marketing', label: 'Marketing', icon: BarChart3 },
+    { id: 'operations', label: 'Operations', icon: BarChart3 },
+    { id: 'attendance', label: 'Attendance', icon: Users },
+    { id: 'settings', label: 'Settings', icon: LogOut },
   ]
 
-  const overviewSubItems: { id: 'all' | 'veg' | 'nonveg' | 'active', label: string }[] = [
-    { id: 'all', label: 'All Tables' },
-    { id: 'veg', label: 'Veg Orders' },
-    { id: 'nonveg', label: 'Non-Veg Orders' },
-    { id: 'active', label: 'Active Orders' },
-  ]
+
 
   const handleLogout = () => {
     playClickSound()
@@ -138,50 +145,16 @@ export default function Sidebar({ activeTab, setActiveTab, user, overviewSubTab 
               return (
                 <li key={item.id}>
                   <button
-                    onClick={() => {
-                      if (item.hasChildren) {
-                        playClickSound()
-                        setIsOverviewExpanded(!isOverviewExpanded)
-                      } else {
-                        handleTabChange(item.id)
-                      }
-                    }}
-                    className={`w-full flex items-center justify-between gap-3 px-4 py-3 rounded-xl transition-all duration-300
+                    onClick={() => handleTabChange(item.id)}
+                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300
                       ${activeTab === item.id
                         ? 'bg-[#5D3A1A] text-white shadow-lg transform scale-105'
                         : 'text-gray-700 hover:bg-[#F5F5DC] hover:shadow-md'
                       }`}
                   >
-                    <div className="flex items-center gap-3">
-                      <Icon className="w-5 h-5" />
-                      <span className="font-medium">{item.label}</span>
-                    </div>
-                    {item.hasChildren && (
-                      isOverviewExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />
-                    )}
+                    <Icon className="w-5 h-5" />
+                    <span className="font-medium">{item.label}</span>
                   </button>
-                  {item.hasChildren && isOverviewExpanded && (
-                    <ul className="ml-8 mt-2 space-y-1">
-                      {overviewSubItems.map((subItem) => (
-                        <li key={subItem.id}>
-                          <button
-                            onClick={() => {
-                              playClickSound()
-                              setOverviewSubTab?.(subItem.id)
-                              handleTabChange('overview')
-                            }}
-                            className={`w-full flex items-center gap-3 px-4 py-2 rounded-lg transition-all duration-300 text-sm
-                              ${overviewSubTab === subItem.id && activeTab === 'overview'
-                                ? 'bg-[#8B4513] text-white'
-                                : 'text-gray-600 hover:bg-[#F5F5DC]'
-                              }`}
-                          >
-                            <span className="font-medium">{subItem.label}</span>
-                          </button>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
                 </li>
               )
             })}

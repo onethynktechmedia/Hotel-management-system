@@ -1,0 +1,19 @@
+Dhole Patil Khanawal - Hotel Billing and Management System
+Copyright (c) 2025 Dhole Patil Khanawal
+
+LICENSE AGREEMENT
+
+This software is the property of Dhole Patil Khanawal and is protected by copyright laws.
+
+PERMISSION GRANTED:
+- You are granted a non-exclusive, non-transferable license to install and use this software on any Windows computer for your business operations.
+
+RESTRICTIONS:
+- You may not reverse engineer, decompile, or disassemble this software.
+- You may not rent, lease, or lend this software to any third party.
+- You may not distribute copies of this software without written permission.
+
+DISCLAIMER:
+This software is provided "as is" without warranty of any kind, either express or implied, including but not limited to the implied warranties of merchantability and fitness for a particular purpose.
+
+By installing and using this software, you agree to these terms and conditions.
