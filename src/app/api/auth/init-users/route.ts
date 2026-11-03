@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import supabase from '@/lib/db'
 
+// Make this route dynamic to prevent static build errors
+export const dynamic = 'force-dynamic'
+
 export async function POST() {
   try {
     // Check if users already exist
