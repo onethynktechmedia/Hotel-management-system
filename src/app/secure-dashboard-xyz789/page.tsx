@@ -1437,9 +1437,9 @@ export default function AdminDashboard() {
       try {
         const isMasterTable = viewingBill.tables?.is_master || false
         const plainText = `
-<div style="text-align: center; margin-bottom: 8px;">
-  <img src="/logo.png" alt="Dhole Patil Logo" style="width: 120px; height: auto; margin-bottom: 8px;" />
-  <div style="font-size: 18px; font-weight: 900; color: #000;">DHOLE PATIL KHANAWAL</div>
+<div style="text-align: center; margin-bottom: 4px;">
+  <img src="/logo.png" alt="Dhole Patil Logo" style="width: 180px; height: auto; margin-bottom: 0px;" />
+  <div style="font-size: 18px; font-weight: 900; color: #000; margin-top: 0; margin-bottom: 2px;">DHOLE PATIL KHANAWAL</div>
   <div style="font-size: 12px; font-weight: bold; color: #000;">VEG & NON-VEG</div>
 </div>
 <div style="border-top: 1px dashed #000; margin: 4px 0;"></div>
@@ -2715,7 +2715,7 @@ For technical support, contact: support@everycom.com
     try {
       const plainText = `
 <div style="text-align: center; margin-bottom: 8px;">
-  <img src="/dhole patil logo-03.png" alt="Dhole Patil Logo" style="width: 120px; height: auto; margin-bottom: 8px;" />
+  <img src="/dhole patil logo-03.png" alt="Dhole Patil Logo" style="width: 180px; height: auto; margin-bottom: 0px;" />
 </div>
 <div class="header">DHOLE PATIL KHANAWAL</div>
 <div class="subheader">Restaurant & Bar</div>
@@ -3974,7 +3974,7 @@ ${(() => {
 
     const plainText = `
 <div style="text-align: center; margin-bottom: 8px;">
-  <img src="/dhole patil logo-03.png" alt="Dhole Patil Logo" style="width: 120px; height: auto; margin-bottom: 8px;" />
+  <img src="/dhole patil logo-03.png" alt="Dhole Patil Logo" style="width: 180px; height: auto; margin-bottom: 0px;" />
 </div>
 <strong class="header">DHOLE PATIL KHANAWAL</strong><br>
 <strong>VEG & NON-VEG</strong><br>
