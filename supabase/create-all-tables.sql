@@ -161,3 +161,14 @@ CREATE TABLE IF NOT EXISTS reservations (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
+
+-- Dish Ratings table
+CREATE TABLE IF NOT EXISTS dish_ratings (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  dish_id UUID NOT NULL,
+  rating INTEGER NOT NULL CHECK (rating >= 1 AND rating <= 5),
+  user_ip TEXT,
+  user_agent TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  UNIQUE(dish_id, user_ip)
+);

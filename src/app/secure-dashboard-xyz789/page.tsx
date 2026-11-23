@@ -206,7 +206,6 @@ export default function AdminDashboard() {
     floor: '',
     capacity: '',
     price_per_night: '',
-    amenities: '',
     status: 'available'
   })
 
@@ -233,8 +232,7 @@ export default function AdminDashboard() {
     name: '',
     mobile: '',
     email: '',
-    address: '',
-    preferences: ''
+    address: ''
   })
 
   // Inventory State
@@ -272,11 +270,9 @@ export default function AdminDashboard() {
     customer_name: '',
     mobile: '',
     address: '',
-    order_id: '',
-    driver_id: '',
-    status: 'pending',
-    delivery_fee: '',
-    notes: ''
+    order_items: '',
+    total_amount: '',
+    status: 'pending'
   })
   const [deliverySubTab, setDeliverySubTab] = useState<'active' | 'history' | 'zones'>('active')
 
@@ -290,7 +286,7 @@ export default function AdminDashboard() {
     category: '',
     amount: '',
     description: '',
-    reference: ''
+    payment_method: ''
   })
   const [accountingFilter, setAccountingFilter] = useState<'all' | 'income' | 'expense'>('all')
 
@@ -317,7 +313,6 @@ export default function AdminDashboard() {
     staff_id: '',
     start_time: '',
     end_time: '',
-    status: 'scheduled',
     notes: ''
   })
 
@@ -330,7 +325,6 @@ export default function AdminDashboard() {
     date: '',
     check_in: '',
     check_out: '',
-    status: 'present',
     notes: ''
   })
 
@@ -493,7 +487,7 @@ export default function AdminDashboard() {
   useEffect(() => {
     const loadDeliveries = async () => {
       try {
-        const response = await fetch('/api/deliveries')
+        const response = await fetch('/api/delivery')
         if (response.ok) {
           const data = await response.json()
           setDeliveries(data)
@@ -509,7 +503,7 @@ export default function AdminDashboard() {
   useEffect(() => {
     const loadTransactions = async () => {
       try {
-        const response = await fetch('/api/accounting')
+        const response = await fetch('/api/transactions')
         if (response.ok) {
           const data = await response.json()
           setTransactions(data)
@@ -525,7 +519,7 @@ export default function AdminDashboard() {
   useEffect(() => {
     const loadCampaigns = async () => {
       try {
-        const response = await fetch('/api/marketing')
+        const response = await fetch('/api/campaigns')
         if (response.ok) {
           const data = await response.json()
           setCampaigns(data)
@@ -2980,12 +2974,12 @@ ${(() => {
     setEditingReservation(reservation)
     setReservationForm({
       customer_name: reservation.customer_name,
-      customer_mobile: reservation.customer_mobile,
+      customer_mobile: reservation.mobile,
       table_id: reservation.table_id,
       date: reservation.date,
       time: reservation.time,
       guests: reservation.guests,
-      special_requests: reservation.special_requests || ''
+      special_requests: reservation.notes || ''
     })
     setShowReservationModal(true)
   }
@@ -3014,12 +3008,12 @@ ${(() => {
     try {
       const payload = {
         customer_name: reservationForm.customer_name,
-        customer_mobile: reservationForm.customer_mobile,
+        mobile: reservationForm.customer_mobile,
         table_id: reservationForm.table_id,
         date: reservationForm.date,
         time: reservationForm.time,
         guests: parseInt(reservationForm.guests),
-        special_requests: reservationForm.special_requests,
+        notes: reservationForm.special_requests,
         status: 'confirmed'
       }
 
@@ -3054,7 +3048,6 @@ ${(() => {
       floor: '',
       capacity: '',
       price_per_night: '',
-      amenities: '',
       status: 'available'
     })
     setShowRoomModal(true)
@@ -3065,11 +3058,10 @@ ${(() => {
     setEditingRoom(room)
     setRoomForm({
       room_number: room.room_number,
-      room_type: room.room_type,
+      room_type: room.type,
       floor: room.floor,
       capacity: room.capacity,
       price_per_night: room.price_per_night,
-      amenities: room.amenities || '',
       status: room.status
     })
     setShowRoomModal(true)
@@ -3099,11 +3091,10 @@ ${(() => {
     try {
       const payload = {
         room_number: roomForm.room_number,
-        room_type: roomForm.room_type,
+        type: roomForm.room_type,
         floor: parseInt(roomForm.floor),
         capacity: parseInt(roomForm.capacity),
         price_per_night: parseFloat(roomForm.price_per_night),
-        amenities: roomForm.amenities,
         status: roomForm.status
       }
 
@@ -3150,7 +3141,7 @@ ${(() => {
     setEditingBooking(booking)
     setBookingForm({
       customer_name: booking.customer_name,
-      customer_mobile: booking.customer_mobile,
+      customer_mobile: booking.mobile_number,
       room_id: booking.room_id,
       check_in: booking.check_in,
       check_out: booking.check_out,
@@ -3183,15 +3174,19 @@ ${(() => {
 
   const handleSaveBooking = async () => {
     try {
-      const payload = {
+      const payload: any = {
         customer_name: bookingForm.customer_name,
-        customer_mobile: bookingForm.customer_mobile,
-        room_id: bookingForm.room_id,
+        mobile_number: bookingForm.customer_mobile,
         check_in: bookingForm.check_in,
         check_out: bookingForm.check_out,
-        guests: parseInt(bookingForm.guests),
-        total_amount: parseFloat(bookingForm.total_amount),
+        guests: bookingForm.guests ? parseInt(bookingForm.guests) : 1,
+        total_amount: bookingForm.total_amount ? parseFloat(bookingForm.total_amount) : 0,
         status: bookingForm.status
+      }
+
+      // Only include room_id if it's provided
+      if (bookingForm.room_id) {
+        payload.room_id = bookingForm.room_id
       }
 
       const url = editingBooking ? `/api/bookings/${editingBooking.id}` : '/api/bookings'
@@ -3222,8 +3217,7 @@ ${(() => {
       name: '',
       mobile: '',
       email: '',
-      address: '',
-      preferences: ''
+      address: ''
     })
     setShowCustomerModal(true)
   }
@@ -3235,8 +3229,7 @@ ${(() => {
       name: customer.name,
       mobile: customer.mobile,
       email: customer.email || '',
-      address: customer.address || '',
-      preferences: customer.preferences || ''
+      address: customer.address || ''
     })
     setShowCustomerModal(true)
   }
@@ -3267,8 +3260,7 @@ ${(() => {
         name: customerForm.name,
         mobile: customerForm.mobile,
         email: customerForm.email,
-        address: customerForm.address,
-        preferences: customerForm.preferences
+        address: customerForm.address
       }
 
       const url = editingCustomer ? `/api/customers/${editingCustomer.id}` : '/api/customers'
@@ -3316,7 +3308,7 @@ ${(() => {
       quantity: item.quantity,
       unit: item.unit,
       unit_price: item.unit_price,
-      minimum_stock: item.minimum_stock,
+      minimum_stock: item.min_stock,
       supplier: item.supplier || ''
     })
     setShowInventoryModal(true)
@@ -3347,10 +3339,10 @@ ${(() => {
       const payload = {
         item_name: inventoryForm.item_name,
         category: inventoryForm.category,
-        quantity: parseInt(inventoryForm.quantity),
+        quantity: parseFloat(inventoryForm.quantity),
         unit: inventoryForm.unit,
         unit_price: parseFloat(inventoryForm.unit_price),
-        minimum_stock: parseInt(inventoryForm.minimum_stock),
+        min_stock: parseFloat(inventoryForm.minimum_stock),
         supplier: inventoryForm.supplier
       }
 
@@ -3462,11 +3454,9 @@ ${(() => {
       customer_name: '',
       mobile: '',
       address: '',
-      order_id: '',
-      driver_id: '',
-      status: 'pending',
-      delivery_fee: '',
-      notes: ''
+      order_items: '',
+      total_amount: '',
+      status: 'pending'
     })
     setShowDeliveryModal(true)
   }
@@ -3492,7 +3482,7 @@ ${(() => {
     if (!confirm('Are you sure you want to delete this delivery?')) return
 
     try {
-      const response = await fetch(`/api/deliveries/${id}`, {
+      const response = await fetch(`/api/delivery/${id}`, {
         method: 'DELETE'
       })
 
@@ -3509,18 +3499,27 @@ ${(() => {
 
   const handleSaveDelivery = async () => {
     try {
+      let orderItems = []
+      if (deliveryForm.order_items) {
+        try {
+          orderItems = JSON.parse(deliveryForm.order_items)
+        } catch (e) {
+          // If JSON parsing fails, try to handle it as a simple string or set to empty array
+          console.warn('Failed to parse order_items as JSON, using empty array')
+          orderItems = []
+        }
+      }
+
       const payload = {
         customer_name: deliveryForm.customer_name,
         mobile: deliveryForm.mobile,
         address: deliveryForm.address,
-        order_id: deliveryForm.order_id,
-        driver_id: deliveryForm.driver_id,
-        status: deliveryForm.status,
-        delivery_fee: parseFloat(deliveryForm.delivery_fee) || 0,
-        notes: deliveryForm.notes
+        order_items: orderItems,
+        total_amount: parseFloat(deliveryForm.total_amount) || 0,
+        status: deliveryForm.status
       }
 
-      const url = editingDelivery ? `/api/deliveries/${editingDelivery.id}` : '/api/deliveries'
+      const url = editingDelivery ? `/api/delivery/${editingDelivery.id}` : '/api/delivery'
       const response = await fetch(url, {
         method: editingDelivery ? 'PATCH' : 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -3531,7 +3530,7 @@ ${(() => {
 
       setShowDeliveryModal(false)
       playSuccessSound()
-      const updatedDeliveries = await fetch('/api/deliveries').then(res => res.json())
+      const updatedDeliveries = await fetch('/api/delivery').then(res => res.json())
       setDeliveries(updatedDeliveries)
     } catch (error) {
       console.error('Error saving delivery:', error)
@@ -3574,7 +3573,7 @@ ${(() => {
     if (!confirm('Are you sure you want to delete this transaction?')) return
 
     try {
-      const response = await fetch(`/api/accounting/${id}`, {
+      const response = await fetch(`/api/transactions/${id}`, {
         method: 'DELETE'
       })
 
@@ -3597,10 +3596,10 @@ ${(() => {
         category: transactionForm.category,
         amount: parseFloat(transactionForm.amount),
         description: transactionForm.description,
-        reference: transactionForm.reference
+        payment_method: transactionForm.payment_method
       }
 
-      const url = editingTransaction ? `/api/accounting/${editingTransaction.id}` : '/api/accounting'
+      const url = editingTransaction ? `/api/transactions/${editingTransaction.id}` : '/api/transactions'
       const response = await fetch(url, {
         method: editingTransaction ? 'PATCH' : 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -3611,7 +3610,7 @@ ${(() => {
 
       setShowTransactionModal(false)
       playSuccessSound()
-      const updatedTransactions = await fetch('/api/accounting').then(res => res.json())
+      const updatedTransactions = await fetch('/api/transactions').then(res => res.json())
       setTransactions(updatedTransactions)
     } catch (error) {
       console.error('Error saving transaction:', error)
@@ -3656,7 +3655,7 @@ ${(() => {
     if (!confirm('Are you sure you want to delete this campaign?')) return
 
     try {
-      const response = await fetch(`/api/marketing/${id}`, {
+      const response = await fetch(`/api/campaigns/${id}`, {
         method: 'DELETE'
       })
 
@@ -3683,7 +3682,7 @@ ${(() => {
         description: campaignForm.description
       }
 
-      const url = editingCampaign ? `/api/marketing/${editingCampaign.id}` : '/api/marketing'
+      const url = editingCampaign ? `/api/campaigns/${editingCampaign.id}` : '/api/campaigns'
       const response = await fetch(url, {
         method: editingCampaign ? 'PATCH' : 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -3694,7 +3693,7 @@ ${(() => {
 
       setShowCampaignModal(false)
       playSuccessSound()
-      const updatedCampaigns = await fetch('/api/marketing').then(res => res.json())
+      const updatedCampaigns = await fetch('/api/campaigns').then(res => res.json())
       setCampaigns(updatedCampaigns)
     } catch (error) {
       console.error('Error saving campaign:', error)
@@ -3712,7 +3711,6 @@ ${(() => {
       staff_id: '',
       start_time: '',
       end_time: '',
-      status: 'scheduled',
       notes: ''
     })
     setShowShiftModal(true)
@@ -3726,7 +3724,6 @@ ${(() => {
       staff_id: shift.staff_id,
       start_time: shift.start_time,
       end_time: shift.end_time,
-      status: shift.status,
       notes: shift.notes || ''
     })
     setShowShiftModal(true)
@@ -3737,7 +3734,7 @@ ${(() => {
     if (!confirm('Are you sure you want to delete this shift?')) return
 
     try {
-      const response = await fetch(`/api/operations/${id}`, {
+      const response = await fetch(`/api/shifts/${id}`, {
         method: 'DELETE'
       })
 
@@ -3759,11 +3756,10 @@ ${(() => {
         staff_id: shiftForm.staff_id,
         start_time: shiftForm.start_time,
         end_time: shiftForm.end_time,
-        status: shiftForm.status,
         notes: shiftForm.notes
       }
 
-      const url = editingShift ? `/api/operations/${editingShift.id}` : '/api/operations'
+      const url = editingShift ? `/api/shifts/${editingShift.id}` : '/api/shifts'
       const response = await fetch(url, {
         method: editingShift ? 'PATCH' : 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -3774,7 +3770,7 @@ ${(() => {
 
       setShowShiftModal(false)
       playSuccessSound()
-      const updatedShifts = await fetch('/api/operations').then(res => res.json())
+      const updatedShifts = await fetch('/api/shifts').then(res => res.json())
       setShifts(updatedShifts)
     } catch (error) {
       console.error('Error saving shift:', error)
@@ -3792,7 +3788,6 @@ ${(() => {
       date: new Date().toISOString().split('T')[0],
       check_in: '',
       check_out: '',
-      status: 'present',
       notes: ''
     })
     setShowAttendanceModal(true)
@@ -3806,7 +3801,6 @@ ${(() => {
       date: attendance.date?.split('T')[0] || '',
       check_in: attendance.check_in,
       check_out: attendance.check_out,
-      status: attendance.status,
       notes: attendance.notes || ''
     })
     setShowAttendanceModal(true)
@@ -3839,7 +3833,6 @@ ${(() => {
         date: attendanceForm.date,
         check_in: attendanceForm.check_in,
         check_out: attendanceForm.check_out,
-        status: attendanceForm.status,
         notes: attendanceForm.notes
       }
 
@@ -6755,16 +6748,6 @@ ${(() => {
                         <option value="maintenance">Maintenance</option>
                       </select>
                     </div>
-                    <div>
-                      <label className="block text-sm font-semibold text-gray-700 mb-2">Amenities (Optional)</label>
-                      <textarea
-                        value={roomForm.amenities}
-                        onChange={(e) => setRoomForm({ ...roomForm, amenities: e.target.value })}
-                        className="w-full px-4 py-2 border-2 border-gray-300 rounded-xl focus:border-[#6B3E26] focus:outline-none transition-colors"
-                        rows={3}
-                        placeholder="e.g., AC, WiFi, TV, Mini Bar"
-                      />
-                    </div>
                     <div className="flex gap-3 pt-4">
                       <button
                         onClick={() => { playClickSound(); setShowRoomModal(false) }}
@@ -7336,16 +7319,6 @@ ${(() => {
                         placeholder="Enter address"
                       />
                     </div>
-                    <div>
-                      <label className="block text-sm font-semibold text-gray-700 mb-2">Preferences (Optional)</label>
-                      <textarea
-                        value={customerForm.preferences}
-                        onChange={(e) => setCustomerForm({ ...customerForm, preferences: e.target.value })}
-                        className="w-full px-4 py-2 border-2 border-gray-300 rounded-xl focus:border-[#6B3E26] focus:outline-none transition-colors"
-                        rows={2}
-                        placeholder="Any preferences..."
-                      />
-                    </div>
                     <div className="flex gap-3 pt-4">
                       <button
                         onClick={() => { playClickSound(); setShowCustomerModal(false) }}
@@ -7426,9 +7399,9 @@ ${(() => {
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
                             <span className={`px-3 py-1 rounded-full text-xs font-bold ${
-                              item.quantity <= item.minimum_stock ? 'bg-[#C97B7B] text-white' : 'bg-[#D4A574] text-white'
+                              item.quantity <= item.min_stock ? 'bg-[#C97B7B] text-white' : 'bg-[#D4A574] text-white'
                             }`}>
-                              {item.quantity <= item.minimum_stock ? 'Low Stock' : 'In Stock'}
+                              {item.quantity <= item.min_stock ? 'Low Stock' : 'In Stock'}
                             </span>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
@@ -7735,57 +7708,38 @@ ${(() => {
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
-                        <label className="block text-sm font-semibold text-gray-700 mb-2">Order ID</label>
-                        <input
-                          type="text"
-                          value={deliveryForm.order_id}
-                          onChange={(e) => setDeliveryForm({ ...deliveryForm, order_id: e.target.value })}
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">Order Items (JSON)</label>
+                        <textarea
+                          value={deliveryForm.order_items}
+                          onChange={(e) => setDeliveryForm({ ...deliveryForm, order_items: e.target.value })}
+                          rows={2}
                           className="w-full px-4 py-2 border-2 border-gray-300 rounded-xl focus:border-[#6B3E26] focus:outline-none transition-colors"
+                          placeholder='[{"name": "Item 1", "qty": 2}]'
                         />
                       </div>
                       <div>
-                        <label className="block text-sm font-semibold text-gray-700 mb-2">Driver ID</label>
-                        <input
-                          type="text"
-                          value={deliveryForm.driver_id}
-                          onChange={(e) => setDeliveryForm({ ...deliveryForm, driver_id: e.target.value })}
-                          className="w-full px-4 py-2 border-2 border-gray-300 rounded-xl focus:border-[#6B3E26] focus:outline-none transition-colors"
-                        />
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm font-semibold text-gray-700 mb-2">Status</label>
-                        <select
-                          value={deliveryForm.status}
-                          onChange={(e) => setDeliveryForm({ ...deliveryForm, status: e.target.value })}
-                          className="w-full px-4 py-2 border-2 border-gray-300 rounded-xl focus:border-[#6B3E26] focus:outline-none transition-colors"
-                        >
-                          <option value="pending">Pending</option>
-                          <option value="assigned">Assigned</option>
-                          <option value="in_transit">In Transit</option>
-                          <option value="delivered">Delivered</option>
-                          <option value="cancelled">Cancelled</option>
-                        </select>
-                      </div>
-                      <div>
-                        <label className="block text-sm font-semibold text-gray-700 mb-2">Delivery Fee</label>
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">Total Amount</label>
                         <input
                           type="number"
-                          value={deliveryForm.delivery_fee}
-                          onChange={(e) => setDeliveryForm({ ...deliveryForm, delivery_fee: e.target.value })}
+                          value={deliveryForm.total_amount}
+                          onChange={(e) => setDeliveryForm({ ...deliveryForm, total_amount: e.target.value })}
                           className="w-full px-4 py-2 border-2 border-gray-300 rounded-xl focus:border-[#6B3E26] focus:outline-none transition-colors"
                         />
                       </div>
                     </div>
                     <div>
-                      <label className="block text-sm font-semibold text-gray-700 mb-2">Notes</label>
-                      <textarea
-                        value={deliveryForm.notes}
-                        onChange={(e) => setDeliveryForm({ ...deliveryForm, notes: e.target.value })}
-                        rows={2}
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Status</label>
+                      <select
+                        value={deliveryForm.status}
+                        onChange={(e) => setDeliveryForm({ ...deliveryForm, status: e.target.value })}
                         className="w-full px-4 py-2 border-2 border-gray-300 rounded-xl focus:border-[#6B3E26] focus:outline-none transition-colors"
-                      />
+                      >
+                        <option value="pending">Pending</option>
+                        <option value="assigned">Assigned</option>
+                        <option value="in_transit">In Transit</option>
+                        <option value="delivered">Delivered</option>
+                        <option value="cancelled">Cancelled</option>
+                      </select>
                     </div>
                     <div className="flex gap-3 pt-4">
                       <button
@@ -8216,13 +8170,13 @@ ${(() => {
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-semibold text-gray-700 mb-2">Reference</label>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Payment Method</label>
                       <input
                         type="text"
-                        value={transactionForm.reference}
-                        onChange={(e) => setTransactionForm({ ...transactionForm, reference: e.target.value })}
+                        value={transactionForm.payment_method}
+                        onChange={(e) => setTransactionForm({ ...transactionForm, payment_method: e.target.value })}
                         className="w-full px-4 py-2 border-2 border-gray-300 rounded-xl focus:border-[#6B3E26] focus:outline-none transition-colors"
-                        placeholder="Invoice number, receipt, etc."
+                        placeholder="Cash, Card, UPI, etc."
                       />
                     </div>
                     <div className="flex gap-3 pt-4">
@@ -8693,19 +8647,6 @@ ${(() => {
                       </div>
                     </div>
                     <div>
-                      <label className="block text-sm font-semibold text-gray-700 mb-2">Status</label>
-                      <select
-                        value={shiftForm.status}
-                        onChange={(e) => setShiftForm({ ...shiftForm, status: e.target.value })}
-                        className="w-full px-4 py-2 border-2 border-gray-300 rounded-xl focus:border-[#6B3E26] focus:outline-none transition-colors"
-                      >
-                        <option value="scheduled">Scheduled</option>
-                        <option value="in_progress">In Progress</option>
-                        <option value="completed">Completed</option>
-                        <option value="cancelled">Cancelled</option>
-                      </select>
-                    </div>
-                    <div>
                       <label className="block text-sm font-semibold text-gray-700 mb-2">Notes</label>
                       <textarea
                         value={shiftForm.notes}
@@ -8946,19 +8887,6 @@ ${(() => {
                           className="w-full px-4 py-2 border-2 border-gray-300 rounded-xl focus:border-[#6B3E26] focus:outline-none transition-colors"
                         />
                       </div>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-semibold text-gray-700 mb-2">Status</label>
-                      <select
-                        value={attendanceForm.status}
-                        onChange={(e) => setAttendanceForm({ ...attendanceForm, status: e.target.value })}
-                        className="w-full px-4 py-2 border-2 border-gray-300 rounded-xl focus:border-[#6B3E26] focus:outline-none transition-colors"
-                      >
-                        <option value="present">Present</option>
-                        <option value="absent">Absent</option>
-                        <option value="late">Late</option>
-                        <option value="half_day">Half-day</option>
-                      </select>
                     </div>
                     <div>
                       <label className="block text-sm font-semibold text-gray-700 mb-2">Notes</label>

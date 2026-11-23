@@ -2,9 +2,10 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { ArrowDown, Image as ImageIcon, MessageCircle, Star, Search } from 'lucide-react'
+
 import { playClickSound } from '@/lib/sound-effects'
 import GoogleTranslate from '@/components/GoogleTranslate'
+import RatingBadge from '@/components/RatingBadge'
 import { Dish } from '@/types'
 
 export default function Home() {
@@ -15,10 +16,21 @@ export default function Home() {
   const [searchQuery, setSearchQuery] = useState('')
   const [imageErrors, setImageErrors] = useState<Set<string>>(new Set())
   const [showFilters, setShowFilters] = useState(false)
+  const [dishRatings, setDishRatings] = useState<{ [key: string]: { averageRating: number; totalRatings: number } }>({})
+  const [userRatings, setUserRatings] = useState<{ [key: string]: number }>({})
 
   useEffect(() => {
     fetchDishes()
   }, [])
+
+  useEffect(() => {
+    // Load ratings for all dishes
+    if (dishes.length > 0) {
+      dishes.forEach(dish => {
+        fetchDishRating(dish.id)
+      })
+    }
+  }, [dishes])
 
   const fetchDishes = async () => {
     try {
@@ -36,6 +48,48 @@ export default function Home() {
       setDishes([])
     } finally {
       setLoading(false)
+    }
+  }
+
+  const fetchDishRating = async (dishId: string) => {
+    try {
+      const response = await fetch(`/api/ratings?dish_id=${dishId}`)
+      const data = await response.json()
+      setDishRatings(prev => ({
+        ...prev,
+        [dishId]: {
+          averageRating: data.averageRating || 0,
+          totalRatings: data.totalRatings || 0
+        }
+      }))
+    } catch (error) {
+      console.error('Error fetching rating:', error)
+      // Set default 0 rating on error
+      setDishRatings(prev => ({
+        ...prev,
+        [dishId]: {
+          averageRating: 0,
+          totalRatings: 0
+        }
+      }))
+    }
+  }
+
+  const handleRating = async (dishId: string, rating: number) => {
+    try {
+      playClickSound()
+      const response = await fetch('/api/ratings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dish_id: dishId, rating })
+      })
+
+      if (response.ok) {
+        setUserRatings(prev => ({ ...prev, [dishId]: rating }))
+        fetchDishRating(dishId) // Refresh the average rating
+      }
+    } catch (error) {
+      console.error('Error saving rating:', error)
     }
   }
 
@@ -80,7 +134,7 @@ export default function Home() {
   }
 
   return (
-    <div className="min-h-screen bg-[#8B4513]">
+    <div className="min-h-screen bg-gray-100">
       {/* Hero Section with Video Background */}
       <div className="relative h-screen w-full overflow-hidden">
         {/* Video Background */}
@@ -126,34 +180,22 @@ export default function Home() {
               href="https://instagram.com"
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white px-8 py-4 rounded-lg hover:from-purple-600 hover:to-pink-600 transition-all min-w-[200px] justify-center shadow-2xl"
+              className="bg-gradient-to-r from-purple-500 to-pink-500 text-white px-8 py-4 rounded-lg hover:from-purple-600 hover:to-pink-600 transition-all min-w-[200px] justify-center shadow-2xl font-bold"
             >
-              <ImageIcon className="w-8 h-8" />
-              <div className="text-left">
-                <div className="text-xs font-light">Follow us on</div>
-                <div className="text-lg font-bold">Instagram</div>
-              </div>
+              Instagram
             </a>
             <a
               href="https://wa.me/919876543210"
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-3 bg-gradient-to-r from-green-500 to-green-600 text-white px-8 py-4 rounded-lg hover:from-green-600 hover:to-green-700 transition-all min-w-[200px] justify-center shadow-2xl"
+              className="bg-gradient-to-r from-green-500 to-green-600 text-white px-8 py-4 rounded-lg hover:from-green-600 hover:to-green-700 transition-all min-w-[200px] justify-center shadow-2xl font-bold"
             >
-              <MessageCircle className="w-8 h-8" />
-              <div className="text-left">
-                <div className="text-xs font-light">Chat on</div>
-                <div className="text-lg font-bold">WhatsApp</div>
-              </div>
+              WhatsApp
             </a>
           </div>
         </div>
 
-        {/* Scroll Indicator */}
-        <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 text-center">
-          <p className="text-white text-sm mb-2">Scroll down</p>
-          <ArrowDown className="w-6 h-6 text-white mx-auto animate-bounce" />
-        </div>
+
 
         {/* Google Translate */}
         <div className="absolute top-4 right-4">
@@ -161,25 +203,28 @@ export default function Home() {
         </div>
       </div>
 
-      {/* Full Menu Section - Simple & Professional */}
-      <div className="min-h-screen bg-[#8B4513] py-12 px-4">
+      {/* Full Menu Section - Professional & Modern */}
+      <div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100 py-12 px-4">
         <div className="max-w-7xl mx-auto">
           {/* Menu Header */}
-          <div className="text-center mb-8">
-            <h2 className="text-3xl md:text-4xl font-bold text-white mb-2">Our Menu</h2>
-            <p className="text-lg text-[#F5F5DC]">Experience the taste of Maharashtra</p>
+          <div className="text-center mb-10">
+            <h2 className="text-4xl md:text-5xl font-bold text-gray-800 mb-3 tracking-tight">
+              Our Menu
+            </h2>
+            <p className="text-lg text-gray-600 font-medium">
+              Experience the authentic taste of Maharashtra
+            </p>
           </div>
 
-          {/* Search Bar */}
-          <div className="w-full max-w-3xl mx-auto mb-6">
-            <div className="relative">
-              <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+          {/* Search Bar - Modern Design */}
+          <div className="w-full max-w-3xl mx-auto mb-8">
+            <div className="relative group">
               <input
                 type="text"
-                placeholder="Search dishes..."
+                placeholder="Search for dishes, ingredients..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-12 pr-4 py-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#FFD700] focus:border-transparent bg-white text-gray-800 text-base placeholder-gray-400"
+                className="w-full px-4 py-4 rounded-2xl border-2 border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#FFD700] focus:border-[#FFD700] bg-white text-gray-800 text-base placeholder-gray-400 shadow-sm hover:shadow-md transition-all duration-300"
               />
             </div>
           </div>
@@ -201,59 +246,45 @@ export default function Home() {
                 </button>
                 <button
                   onClick={() => { playClickSound(); setSelectedFoodType('veg') }}
-                  className={`px-6 py-2 rounded-full text-sm font-semibold transition-all duration-300 flex items-center gap-2 ${
+                  className={`px-6 py-2 rounded-full text-sm font-semibold transition-all duration-300 ${
                     selectedFoodType === 'veg'
                       ? 'bg-green-500 text-white shadow-md'
                       : 'text-gray-600 hover:text-gray-800'
                   }`}
                 >
-                  <div className="w-3 h-3 bg-green-500 rounded-full border-2 border-white"></div>
                   Veg
                 </button>
                 <button
                   onClick={() => { playClickSound(); setSelectedFoodType('nonveg') }}
-                  className={`px-6 py-2 rounded-full text-sm font-semibold transition-all duration-300 flex items-center gap-2 ${
+                  className={`px-6 py-2 rounded-full text-sm font-semibold transition-all duration-300 ${
                     selectedFoodType === 'nonveg'
                       ? 'bg-red-500 text-white shadow-md'
                       : 'text-gray-600 hover:text-gray-800'
                   }`}
                 >
-                  <div className="w-3 h-3 bg-red-500 rounded-full border-2 border-white"></div>
                   Non-Veg
                 </button>
               </div>
             </div>
 
-            {/* Horizontal Scrollable Category Pills */}
+            {/* Horizontal Scrollable Category Pills - Zomato Style */}
             <div className="flex gap-3 overflow-x-auto pb-4 scrollbar-hide -mx-4 px-4 md:mx-0 md:px-0 snap-x">
               {categories.map((category, index) => {
-                const categoryIcons: { [key: string]: string } = {
-                  'all': '🍽️',
-                  'non-veg': '🍗',
-                  'veg': '🥗',
-                  'rice & biryani': '🍚',
-                  'thali': '🍱',
-                  'roti & bread': '🫓',
-                  'starters & sides': '🥘',
-                  'special cooking service': '👨‍🍳'
-                }
-                const icon = categoryIcons[category] || '🍽️'
                 const count = dishes?.filter(d => d.category === category).length || 0
 
                 return (
                   <button
                     key={category}
                     onClick={() => { playClickSound(); setSelectedCategory(category) }}
-                    className={`flex-shrink-0 flex items-center gap-2 px-5 py-3 rounded-2xl text-sm font-semibold transition-all duration-300 transform hover:scale-105 snap-start ${
+                    className={`flex-shrink-0 flex items-center gap-2 px-5 py-3 rounded-2xl text-sm font-semibold transition-all duration-300 transform hover:scale-105 hover:shadow-lg snap-start ${
                       selectedCategory === category
-                        ? 'bg-gradient-to-r from-[#FFD700] to-[#DAA520] text-[#5D3A1A] shadow-lg'
-                        : 'bg-white text-gray-700 hover:bg-gray-50 shadow-md'
+                        ? 'bg-gradient-to-r from-[#FFD700] to-[#DAA520] text-[#5D3A1A] shadow-xl ring-2 ring-[#FFD700] ring-offset-2'
+                        : 'bg-white text-gray-700 hover:bg-gray-50 shadow-md border border-gray-200'
                     }`}
                   >
-                    <span className="text-lg">{icon}</span>
                     <span className="capitalize">{category.replace(/&/g, '& ')}</span>
                     {count > 0 && (
-                      <span className={`ml-1 px-2 py-0.5 rounded-full text-xs ${
+                      <span className={`ml-1 px-2 py-0.5 rounded-full text-xs font-bold ${
                         selectedCategory === category
                           ? 'bg-[#5D3A1A] text-white'
                           : 'bg-gray-200 text-gray-600'
@@ -267,85 +298,93 @@ export default function Home() {
             </div>
           </div>
 
-          {/* Results Count */}
-          <div className="mb-6 text-center">
-            <p className="text-gray-300 text-sm">
-              Showing {filteredDishes.length} {filteredDishes.length === 1 ? 'item' : 'items'}
-            </p>
+          {/* Results Count - Professional */}
+          <div className="mb-6 flex items-center justify-center gap-2">
+            <div className="bg-white px-4 py-2 rounded-full shadow-sm border border-gray-200">
+              <p className="text-gray-700 text-sm font-medium">
+                <span className="font-bold text-[#8B4513]">{filteredDishes.length}</span>
+                <span className="ml-1">{filteredDishes.length === 1 ? 'item' : 'items'}</span>
+                <span className="mx-2 text-gray-400">•</span>
+                <span className="text-gray-500">Selected: {selectedCategory === 'all' ? 'All Categories' : selectedCategory}</span>
+              </p>
+            </div>
           </div>
 
           {/* Menu Grid */}
           {loading ? (
             <div className="text-center py-20">
-              <p className="text-white text-lg">Loading menu...</p>
+              <div className="inline-block animate-spin rounded-full h-12 w-12 border-4 border-[#FFD700] border-t-transparent mb-4"></div>
+              <p className="text-gray-600 text-lg font-medium">Loading delicious dishes...</p>
             </div>
           ) : (
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6">
               {filteredDishes.map(dish => (
-                <div key={dish.id} className="bg-white rounded-xl overflow-hidden shadow-md hover:shadow-lg transition-shadow">
-                  {/* Image Container */}
+                <div
+                  key={dish.id}
+                  className="bg-white rounded-2xl overflow-hidden shadow-md hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-1 cursor-pointer group"
+                >
+                  {/* Image Container with Zoom Effect */}
                   <div className="relative h-48 overflow-hidden bg-gray-200">
                     <img
                       src={imageErrors.has(dish.id) || !dish.image_url ? '/images/cooking-service.jpg' : dish.image_url}
                       alt={dish.name}
-                      className="w-full h-full object-cover"
+                      className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
                       onError={() => handleImageError(dish.id)}
                       loading="lazy"
                     />
 
-                    {!dish.is_available && (
-                      <div className="absolute top-2 right-2">
-                        <div className="w-8 h-8 rounded-full bg-red-500 flex items-center justify-center">
-                          <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 text-white" viewBox="0 0 20 20" fill="currentColor">
-                            <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-                          </svg>
-                        </div>
-                      </div>
-                    )}
+                    {/* Food Type Badge - Top Left */}
                     <div className="absolute top-2 left-2">
                       {getFoodTypeIcon(dish.food_type, 'small')}
                     </div>
-                  </div>
 
-                  {/* Content */}
-                  <div className="p-4">
-                    <h3 className="text-base font-bold text-gray-800 line-clamp-2 mb-1">{dish.name}</h3>
-                    {dish.marathi_name && (
-                      <p className="text-sm text-gray-600 line-clamp-1 mb-2">{dish.marathi_name}</p>
-                    )}
-
-                    {/* Star Rating */}
-                    {dish.rating && (
-                      <div className="flex items-center gap-1 mb-2">
-                        {[...Array(5)].map((_, i) => (
-                          <Star
-                            key={i}
-                            className={`w-3 h-3 ${
-                              i < Math.floor(dish.rating)
-                                ? 'text-yellow-400 fill-yellow-400'
-                                : i < dish.rating
-                                ? 'text-yellow-400 fill-yellow-400'
-                                : 'text-gray-300'
-                            }`}
-                          />
-                        ))}
-                        <span className="text-yellow-400 text-xs font-semibold ml-1">{dish.rating}</span>
-                      </div>
-                    )}
-
-                    {/* Offer Badge - Zomato Style */}
+                    {/* Offer Badge - Top Right */}
                     {dish.offer && (
-                      <div className="mb-2">
-                        <div className="inline-flex items-center gap-1 bg-green-600 text-white text-xs font-bold px-2 py-1 rounded-full shadow-md">
-                          <span className="animate-pulse">⚡</span>
+                      <div className="absolute top-2 right-2">
+                        <div className="bg-gradient-to-r from-green-500 to-green-600 text-white text-xs font-bold px-3 py-1.5 rounded-full shadow-lg hover:shadow-xl transition-shadow">
                           <span>{dish.offer}</span>
                         </div>
                       </div>
                     )}
 
-                    {/* Price with Discount */}
-                    <div className="flex justify-between items-center mt-2">
-                      <span className="text-xs font-semibold text-gray-600 bg-gray-100 px-2 py-1 rounded">
+                    {/* Out of Stock Badge - Top Right (shows if no offer) */}
+                    {!dish.is_available && !dish.offer && (
+                      <div className="absolute top-2 right-2">
+                        <div className="bg-red-500 text-white text-xs font-bold px-3 py-1.5 rounded-full shadow-lg">
+                          Out of Stock
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Gradient Overlay on Hover */}
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                  </div>
+
+                  {/* Content */}
+                  <div className="p-4">
+                    {/* Dish Name */}
+                    <h3 className="text-base font-bold text-gray-800 line-clamp-2 mb-1 group-hover:text-[#8B4513] transition-colors">
+                      {dish.name}
+                    </h3>
+                    {dish.marathi_name && (
+                      <p className="text-sm text-gray-600 line-clamp-1 mb-2">{dish.marathi_name}</p>
+                    )}
+
+                    {/* Professional Rating Badge - Zomato Style */}
+                    <div className="mb-2">
+                      <RatingBadge
+                        rating={dishRatings[dish.id]?.averageRating || 0}
+                        totalRatings={dishRatings[dish.id]?.totalRatings || 0}
+                        size="small"
+                        interactive={true}
+                        onRate={(rating) => handleRating(dish.id, rating)}
+                        userRating={userRatings[dish.id]}
+                      />
+                    </div>
+
+                    {/* Price Section */}
+                    <div className="flex justify-between items-center mt-3 pt-3 border-t border-gray-100">
+                      <span className="text-xs font-semibold text-gray-600 bg-gray-100 px-2 py-1 rounded-lg">
                         {dish.category.charAt(0).toUpperCase() + dish.category.slice(1)}
                       </span>
                       <div className="flex items-center gap-2">
@@ -367,8 +406,8 @@ export default function Home() {
 
           {filteredDishes.length === 0 && !loading && (
             <div className="text-center py-20">
-              <p className="text-white text-xl font-semibold mb-2">No dishes found</p>
-              <p className="text-gray-300">Try adjusting your filters or search query</p>
+              <p className="text-gray-800 text-xl font-semibold mb-2">No dishes found</p>
+              <p className="text-gray-600">Try adjusting your filters or search query</p>
             </div>
           )}
 
@@ -381,19 +420,17 @@ export default function Home() {
                   href="https://instagram.com"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-center gap-2 text-gray-700 hover:text-purple-600 transition-colors bg-gray-100 px-6 py-3 rounded-lg hover:bg-purple-50 w-full sm:w-auto justify-center"
+                  className="text-gray-700 hover:text-purple-600 transition-colors bg-gray-100 px-6 py-3 rounded-lg hover:bg-purple-50 w-full sm:w-auto justify-center font-semibold"
                 >
-                  <ImageIcon className="w-5 h-5" />
-                  <span className="font-semibold">Instagram</span>
+                  Instagram
                 </a>
                 <a
                   href="https://wa.me/919876543210"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-center gap-2 text-gray-700 hover:text-green-600 transition-colors bg-gray-100 px-6 py-3 rounded-lg hover:bg-green-50 w-full sm:w-auto justify-center"
+                  className="text-gray-700 hover:text-green-600 transition-colors bg-gray-100 px-6 py-3 rounded-lg hover:bg-green-50 w-full sm:w-auto justify-center font-semibold"
                 >
-                  <MessageCircle className="w-5 h-5" />
-                  <span className="font-semibold">WhatsApp</span>
+                  WhatsApp
                 </a>
               </div>
             </div>
@@ -412,19 +449,17 @@ export default function Home() {
               href="https://instagram.com"
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-2 text-[#F5F5DC] hover:text-[#FFD700] transition-colors"
+              className="text-[#F5F5DC] hover:text-[#FFD700] transition-colors"
             >
-              <ImageIcon className="w-6 h-6" />
-              <span>Instagram</span>
+              Instagram
             </a>
             <a
               href="https://wa.me/919876543210"
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-2 text-[#F5F5DC] hover:text-[#FFD700] transition-colors"
+              className="text-[#F5F5DC] hover:text-[#FFD700] transition-colors"
             >
-              <MessageCircle className="w-6 h-6" />
-              <span>WhatsApp</span>
+              WhatsApp
             </a>
           </div>
           <p className="text-sm text-gray-400">© 2024 Dhole Patil Khanawal. All rights reserved.</p>
