@@ -95,9 +95,9 @@ export default function RatingsDemo() {
               <p className="text-sm text-gray-600 mt-2">Poor (2.0+)</p>
             </div>
             <div className="bg-white rounded-2xl p-6 shadow-lg border border-gray-100 text-center">
-              <RatingBadge rating={1.5} totalRatings={200} size="large" />
-              <p className="text-sm text-gray-600 mt-2">Very Poor (<2.0)</p>
-            </div>
+  <RatingBadge rating={1.5} totalRatings={200} size="large" />
+  <p className="text-sm text-gray-600 mt-2">Very Poor (&lt;2.0)</p>
+</div>
           </div>
         </div>
 

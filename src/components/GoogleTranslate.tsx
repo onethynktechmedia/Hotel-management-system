@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef, useId } from 'react'
 import { Languages, X } from 'lucide-react'
 
 interface GoogleTranslateProps {
@@ -19,35 +19,71 @@ const languages: Language[] = [
   { code: 'mr', name: 'Marathi', nativeName: 'मराठी' },
 ]
 
+// Shared registry so every mounted instance gets its own translate element
+const translateContainers = new Set<string>()
+
+const getCurrentLangFromCookie = (): string => {
+  if (typeof document === 'undefined') return 'en'
+  const match = document.cookie.match(/(?:^|;\s*)googtrans=\/[^/]+\/([^;]+)/)
+  return match ? match[1] : 'en'
+}
+
+const setGoogtransCookie = (langCode: string) => {
+  const domain = window.location.hostname
+  const isLocalHost = domain === 'localhost' || /^\d+\.\d+\.\d+\.\d+$/.test(domain) || domain.endsWith('.local')
+
+  // Host-only cookie always works (including localhost / IP addresses)
+  document.cookie = `googtrans=/en/${langCode}; path=/; max-age=31536000`
+
+  // Domain cookie only for real domains
+  if (!isLocalHost) {
+    document.cookie = `googtrans=/en/${langCode}; path=/; domain=${domain}; max-age=31536000`
+    document.cookie = `googtrans=/en/${langCode}; path=/; domain=.${domain}; max-age=31536000`
+  }
+}
+
 export default function GoogleTranslate({ variant = 'brown' }: GoogleTranslateProps) {
   const [isOpen, setIsOpen] = useState(false)
   const [selectedLang, setSelectedLang] = useState('en')
   const dropdownRef = useRef<HTMLDivElement>(null)
+  const containerId = `google_translate_element_${useId().replace(/[^a-zA-Z0-9]/g, '')}`
 
   useEffect(() => {
+    // Restore currently active language from cookie
+    const langTimer = setTimeout(() => setSelectedLang(getCurrentLangFromCookie()), 0)
+
+    translateContainers.add(containerId)
+
+    const initTranslateElements = () => {
+      if (typeof window === 'undefined' || !window.google?.translate) return
+      translateContainers.forEach((id) => {
+        const el = document.getElementById(id)
+        if (el && !el.dataset.gtInitialized) {
+          el.dataset.gtInitialized = '1'
+          new window.google.translate.TranslateElement({
+            pageLanguage: 'en',
+            includedLanguages: languages.map(l => l.code).join(','),
+            layout: window.google.translate.TranslateElement.InlineLayout.SIMPLE,
+            autoDisplay: false
+          }, id)
+        }
+      })
+    }
+
     // Load Google Translate script
     if (!document.querySelector('script[src*="translate.google.com"]')) {
+      window.googleTranslateElementInit = initTranslateElements
       const script = document.createElement('script')
       script.src = 'https://translate.google.com/translate_a/element.js?cb=googleTranslateElementInit'
       script.async = true
       document.body.appendChild(script)
-    }
-
-    // Initialize Google Translate
-    window.googleTranslateElementInit = () => {
-      if (typeof window !== 'undefined' && window.google && window.google.translate) {
-        new window.google.translate.TranslateElement({
-          pageLanguage: 'en',
-          includedLanguages: languages.map(l => l.code).join(','),
-          layout: window.google.translate.TranslateElement.InlineLayout.SIMPLE,
-          autoDisplay: false
-        }, 'google_translate_element_hidden')
-      }
+    } else {
+      window.googleTranslateElementInit = initTranslateElements
     }
 
     // Check if already loaded
     if (typeof window !== 'undefined' && window.google && window.google.translate) {
-      window.googleTranslateElementInit()
+      initTranslateElements()
     }
 
     // Close dropdown when clicking outside
@@ -59,34 +95,32 @@ export default function GoogleTranslate({ variant = 'brown' }: GoogleTranslatePr
 
     document.addEventListener('mousedown', handleClickOutside)
     return () => {
+      clearTimeout(langTimer)
       document.removeEventListener('mousedown', handleClickOutside)
+      translateContainers.delete(containerId)
     }
-  }, [])
+  }, [containerId])
 
   const handleLanguageChange = (langCode: string) => {
     setSelectedLang(langCode)
     setIsOpen(false)
 
-    // Use Google Translate cookie method for reliable translation
-    const domain = window.location.hostname
-    document.cookie = `googtrans=/en/${langCode}; path=/; domain=${domain}; max-age=31536000`
+    // Set the googtrans cookie first so the reload picks up the new language
+    setGoogtransCookie(langCode)
 
-    // Also set for subdomains
-    document.cookie = `googtrans=/en/${langCode}; path=/; domain=.${domain}; max-age=31536000`
-
-    // Trigger Google Translate
-    if (typeof window !== 'undefined' && (window as any).google && (window as any).google.translate) {
+    // Also drive the Google Translate widget if it is available
+    if (typeof window !== 'undefined' && window.google && window.google.translate) {
       const selectElement = document.querySelector('.goog-te-combo') as HTMLSelectElement
-      if (selectElement) {
+      if (selectElement && selectElement.value !== langCode) {
         selectElement.value = langCode
         selectElement.dispatchEvent(new Event('change'))
       }
     }
 
-    // Reload page to apply translation
+    // Reload after a short delay so the cookie-based translation is applied
     setTimeout(() => {
       window.location.reload()
-    }, 100)
+    }, 400)
   }
 
   const buttonBg = variant === 'brown' ? 'bg-white/10 hover:bg-white/20' : 'bg-[#F5F5DC] hover:bg-[#DEB887]'
@@ -133,7 +167,7 @@ export default function GoogleTranslate({ variant = 'brown' }: GoogleTranslatePr
         </div>
       )}
       {/* Hidden Google Translate element */}
-      <div id="google_translate_element_hidden" className="hidden"></div>
+      <div id={containerId} className="hidden"></div>
     </div>
   )
 }

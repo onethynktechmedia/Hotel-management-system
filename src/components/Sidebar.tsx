@@ -17,7 +17,8 @@ import {
   BarChart3,
   PieChart,
   CreditCard,
-  Receipt
+  Receipt,
+  Settings as SettingsIcon
 } from 'lucide-react'
 import { playClickSound } from '@/lib/sound-effects'
 import GoogleTranslate from '@/components/GoogleTranslate'
@@ -57,7 +58,7 @@ export default function Sidebar({ activeTab, setActiveTab, user, overviewSubTab 
     { id: 'marketing', label: 'Marketing', icon: BarChart3 },
     { id: 'operations', label: 'Operations', icon: BarChart3 },
     { id: 'attendance', label: 'Attendance', icon: Users },
-    { id: 'settings', label: 'Settings', icon: LogOut },
+    { id: 'settings', label: 'Settings', icon: SettingsIcon },
   ]
 
 

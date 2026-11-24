@@ -155,6 +155,8 @@ export default function AdminDashboard() {
   const [customerMobile, setCustomerMobile] = useState('')
   const [isOnline, setIsOnline] = useState(true)
   const [menuSearchTerm, setMenuSearchTerm] = useState('')
+  const [posSearchQuery, setPosSearchQuery] = useState('')
+  const [posRefreshing, setPosRefreshing] = useState(false)
   const [showBillPreview, setShowBillPreview] = useState(false)
   const [billDiscountAmount, setBillDiscountAmount] = useState('')
   const [billDiscountPercentage, setBillDiscountPercentage] = useState('')
@@ -270,9 +272,13 @@ export default function AdminDashboard() {
     customer_name: '',
     mobile: '',
     address: '',
+    order_id: '',
     order_items: '',
     total_amount: '',
-    status: 'pending'
+    driver_id: '',
+    status: 'pending',
+    delivery_fee: '',
+    notes: ''
   })
   const [deliverySubTab, setDeliverySubTab] = useState<'active' | 'history' | 'zones'>('active')
 
@@ -286,7 +292,8 @@ export default function AdminDashboard() {
     category: '',
     amount: '',
     description: '',
-    payment_method: ''
+    payment_method: '',
+    reference: ''
   })
   const [accountingFilter, setAccountingFilter] = useState<'all' | 'income' | 'expense'>('all')
 
@@ -570,7 +577,15 @@ export default function AdminDashboard() {
         const response = await fetch('/api/settings')
         if (response.ok) {
           const data = await response.json()
-          setHotelSettings(data)
+          // Merge with defaults so missing/nested fields never break the settings page
+          setHotelSettings(prev => ({
+            ...prev,
+            ...data,
+            tax_rates: { ...prev.tax_rates, ...(data.tax_rates || {}) },
+            printer_settings: { ...prev.printer_settings, ...(data.printer_settings || {}) },
+            notification_settings: { ...prev.notification_settings, ...(data.notification_settings || {}) },
+            theme_settings: { ...prev.theme_settings, ...(data.theme_settings || {}) }
+          }))
           if (data.logo_url) {
             setLogoPreview(data.logo_url)
           }
@@ -665,6 +680,7 @@ export default function AdminDashboard() {
             table_id: order.table_id,
             waiter_id: order.waiter_id,
             customer_name: order.customer_name,
+            customer_mobile: order.customer_mobile,
             total_amount: order.total_amount,
             status: 'pending'
           })
@@ -753,8 +769,10 @@ export default function AdminDashboard() {
       setPreviousOrderCount(uniqueOrders.length)
 
       // Only update state if data was successfully fetched
-      if (uniqueOrders && uniqueOrders.length > 0) {
+      // (ordersRes === null means the API call failed, keep cached data for offline use)
+      if (ordersRes) {
         setOrders(uniqueOrders)
+        localStorage.setItem('cached_orders', JSON.stringify(uniqueOrders))
       }
       if (dishesRes && dishesRes.length > 0) {
         setDishes(dishesRes)
@@ -775,9 +793,6 @@ export default function AdminDashboard() {
       }
       if (tablesRes && tablesRes.length > 0) {
         localStorage.setItem('cached_tables', JSON.stringify(tablesRes))
-      }
-      if (ordersWithItems && ordersWithItems.length > 0) {
-        localStorage.setItem('cached_orders', JSON.stringify(ordersWithItems))
       }
       if (paymentsRes && (paymentsRes.data || paymentsRes).length > 0) {
         localStorage.setItem('cached_payments', JSON.stringify(paymentsRes.data || paymentsRes))
@@ -2361,6 +2376,7 @@ For technical support, contact: support@everycom.com
           table_id: adminOrderTable?.id,
           waiter_id: userId,
           customer_name: adminOrderCustomerName || null,
+          customer_mobile: adminOrderCustomerMobile || null,
           total_amount: adminOrderCart.reduce((sum, item) => sum + (item.price * item.quantity), 0),
           status: 'pending'
         })
@@ -3454,9 +3470,13 @@ ${(() => {
       customer_name: '',
       mobile: '',
       address: '',
+      order_id: '',
       order_items: '',
       total_amount: '',
-      status: 'pending'
+      driver_id: '',
+      status: 'pending',
+      delivery_fee: '',
+      notes: ''
     })
     setShowDeliveryModal(true)
   }
@@ -3468,7 +3488,9 @@ ${(() => {
       customer_name: delivery.customer_name,
       mobile: delivery.mobile,
       address: delivery.address,
-      order_id: delivery.order_id,
+      order_id: delivery.order_id || '',
+      order_items: typeof delivery.order_items === 'string' ? delivery.order_items : JSON.stringify(delivery.order_items || []),
+      total_amount: delivery.total_amount?.toString() || '',
       driver_id: delivery.driver_id || '',
       status: delivery.status,
       delivery_fee: delivery.delivery_fee?.toString() || '',
@@ -3549,6 +3571,7 @@ ${(() => {
       category: '',
       amount: '',
       description: '',
+      payment_method: '',
       reference: ''
     })
     setShowTransactionModal(true)
@@ -3563,6 +3586,7 @@ ${(() => {
       category: transaction.category,
       amount: transaction.amount?.toString() || '',
       description: transaction.description || '',
+      payment_method: transaction.payment_method || '',
       reference: transaction.reference || ''
     })
     setShowTransactionModal(true)
@@ -3876,6 +3900,42 @@ ${(() => {
     }
   }
 
+  // Danger zone: wipe all transactional data for a fresh launch
+  const [clearingData, setClearingData] = useState(false)
+  const handleClearAllData = async () => {
+    const confirmed = window.confirm(
+      'DANGER: This will permanently delete ALL orders, bills, payments, notifications, reservations, bookings, deliveries, transactions, campaigns, attendance, shifts, ratings and customers.\n\nMenu items, tables, staff, rooms, inventory and settings will be KEPT.\n\nAre you sure you want to continue?'
+    )
+    if (!confirmed) return
+
+    const typed = window.prompt('To confirm, type DELETE ALL DATA:')
+    if (typed !== 'DELETE ALL DATA') {
+      alert('Clear data cancelled.')
+      return
+    }
+
+    setClearingData(true)
+    try {
+      const response = await fetch('/api/clear-data', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ confirm: 'CLEAR_ALL_DATA' })
+      })
+      const result = await response.json()
+      if (!response.ok) throw new Error(result.error || 'Failed to clear data')
+
+      playSuccessSound()
+      alert('All transactional data cleared successfully! Reloading dashboard...')
+      window.location.reload()
+    } catch (error) {
+      console.error('Error clearing data:', error)
+      playErrorSound()
+      alert('Failed to clear data. Please try again.')
+    } finally {
+      setClearingData(false)
+    }
+  }
+
   const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
@@ -4050,6 +4110,40 @@ ${(() => {
       alert('Printing failed. Please check printer connection and try again.')
     }
   }
+
+  // Real dashboard metrics computed from live orders data
+  const isToday = (dateStr?: string) => {
+    if (!dateStr) return false
+    const d = new Date(dateStr)
+    const n = new Date()
+    return d.getFullYear() === n.getFullYear() && d.getMonth() === n.getMonth() && d.getDate() === n.getDate()
+  }
+  const todaysOrders = orders.filter(o => isToday(o.created_at))
+  const todayOrderCount = todaysOrders.length
+  const todayRevenue = todaysOrders
+    .filter(o => ['served', 'completed', 'paid'].includes(o.status))
+    .reduce((sum, o) => sum + (Number(o.total_amount) || 0), 0)
+  const onlineOrdersToday = todaysOrders.filter(o => ['Parcel', 'Takeaway'].includes(o.order_type || '') || !o.table_id).length
+  const offlineOrdersToday = todaysOrders.filter(o => o.table_id && !['Parcel', 'Takeaway'].includes(o.order_type || '')).length
+
+  // POS table/order search
+  const posFilteredTables = tables.filter(table => {
+    const q = posSearchQuery.trim().toLowerCase()
+    if (!q) return true
+    const tableMatch =
+      String(table.table_number).includes(q) ||
+      `t${table.table_number}`.includes(q) ||
+      `${table.capacity} seater`.includes(q) ||
+      (table.is_occupied ? 'occupied' : 'available').includes(q)
+    const orderMatch = orders.some(o =>
+      o.table_id === table.id && (
+        (o.customer_name || '').toLowerCase().includes(q) ||
+        (o.customer_mobile || '').includes(q) ||
+        formatOrderId(o.id).toLowerCase().includes(q)
+      )
+    )
+    return tableMatch || orderMatch
+  })
 
   if (loading) {
     return (
@@ -4232,7 +4326,7 @@ ${(() => {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm text-gray-600 font-semibold">Today's Revenue</p>
-                    <p className="text-2xl font-bold text-[#6B3E26]">₹12,450</p>
+                    <p className="text-2xl font-bold text-[#6B3E26]">₹{todayRevenue.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
                   </div>
                   <DollarSign className="w-8 h-8 text-[#6B3E26]" />
                 </div>
@@ -4241,7 +4335,7 @@ ${(() => {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm text-gray-600 font-semibold">Today's Orders</p>
-                    <p className="text-2xl font-bold text-[#9A572D]">48</p>
+                    <p className="text-2xl font-bold text-[#9A572D]">{todayOrderCount}</p>
                   </div>
                   <ShoppingCart className="w-8 h-8 text-[#9A572D]" />
                 </div>
@@ -4349,7 +4443,11 @@ ${(() => {
                   <div key={order.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                     <div>
                       <p className="font-semibold text-gray-900">{formatOrderId(order.id)}</p>
-                      <p className="text-sm text-gray-600">Table {order.tables?.table_number || '-'}</p>
+                      <p className="text-sm text-gray-600">
+                        Table {order.tables?.table_number || '-'}
+                        {order.customer_name ? ` • ${order.customer_name}` : ''}
+                        {order.customer_mobile ? ` • ${order.customer_mobile}` : ''}
+                      </p>
                     </div>
                     <p className="font-bold text-[#6B3E26]">₹{order.total_amount.toFixed(2)}</p>
                   </div>
@@ -4362,14 +4460,14 @@ ${(() => {
               <div className="bg-white rounded-2xl shadow-xl p-6">
                 <h3 className="text-lg font-bold text-gray-900 mb-4">Online Orders</h3>
                 <div className="text-center py-8">
-                  <p className="text-4xl font-bold text-[#6B3E26]">0</p>
+                  <p className="text-4xl font-bold text-[#6B3E26]">{onlineOrdersToday}</p>
                   <p className="text-gray-600">Today</p>
                 </div>
               </div>
               <div className="bg-white rounded-2xl shadow-xl p-6">
                 <h3 className="text-lg font-bold text-gray-900 mb-4">Offline Orders</h3>
                 <div className="text-center py-8">
-                  <p className="text-4xl font-bold text-[#9A572D]">{orders.length}</p>
+                  <p className="text-4xl font-bold text-[#9A572D]">{offlineOrdersToday}</p>
                   <p className="text-gray-600">Today</p>
                 </div>
               </div>
@@ -4923,8 +5021,36 @@ ${(() => {
         {activeTab === 'pos' && (
           <>
             <div className="mb-6 animate-fade-in bg-gradient-to-br from-[#F5F5DC] to-[#E8E4C9] p-6 rounded-2xl">
-              <h1 className="text-3xl font-bold text-[#6B3E26]">Point of Sale</h1>
-              <p className="text-gray-600 mt-2">Manage tables and take orders</p>
+              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                <div>
+                  <h1 className="text-3xl font-bold text-[#6B3E26]">Point of Sale</h1>
+                  <p className="text-gray-600 mt-2">Manage tables and take orders</p>
+                </div>
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <div className="relative">
+                    <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                    <input
+                      type="text"
+                      value={posSearchQuery}
+                      onChange={(e) => setPosSearchQuery(e.target.value)}
+                      placeholder="Search tables, orders, mobile..."
+                      className="pl-9 pr-4 py-2 border-2 border-gray-300 rounded-xl focus:border-[#6B3E26] focus:outline-none transition-colors w-full sm:w-64 text-sm"
+                    />
+                  </div>
+                  <button
+                    onClick={async () => {
+                      playClickSound()
+                      setPosRefreshing(true)
+                      try { await fetchData() } finally { setPosRefreshing(false) }
+                    }}
+                    disabled={posRefreshing}
+                    className="flex items-center justify-center gap-2 bg-[#6B3E26] text-white px-4 py-2 rounded-xl font-semibold hover:shadow-lg transition-all duration-300 transform hover:scale-105 disabled:opacity-60"
+                  >
+                    <RefreshCw className={`w-4 h-4 ${posRefreshing ? 'animate-spin' : ''}`} />
+                    {posRefreshing ? 'Refreshing...' : 'Refresh'}
+                  </button>
+                </div>
+              </div>
             </div>
 
             {/* Key Metrics */}
@@ -4933,7 +5059,7 @@ ${(() => {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm text-gray-600 font-semibold">Today's Revenue</p>
-                    <p className="text-2xl font-bold text-[#6B3E26]">₹12,450</p>
+                    <p className="text-2xl font-bold text-[#6B3E26]">₹{todayRevenue.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
                   </div>
                   <DollarSign className="w-8 h-8 text-[#6B3E26]" />
                 </div>
@@ -4942,7 +5068,7 @@ ${(() => {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm text-gray-600 font-semibold">Today's Orders</p>
-                    <p className="text-2xl font-bold text-[#9A572D]">48</p>
+                    <p className="text-2xl font-bold text-[#9A572D]">{todayOrderCount}</p>
                   </div>
                   <ShoppingCart className="w-8 h-8 text-[#9A572D]" />
                 </div>
@@ -5007,12 +5133,20 @@ ${(() => {
 
             {/* Tables Grid */}
             <div className="bg-white rounded-2xl shadow-xl overflow-hidden mb-6">
-              <div className="p-6 border-b border-gray-200">
+              <div className="p-6 border-b border-gray-200 flex justify-between items-center">
                 <h3 className="text-xl font-bold text-gray-900">Tables Status</h3>
+                {posSearchQuery && (
+                  <span className="text-sm text-gray-500">{posFilteredTables.length} of {tables.length} tables</span>
+                )}
               </div>
               <div className="p-6">
+                {posFilteredTables.length === 0 ? (
+                  <p className="text-gray-500 text-center py-8">
+                    {posSearchQuery ? `No tables or orders match "${posSearchQuery}"` : 'No tables available'}
+                  </p>
+                ) : (
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
-                  {tables.map((table) => (
+                  {posFilteredTables.map((table) => (
                     <div
                       key={table.id}
                       onClick={() => {
@@ -5049,6 +5183,7 @@ ${(() => {
                     </div>
                   ))}
                 </div>
+                )}
               </div>
             </div>
 
@@ -9200,6 +9335,22 @@ ${(() => {
                     <option value="GBP">British Pound (£)</option>
                   </select>
                 </div>
+              </div>
+
+              {/* Danger Zone */}
+              <div className="bg-white rounded-2xl shadow-xl p-6 border-2 border-red-200">
+                <h3 className="text-xl font-bold text-red-700 mb-2">Danger Zone</h3>
+                <p className="text-sm text-gray-600 mb-4">
+                  Permanently delete all orders, bills, payments, reservations, bookings, deliveries, transactions, attendance, ratings and customers.
+                  Menu items, tables, staff, rooms, inventory and settings are kept safe.
+                </p>
+                <button
+                  onClick={handleClearAllData}
+                  disabled={clearingData}
+                  className="px-6 py-3 bg-red-600 text-white rounded-xl font-semibold hover:bg-red-700 transition-all duration-300 disabled:opacity-60"
+                >
+                  {clearingData ? 'Clearing...' : 'Clear All Data'}
+                </button>
               </div>
 
               {/* Save Button */}
