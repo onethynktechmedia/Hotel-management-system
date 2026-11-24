@@ -103,8 +103,8 @@ export default function AdminDashboard() {
   const [discountType, setDiscountType] = useState<'amount' | 'percentage'>('amount')
   const [viewingBill, setViewingBill] = useState<Order | null>(null)
   const [billOrderItems, setBillOrderItems] = useState<any[]>([])
-  const [billCGST, setBillCGST] = useState('5')
-  const [billSGST, setBillSGST] = useState('5')
+  const [billCGST, setBillCGST] = useState('0')
+  const [billSGST, setBillSGST] = useState('0')
   const [isEditingBill, setIsEditingBill] = useState(false)
   const [showPrebookModal, setShowPrebookModal] = useState(false)
   const [selectedTableForPrebook, setSelectedTableForPrebook] = useState<Table | null>(null)
@@ -161,8 +161,8 @@ export default function AdminDashboard() {
   const [billDiscountAmount, setBillDiscountAmount] = useState('')
   const [billDiscountPercentage, setBillDiscountPercentage] = useState('')
   const [billDiscountType, setBillDiscountType] = useState<'amount' | 'percentage'>('amount')
-  const [cgstRate, setCgstRate] = useState('2.5')
-  const [sgstRate, setSgstRate] = useState('2.5')
+  const [cgstRate, setCgstRate] = useState('0')
+  const [sgstRate, setSgstRate] = useState('0')
   const [showCartModal, setShowCartModal] = useState(false)
   const [addedDishIds, setAddedDishIds] = useState<Set<string>>(new Set())
   const [billPaymentType, setBillPaymentType] = useState<'cash' | 'upi' | 'card'>('cash')
@@ -710,7 +710,6 @@ export default function AdminDashboard() {
       localStorage.removeItem('offline_orders')
       setOfflineOrders([])
       fetchData()
-      alert(`Successfully synced ${orders.length} offline orders to database!`)
     } catch (error) {
       console.error('Error syncing offline orders:', error)
       alert('Failed to sync some offline orders. Please try again.')
@@ -1312,7 +1311,6 @@ export default function AdminDashboard() {
       setIsEditingBill(false)
       fetchData() // Refresh data
       playSuccessSound()
-      alert('Bill updated successfully!')
     } catch (error) {
       console.error('Error saving bill edits:', error)
       playErrorSound()
@@ -1792,7 +1790,6 @@ ${groupOrderItems(billOrderItems).map((item: any) => {
   <div>Sangamner</div>
   <div>CITY, STATE - 123456</div>
   <div>PHONE: +91 98765 43210</div>
-  <div>GSTIN: 29ABCDE1234F1Z5</div>
 </div>
 <div style="border-top: 1px dashed #000; margin: 4px 0;"></div>
 <div style="text-align: center; font-size: 14px; font-weight: 900; margin: 4px 0; color: #000;">BILL / INVOICE</div>
@@ -2112,8 +2109,6 @@ For technical support, contact: support@everycom.com
       
       // Play success sound
       playNotificationSound('success')
-      
-      alert('Order marked as paid and table released!')
     } catch (error) {
       console.error('Error marking order as paid:', error)
       alert('Failed to mark order as paid')
@@ -2273,7 +2268,6 @@ For technical support, contact: support@everycom.com
       setShowMasterTableModal(false)
       setSelectedTablesForMaster([])
       fetchData()
-      alert(`Table ${masterTable.table_number} is now the master table with ${selectedTablesForMaster.length} tables combined. All tables are now occupied and reserved.`)
     } catch (error) {
       console.error('Error creating master table:', error)
       alert('Failed to create master table')
@@ -2435,7 +2429,6 @@ For technical support, contact: support@everycom.com
       setAdminOrderStep('dishes')
       setAdminSelectedDishTypes({})
       fetchData()
-      alert('Order submitted successfully!')
     } catch (error) {
       console.error('Error submitting order:', error)
       playErrorSound()
@@ -2520,14 +2513,88 @@ For technical support, contact: support@everycom.com
     }
   }
 
-  // Handle print order
+  // Handle print order — opens the browser print popup with a proper bill
   const handlePrintOrder = async () => {
     playClickSound()
     if (!selectedOccupiedTableOrder) return
 
+    const order = selectedOccupiedTableOrder
+    const table = tables.find(t => t.id === order.table_id)
+    const items: any[] = Array.isArray(order.order_items) ? order.order_items : []
+
+    // Group identical items (same dish + dish_type) into one row
+    const groupedItems = items.reduce((acc: any[], item: any) => {
+      const existing = acc.find(i => i.dish_id === item.dish_id && (i.dish_type || 'Normal') === (item.dish_type || 'Normal'))
+      if (existing) {
+        existing.quantity += item.quantity
+        existing.total_price += (item.price || 0) * item.quantity
+      } else {
+        acc.push({ ...item, quantity: item.quantity, total_price: (item.price || 0) * item.quantity })
+      }
+      return acc
+    }, [])
+
+    const itemsHtml = groupedItems.map((item: any) => {
+      const name = item.dishes?.name || item.dish?.name || 'Unknown'
+      const typeTag = item.dish_type && item.dish_type !== 'Normal' ? ` (${item.dish_type})` : ''
+      return `<tr>
+        <td class="col-item">${name}${typeTag}</td>
+        <td class="col-qty">${item.quantity}x</td>
+        <td class="col-amount">₹${(item.total_price || 0).toFixed(2)}</td>
+      </tr>`
+    }).join('')
+
+    const billHtml = `
+      <div style="text-align:center;margin-bottom:6px;">
+        <img src="/dhole%20patil%20logo-03.png" style="width:90px;height:auto;" alt="Logo" />
+      </div>
+      <div style="text-align:center;font-size:18px;font-weight:900;">DHOLE PATIL KHANAWAL</div>
+      <div style="text-align:center;font-size:12px;font-weight:bold;">VEG & NON-VEG</div>
+      <div style="text-align:center;font-size:10px;font-weight:bold;margin:3px 0;">New Gunjalwadi Road, Gunjalwadi, Sangamner • +91 9371967595</div>
+      <div style="border-top:1px dashed #000;margin:5px 0;"></div>
+      <div style="font-size:12px;font-weight:bold;">
+        <div style="display:flex;justify-content:space-between;"><span>BILL NO:</span><span>${formatOrderId(order.id)}</span></div>
+        <div style="display:flex;justify-content:space-between;"><span>DATE:</span><span>${new Date(order.created_at).toLocaleDateString()}</span></div>
+        <div style="display:flex;justify-content:space-between;"><span>TIME:</span><span>${new Date(order.created_at).toLocaleTimeString()}</span></div>
+        <div style="display:flex;justify-content:space-between;"><span>TABLE:</span><span>${table?.is_master ? `${table?.table_number || '-'} (M)` : (table?.table_number || '-')}</span></div>
+        ${order.customer_name ? `<div style="display:flex;justify-content:space-between;"><span>CUSTOMER:</span><span>${order.customer_name}</span></div>` : ''}
+        ${order.customer_mobile ? `<div style="display:flex;justify-content:space-between;"><span>MOBILE:</span><span>${order.customer_mobile}</span></div>` : ''}
+      </div>
+      <div style="border-top:1px dashed #000;margin:5px 0;"></div>
+      <table style="width:100%;border-collapse:collapse;font-size:11px;font-weight:bold;">
+        <tr style="border-bottom:1px solid #000;text-align:left;">
+          <th style="padding:2px 0;">ITEM</th>
+          <th style="padding:2px 0;text-align:center;">QTY</th>
+          <th style="padding:2px 0;text-align:right;">AMOUNT</th>
+        </tr>
+        ${itemsHtml}
+      </table>
+      <div style="border-top:1px dashed #000;margin:5px 0;"></div>
+      <div style="display:flex;justify-content:space-between;font-size:13px;font-weight:900;">
+        <span>GRAND TOTAL:</span><span>₹${(order.total_amount || 0).toFixed(2)}</span>
+      </div>
+      <div style="border-top:1px dashed #000;margin:5px 0;"></div>
+      <div style="text-align:center;font-size:11px;font-weight:bold;">Thank You for Dining!</div>
+      <div style="text-align:center;font-size:10px;">Developed by onethynk techmedia</div>
+    `
+
+    const printWindow = window.open('', '_blank')
+    if (printWindow) {
+      printWindow.document.write(`<!DOCTYPE html><html><head><title>Bill Print</title><meta charset="UTF-8"><style>
+        @page { size: 80mm auto; margin: 0; }
+        body { font-family: 'Courier New', monospace; margin: 0; padding: 4mm; width: 72mm; }
+        table { width: 100%; }
+        td, th { padding: 1px 0; }
+      </style></head><body>${billHtml}<script>window.onload=function(){window.print();}</script></body></html>`)
+      printWindow.document.close()
+    } else {
+      alert('Please allow popups for printing')
+      return
+    }
+
     try {
       // Update order status to 'printed' to remove from waiter and kitchen dashboards
-      await fetch(`/api/orders/${selectedOccupiedTableOrder.id}`, {
+      await fetch(`/api/orders/${order.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -2540,7 +2607,6 @@ For technical support, contact: support@everycom.com
       setShowOccupiedTableOrderModal(false)
       setSelectedOccupiedTableOrder(null)
       fetchData()
-      alert('Order printed and marked as served!')
     } catch (error) {
       console.error('Error printing order:', error)
       playErrorSound()
@@ -2713,8 +2779,6 @@ For technical support, contact: support@everycom.com
     setOrderAnimation(offlineOrder.id)
     setTimeout(() => setOrderAnimation(null), 2000)
     
-    alert('Offline order created successfully!')
-
     // If online, try to sync immediately
     if (isOnline) {
       syncOfflineOrders()
@@ -3892,7 +3956,6 @@ ${(() => {
       if (!response.ok) throw new Error('Failed to save settings')
 
       playSuccessSound()
-      alert('Settings saved successfully!')
     } catch (error) {
       console.error('Error saving settings:', error)
       playErrorSound()
@@ -3925,7 +3988,6 @@ ${(() => {
       if (!response.ok) throw new Error(result.error || 'Failed to clear data')
 
       playSuccessSound()
-      alert('All transactional data cleared successfully! Reloading dashboard...')
       window.location.reload()
     } catch (error) {
       console.error('Error clearing data:', error)
@@ -4035,7 +4097,6 @@ ${(() => {
 <strong>Sangamner</strong><br>
 <strong>CITY, STATE - 123456</strong><br>
 <strong>PHONE: +91 98765 43210</strong><br>
-<strong>GSTIN: 29ABCDE1234F1Z5</strong><br>
 ================================<br>
 <strong class="section-title">BILL / INVOICE</strong><br>
 ================================<br>
@@ -4082,33 +4143,41 @@ ${(() => {
 
     console.log('Bill content generated:', plainText)
 
-    try {
-      // QZ Tray printing disabled due to dependency issues
-      // const printerConfig: PrinterConfig = {
-      //   name: process.env.NEXT_PUBLIC_DEFAULT_PRINTER || '',
-      //   isDefault: true
-      // }
-
-      // const printed = await printBillWithFallback(plainText, plainText, printerConfig)
-
-      // if (printed) {
-      //   playSuccessSound()
-      //   console.log('Bill printed successfully via QZ Tray')
-      // } else {
-      //   console.log('Bill printed via browser fallback')
-      // }
-
-      // Use WebUSB printer instead
-      const webusbPrinter = new WebUSBPrinter()
-      await webusbPrinter.connect()
-      await webusbPrinter.print(plainText)
-      await webusbPrinter.disconnect()
-      playSuccessSound()
-    } catch (error) {
-      console.error('Print failed:', error)
-      playErrorSound()
-      alert('Printing failed. Please check printer connection and try again.')
+    // Open the browser print popup (works on all platforms including Vercel)
+    const printWindow = window.open('', '_blank')
+    if (!printWindow) {
+      alert('Please allow popups for printing')
+      return
     }
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Bill Print</title>
+          <meta charset="UTF-8">
+          <style>
+            @page { size: 80mm auto; margin: 0; }
+            body {
+              font-family: 'Courier New', 'Consolas', monospace;
+              font-size: 12px;
+              font-weight: bold;
+              line-height: 1.3;
+              margin: 0;
+              padding: 3mm;
+              width: 74mm;
+              background: white;
+              color: black;
+            }
+            img { max-width: 100%; }
+            .header { font-size: 16px; font-weight: 900; }
+            .grand-total { font-size: 15px; font-weight: 900; }
+          </style>
+        </head>
+        <body>${plainText}<script>window.onload=function(){window.print();}</script></body>
+      </html>
+    `)
+    printWindow.document.close()
+    playSuccessSound()
   }
 
   // Real dashboard metrics computed from live orders data
@@ -9860,7 +9929,6 @@ ${(() => {
                 <div className="mt-2 text-[#F5F5DC] text-xs space-y-1">
                   <p>Sangamner</p>
                   <p>PHONE: +91 98765 43210</p>
-                  <p>GSTIN: 29ABCDE1234F1Z5</p>
                 </div>
               </div>
             </div>
@@ -10671,7 +10739,6 @@ ${(() => {
                 <div className="text-xs text-gray-600 space-y-1">
                   <p>Sangamner</p>
                   <p>PHONE: +91 98765 43210</p>
-                  <p>GSTIN: 29ABCDE1234F1Z5</p>
                 </div>
                 <p className="text-sm font-bold text-green-700 mt-3 border-t border-dashed border-[#9A572D] pt-2 uppercase">BILL / INVOICE</p>
               </div>
@@ -10682,7 +10749,6 @@ ${(() => {
                 <p className="text-sm font-semibold text-black mb-1">Restaurant & Bar</p>
                 <p className="text-sm text-black mb-1">123, Main Street, City, State - 123456</p>
                 <p className="text-sm text-black mb-1">Phone: +91 98765 43210</p>
-                <p className="text-sm text-black mb-1">GSTIN: 29ABCDE1234F1Z5</p>
                 <p className="text-sm font-bold text-black mt-2 border-t border-dashed border-gray-300 pt-2 uppercase">BILL / INVOICE</p>
               </div>
 
