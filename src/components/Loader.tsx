@@ -50,7 +50,7 @@ export default function Loader() {
             Dhole Patil Khanawal
           </h1>
           <p className="text-white/80 text-sm md:text-base animate-fade-in-delayed">
-            Restaurant & Bar
+            Veg & Non Veg
           </p>
         </div>
 

@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { playClickSound } from '@/lib/sound-effects'
 import GoogleTranslate from '@/components/GoogleTranslate'
 import RatingBadge from '@/components/RatingBadge'
+import Loader from '@/components/Loader'
 import { Dish } from '@/types'
 
 export default function Home() {
@@ -135,22 +136,18 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-gray-100">
-      {/* Hero Section with Video Background */}
+      {/* Full-screen loader while menu data loads (also covers PWA shortcut launch) */}
+      {loading && <Loader />}
+
+      {/* Hero Section */}
       <div className="relative h-screen w-full overflow-hidden">
-        {/* Video Background */}
+        {/* Hero Background Image */}
         <div className="absolute inset-0 bg-black/60">
-          <video
-            autoPlay
-            loop
-            muted
-            playsInline
+          <img
+            src="/images/chicken-thali.jpg"
+            alt="Dhole Patil Khanawal - Chicken Thali"
             className="w-full h-full object-cover"
-            poster="/images/chicken-handi-half.jpg"
-          >
-            <source src="/food-background.mp4" type="video/mp4" />
-            {/* Fallback if video doesn't load */}
-            <div className="absolute inset-0 bg-gradient-to-br from-[#5D3A1A] via-[#8B4513] to-[#A0522D]"></div>
-          </video>
+          />
           {/* Dark overlay */}
           <div className="absolute inset-0 bg-gradient-to-b from-black/70 via-black/50 to-black/70"></div>
         </div>
@@ -168,7 +165,7 @@ export default function Home() {
             Maharashtra's #1
           </p>
           <p className="text-2xl md:text-3xl text-white mb-8 font-bold">
-            Restaurant & Bar
+            Veg & Non Veg
           </p>
           <p className="text-lg md:text-xl text-gray-300 mb-12 max-w-2xl leading-relaxed">
             Experience authentic Maharashtrian cuisine at Dhole Patil Khanawal
