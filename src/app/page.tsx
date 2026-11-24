@@ -19,9 +19,13 @@ export default function Home() {
   const [showFilters, setShowFilters] = useState(false)
   const [dishRatings, setDishRatings] = useState<{ [key: string]: { averageRating: number; totalRatings: number } }>({})
   const [userRatings, setUserRatings] = useState<{ [key: string]: number }>({})
+  const [minLoaderTimeDone, setMinLoaderTimeDone] = useState(false)
 
   useEffect(() => {
     fetchDishes()
+    // Keep the branded loader visible for a minimum of ~5 seconds
+    const timer = setTimeout(() => setMinLoaderTimeDone(true), 5000)
+    return () => clearTimeout(timer)
   }, [])
 
   useEffect(() => {
@@ -136,8 +140,8 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-gray-100">
-      {/* Full-screen loader while menu data loads (also covers PWA shortcut launch) */}
-      {loading && <Loader />}
+      {/* Full-screen loader while menu data loads (min ~5s, covers PWA shortcut launch) */}
+      {(loading || !minLoaderTimeDone) && <Loader />}
 
       {/* Hero Section */}
       <div className="relative h-screen w-full overflow-hidden">
@@ -154,11 +158,11 @@ export default function Home() {
 
         {/* Content Overlay - Centered like Zomato */}
         <div className="relative z-10 h-full flex flex-col items-center justify-center text-center px-4">
-          {/* Restaurant Name */}
-          <h1 className="text-6xl md:text-8xl font-bold text-white mb-2 tracking-tight">
+          {/* Restaurant Name - warm brown matching the logo */}
+          <h1 className="text-6xl md:text-8xl font-bold text-[#D4A574] mb-2 tracking-tight drop-shadow-lg">
             Dhole Patil Khanawal
           </h1>
-          <h2 className="text-3xl md:text-5xl font-bold text-white mb-4">
+          <h2 className="text-3xl md:text-5xl font-bold text-[#D4A574] mb-4 drop-shadow-lg">
             ढोले पाटील खानावळ
           </h2>
           <p className="text-xl md:text-2xl text-white mb-2 font-light">
@@ -197,6 +201,15 @@ export default function Home() {
         {/* Google Translate */}
         <div className="absolute top-4 right-4">
           <GoogleTranslate variant="white" />
+        </div>
+
+        {/* Logo - top left corner */}
+        <div className="absolute top-4 left-4">
+          <img
+            src="/dhole%20patil%20logo-03.png"
+            alt="Dhole Patil Khanawal Logo"
+            className="w-16 h-16 md:w-20 md:h-20 rounded-full object-cover border-2 border-[#D4A574] shadow-lg bg-white/10 backdrop-blur-sm"
+          />
         </div>
       </div>
 
